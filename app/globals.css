@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@theme {
+  --color-maroon: #800020;
+  --color-maroon-dark: #5c0017;
+  --color-maroon-light: #a3324d;
+  --color-cream: #FFF8DC;
+  --color-cream-dark: #f5e6b8;
+  --color-earth: #8B7355;
+  --color-earth-dark: #6b5840;
+  --color-earth-light: #a89070;
+  --color-charcoal: #1a1a1a;
+
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-body);
+    @apply bg-white text-charcoal antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-maroon text-white px-6 py-3 rounded-lg font-medium
+           hover:bg-maroon-dark transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-maroon focus:ring-offset-2
+           hover:shadow-lg hover:shadow-maroon/20;
+  }
+
+  .btn-secondary {
+    @apply border-2 border-maroon text-maroon px-6 py-3 rounded-lg font-medium
+           hover:bg-maroon hover:text-white transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-maroon focus:ring-offset-2;
+  }
+
+  .btn-dark {
+    @apply bg-charcoal text-white px-6 py-3 rounded-lg font-medium
+           hover:bg-black transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-charcoal focus:ring-offset-2;
+  }
+
+  .section-padding {
+    @apply px-4 py-20 md:px-8 lg:px-16 lg:py-28;
+  }
+
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .heading-xl {
+    font-family: var(--font-heading);
+    @apply text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight;
+  }
+
+  .heading-lg {
+    font-family: var(--font-heading);
+    @apply text-3xl md:text-4xl font-bold tracking-tight;
+  }
+
+  .heading-md {
+    font-family: var(--font-heading);
+    @apply text-2xl md:text-3xl font-semibold;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-md overflow-hidden
+           hover:shadow-xl transition-all duration-300;
+  }
+}
+
+/* Selection color */
+::selection {
+  background-color: #800020;
+  color: white;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #800020;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5c0017;
+}

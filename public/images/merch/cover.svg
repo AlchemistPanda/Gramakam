@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <rect fill="#f0ece4" width="600" height="600"/>
+  <rect fill="#800020" x="180" y="160" width="240" height="280" rx="8" opacity="0.08"/>
+  <text x="300" y="290" font-family="Georgia, serif" font-size="28" fill="#800020" text-anchor="middle" opacity="0.5">Cover</text>
+  <text x="300" y="330" font-family="sans-serif" font-size="14" fill="#8B7355" text-anchor="middle" opacity="0.4">Notebook</text>
+</svg>

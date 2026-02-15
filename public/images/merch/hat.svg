@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <rect fill="#f5ede0" width="600" height="600"/>
+  <rect fill="#800020" x="200" y="200" width="200" height="200" rx="100" opacity="0.08"/>
+  <text x="300" y="290" font-family="Georgia, serif" font-size="28" fill="#800020" text-anchor="middle" opacity="0.5">Hat</text>
+  <text x="300" y="330" font-family="sans-serif" font-size="14" fill="#8B7355" text-anchor="middle" opacity="0.4">Festival Cap</text>
+</svg>
