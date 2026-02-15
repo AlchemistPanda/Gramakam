@@ -90,8 +90,9 @@ export default function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-white/10 text-center text-gray-500 text-sm">
+        <div className="mt-12 pt-8 border-t border-white/10 text-center text-gray-500 text-sm space-y-1">
           <p>&copy; {new Date().getFullYear()} Gramakam. All rights reserved. Organised by Gramakam Cultural Academy.</p>
+          <p>Developed by <span className="text-gray-400">Manuraj Rajamanikandan</span></p>
         </div>
       </div>
     </footer>
