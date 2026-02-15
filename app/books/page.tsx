@@ -7,8 +7,8 @@ import BooksDashboard from '@/components/books/BooksDashboard';
 
 // Simple credential check — no Firebase needed
 const VALID_USERS = [
-  { username: 'gramakam', password: 'books2026' },
-  { username: 'admin', password: 'admin123' },
+  { username: 'sumi', password: 'akku@gramakam' },
+  { username: 'pandaboy', password: 'Panda@admin' },
 ];
 
 export default function BooksPage() {
