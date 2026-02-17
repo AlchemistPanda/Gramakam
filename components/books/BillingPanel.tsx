@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
-import { getBooks, createBill } from '@/lib/bookStore';
+import { getBooks, getBills, createBill } from '@/lib/bookStore';
 
 export default function BillingPanel() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -14,10 +14,14 @@ export default function BillingPanel() {
   const [discount, setDiscount] = useState(0);
   const [lastBill, setLastBill] = useState<Bill | null>(null);
   const [showBill, setShowBill] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [allBills, setAllBills] = useState<Bill[]>([]);
+  const [viewingBill, setViewingBill] = useState<Bill | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(() => {
     setBooks(getBooks());
+    setAllBills(getBills().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -137,6 +141,192 @@ export default function BillingPanel() {
     printWindow.document.close();
   };
 
+  const printAnyBill = (bill: Bill) => {
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) return;
+    const html = `
+      <!DOCTYPE html>
+      <html><head><title>Bill #${bill.billNumber}</title>
+      <style>
+        body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: 0 auto; font-size: 13px; }
+        h1 { text-align: center; font-size: 18px; margin-bottom: 4px; }
+        .center { text-align: center; }
+        .line { border-top: 1px dashed #000; margin: 8px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 3px 0; text-align: left; }
+        th:last-child, td:last-child { text-align: right; }
+        .total-row { font-weight: bold; font-size: 15px; }
+      </style></head><body>
+        <h1>GRAMAKAM</h1>
+        <p class="center">Book Festival 2026<br/>Velur, Thrissur, Kerala</p>
+        <div class="line"></div>
+        <p><strong>Bill #${bill.billNumber}</strong><br/>${new Date(bill.createdAt).toLocaleString('en-IN')}</p>
+        <div class="line"></div>
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Amt</th></tr></thead>
+          <tbody>
+            ${bill.items.map((item) => `<tr><td>${item.title}<br/><small>${item.publisher}</small></td><td>${item.quantity}</td><td>₹${(item.price * item.quantity).toFixed(2)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="line"></div>
+        <table>
+          <tr><td>Subtotal</td><td style="text-align:right">₹${bill.total.toFixed(2)}</td></tr>
+          ${bill.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-₹${bill.discount.toFixed(2)}</td></tr>` : ''}
+          <tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${bill.grandTotal.toFixed(2)}</td></tr>
+        </table>
+        <div class="line"></div>
+        <p class="center" style="margin-top:12px">Thank you for visiting!<br/>Gramakam Cultural Academy</p>
+        <script>window.onload = () => { window.print(); }<\/script>
+      </body></html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  // If viewing bill history
+  if (showHistory) {
+    return (
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={() => { setShowHistory(false); setViewingBill(null); }}
+            className="flex items-center gap-2 text-gray-600 hover:text-maroon transition-colors font-medium"
+          >
+            <ChevronLeft size={20} /> Back to Billing
+          </button>
+          <h2 className="text-xl font-bold text-charcoal flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
+            <History size={22} /> Bill History
+          </h2>
+          <span className="text-sm text-gray-400">{allBills.length} bills</span>
+        </div>
+
+        {viewingBill ? (
+          /* Viewing a specific bill */
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 max-w-lg mx-auto w-full"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setViewingBill(null)}
+                className="text-sm text-gray-500 hover:text-maroon flex items-center gap-1"
+              >
+                <ChevronLeft size={16} /> All Bills
+              </button>
+              <button
+                onClick={() => printAnyBill(viewingBill)}
+                className="flex items-center gap-1.5 text-maroon hover:bg-maroon/5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+              >
+                <Printer size={16} /> Reprint
+              </button>
+            </div>
+
+            <div className="text-center mb-4">
+              <h3 className="text-2xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Bill #{viewingBill.billNumber}</h3>
+              <p className="text-gray-500 text-sm">{new Date(viewingBill.createdAt).toLocaleString('en-IN')}</p>
+            </div>
+
+            <div className="border border-gray-100 rounded-xl overflow-hidden mb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left px-4 py-2.5 font-semibold text-gray-600">Item</th>
+                    <th className="text-center px-4 py-2.5 font-semibold text-gray-600">Qty</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-gray-600">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewingBill.items.map((item, i) => (
+                    <tr key={i} className="border-t border-gray-50">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-charcoal">{item.title}</p>
+                        <p className="text-xs text-gray-400">{item.publisher} · ₹{item.price}</p>
+                      </td>
+                      <td className="text-center px-4 py-3 font-medium">{item.quantity}</td>
+                      <td className="text-right px-4 py-3 font-medium">₹{(item.price * item.quantity).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between text-gray-600">
+                <span>Subtotal</span>
+                <span>₹{viewingBill.total.toFixed(2)}</span>
+              </div>
+              {viewingBill.discount > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Discount</span>
+                  <span className="text-red-500">-₹{viewingBill.discount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-lg text-charcoal border-t border-gray-100 pt-2">
+                <span>Grand Total</span>
+                <span className="text-maroon">₹{viewingBill.grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          /* Bill list */
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+            {allBills.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <History size={56} className="mx-auto mb-4 text-gray-200" />
+                <p className="text-xl font-medium">No bills yet</p>
+                <p className="text-sm mt-1">Bills will appear here after sales</p>
+              </div>
+            ) : (
+              allBills.map((bill, idx) => (
+                <motion.div
+                  key={bill.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.03 }}
+                  className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:border-maroon/20 transition-colors cursor-pointer"
+                  onClick={() => setViewingBill(bill)}
+                >
+                  <div className="w-12 h-12 rounded-xl bg-maroon/10 flex items-center justify-center shrink-0">
+                    <span className="font-bold text-maroon text-sm">#{bill.billNumber}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-charcoal text-sm">
+                      {bill.items.length} item{bill.items.length !== 1 ? 's' : ''}
+                      <span className="text-gray-400 font-normal"> · {bill.items.map(i => i.title).slice(0, 2).join(', ')}{bill.items.length > 2 ? '...' : ''}</span>
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {new Date(bill.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-charcoal text-lg">₹{bill.grandTotal.toFixed(2)}</p>
+                    {bill.discount > 0 && <p className="text-xs text-red-400">-₹{bill.discount.toFixed(2)} disc</p>}
+                  </div>
+                  <div className="shrink-0 flex gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setViewingBill(bill); }}
+                      className="p-2 text-gray-400 hover:text-maroon transition-colors" title="View Bill"
+                    >
+                      <Eye size={18} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); printAnyBill(bill); }}
+                      className="p-2 text-gray-400 hover:text-maroon transition-colors" title="Print Bill"
+                    >
+                      <Printer size={16} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col lg:flex-row gap-6">
       {/* LEFT — Search & Add */}
@@ -150,9 +340,16 @@ export default function BillingPanel() {
             placeholder="🔍 Search book title or publisher..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-maroon focus:border-maroon outline-none bg-white shadow-sm"
+            className="w-full pl-12 pr-16 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-maroon focus:border-maroon outline-none bg-white shadow-sm"
             autoFocus
           />
+          {/* History Button */}
+          <button
+            onClick={() => { setShowHistory(true); reload(); }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-maroon transition-colors rounded-full hover:bg-maroon/5" title="Bill History"
+          >
+            <History size={22} />
+          </button>
 
           {/* Search Results Dropdown */}
           <AnimatePresence>
