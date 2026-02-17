@@ -169,6 +169,30 @@ async function fsBulkWrite(data: BookStoreData): Promise<void> {
 // serves as the first data load. With offline persistence enabled, the
 // initial snapshot comes from IndexedDB cache (0 server reads on refresh).
 
+// Migrate data from old single-document format (bookfest/data) to new collections
+async function migrateFromOldFormat(): Promise<BookStoreData | null> {
+  if (!db) return null;
+  try {
+    const { doc, getDoc, deleteDoc } = await firestoreLib();
+    const oldSnap = await getDoc(doc(db, 'bookfest', 'data'));
+    if (oldSnap.exists()) {
+      const oldData = oldSnap.data() as BookStoreData;
+      if (oldData.books?.length > 0 || oldData.bills?.length > 0 || oldData.publishers?.length > 0) {
+        console.log('Migrating data from old format to collections...');
+        // Write to new collections
+        await fsBulkWrite(oldData);
+        // Delete old document
+        await deleteDoc(doc(db, 'bookfest', 'data'));
+        console.log('Migration complete.');
+        return oldData;
+      }
+    }
+  } catch (e) {
+    console.warn('Migration from old format failed:', e);
+  }
+  return null;
+}
+
 export async function initBookStore(): Promise<void> {
   if (initialized) return;
 
@@ -179,6 +203,14 @@ export async function initBookStore(): Promise<void> {
   initialized = true;
 
   if (db) {
+    // Check if old single-document format exists and migrate it first
+    const migratedData = await migrateFromOldFormat();
+    if (migratedData) {
+      cache = migratedData;
+      saveToLocalStorage();
+      notifyListeners();
+    }
+
     // Set up real-time listeners — the first snapshot IS the initial data load.
     // No separate getDocs call needed (saves reads).
     setupRealtimeListeners();
