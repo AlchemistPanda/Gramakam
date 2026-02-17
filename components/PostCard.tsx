@@ -9,16 +9,18 @@ import { formatDate, truncateText } from '@/lib/utils';
 interface PostCardProps {
   post: FeedPost;
   index?: number;
+  onClick?: () => void;
 }
 
-export default function PostCard({ post, index = 0 }: PostCardProps) {
+export default function PostCard({ post, index = 0, onClick }: PostCardProps) {
   return (
     <motion.article
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
       viewport={{ once: true }}
-      className="card group"
+      className="card group cursor-pointer"
+      onClick={onClick}
     >
       {/* Image */}
       {post.imageUrl && (
@@ -64,6 +66,9 @@ export default function PostCard({ post, index = 0 }: PostCardProps) {
         <p className="text-gray-600 text-sm leading-relaxed">
           {truncateText(post.description, 150)}
         </p>
+        {post.description.length > 150 && (
+          <span className="text-maroon text-sm font-medium mt-2 inline-block group-hover:underline">Read more</span>
+        )}
       </div>
     </motion.article>
   );
