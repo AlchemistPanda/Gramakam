@@ -83,7 +83,7 @@ export default function InventoryPanel() {
     setShowBarcode(false);
   };
 
-  // Fetch book info from Google Books API by ISBN
+  // Fetch book info - checks local database first, then external APIs
   const fetchBookByISBN = async (scannedIsbn: string) => {
     // Clean ISBN: remove dashes, spaces, and non-digit chars except X
     const cleanIsbn = scannedIsbn.replace(/[-\s]/g, '').toUpperCase();
@@ -96,12 +96,25 @@ export default function InventoryPanel() {
     setFetchingISBN(true);
 
     try {
-      // Try Google Books API first
+      // 🔍 STEP 1: Check LOCAL DATABASE first (instant lookup from your inventory)
+      const localBook = findBookByIsbn(cleanIsbn);
+      if (localBook) {
+        console.log('✅ Found in local database:', localBook.title);
+        setTitle(localBook.title);
+        setPublisher(localBook.publisher);
+        setCategory(localBook.category || '');
+        setPrice(localBook.price.toString());
+        setFetchingISBN(false);
+        return;
+      }
+
+      // 🌐 STEP 2: Try Google Books API (for international books)
       const googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`);
       const googleData = await googleRes.json();
 
       if (googleData.items && googleData.items.length > 0) {
         const info = googleData.items[0].volumeInfo;
+        console.log('✅ Found in Google Books:', info.title);
         if (info.title && !title) setTitle(info.title);
         if (info.categories?.length && !category) setCategory(info.categories[0]);
         if (info.publisher) {
@@ -112,13 +125,14 @@ export default function InventoryPanel() {
         return;
       }
 
-      // Fallback to Open Library API
+      // 🌐 STEP 3: Fallback to Open Library API (for regional/international books)
       const openLibRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`);
       const openLibData = await openLibRes.json();
       const bookKey = `ISBN:${cleanIsbn}`;
       
       if (openLibData[bookKey]) {
         const book = openLibData[bookKey];
+        console.log('✅ Found in Open Library:', book.title);
         if (book.title && !title) setTitle(book.title);
         if (book.subjects && book.subjects.length > 0 && !category) {
           setCategory(book.subjects[0].name);
@@ -132,8 +146,9 @@ export default function InventoryPanel() {
         return;
       }
 
-      // No data found - show message but allow manual entry
-      alert(`ISBN ${cleanIsbn} scanned successfully, but book details not found in database. Please enter details manually.`);
+      // ❌ STEP 4: No data found anywhere - manual entry required
+      console.warn('❌ ISBN not found in any database:', cleanIsbn);
+      alert(`ISBN ${cleanIsbn} scanned successfully, but book details not found in any database (local, Google Books, Open Library). Please enter details manually.`);
     } catch (error) {
       console.error('ISBN fetch error:', error);
       alert('Failed to fetch book details. Please enter manually.');
