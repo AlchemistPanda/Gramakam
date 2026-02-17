@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download } from 'lucide-react';
 import type { Book, OCRLine } from '@/types/books';
 import {
   getBooks,
@@ -19,6 +19,7 @@ export default function InventoryPanel() {
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showOCR, setShowOCR] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishers, setPublishers] = useState<string[]>([]);
 
@@ -65,6 +66,7 @@ export default function InventoryPanel() {
     setCategory(book.category || '');
     setShowForm(true);
     setShowOCR(false);
+    setShowImport(false);
   };
 
   const handleDelete = (id: string) => {
@@ -89,6 +91,12 @@ export default function InventoryPanel() {
     reload();
   };
 
+  const handleImportComplete = (count: number) => {
+    setShowImport(false);
+    reload();
+    alert(`Successfully imported ${count} books!`);
+  };
+
   const remaining = (b: Book) => b.quantity - b.sold;
 
   return (
@@ -98,11 +106,14 @@ export default function InventoryPanel() {
         <h2 className="text-2xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
           Book Inventory
         </h2>
-        <div className="flex gap-2">
-          <button onClick={() => { resetForm(); setShowForm(!showForm); setShowOCR(false); }} className="btn-primary text-sm flex items-center gap-2 rounded-xl">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => { resetForm(); setShowForm(!showForm); setShowOCR(false); setShowImport(false); }} className="btn-primary text-sm flex items-center gap-2 rounded-xl">
             <Plus size={16} /> Add Book
           </button>
-          <button onClick={() => { setShowOCR(!showOCR); setShowForm(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+          <button onClick={() => { setShowImport(!showImport); setShowForm(false); setShowOCR(false); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+            <FileSpreadsheet size={16} /> Import List
+          </button>
+          <button onClick={() => { setShowOCR(!showOCR); setShowForm(false); setShowImport(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
             <Camera size={16} /> Scan List
           </button>
         </div>
@@ -162,6 +173,15 @@ export default function InventoryPanel() {
         {showOCR && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
             <OCRUploadPanel onComplete={handleOCRComplete} onClose={() => setShowOCR(false)} defaultPublisher={publishers[0] || ''} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Import List */}
+      <AnimatePresence>
+        {showImport && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
+            <ImportListPanel publishers={publishers} onComplete={handleImportComplete} onClose={() => setShowImport(false)} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -433,6 +453,287 @@ function OCRUploadPanel({
             </button>
             <button onClick={() => setStep('upload')} className="btn-secondary text-sm rounded-xl">
               Scan Again
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================== IMPORT LIST COMPONENT ====================
+
+function ImportListPanel({
+  publishers,
+  onComplete,
+  onClose,
+}: {
+  publishers: string[];
+  onComplete: (count: number) => void;
+  onClose: () => void;
+}) {
+  const [step, setStep] = useState<'upload' | 'preview'>('upload');
+  const [rows, setRows] = useState<{ title: string; publisher: string; price: number; quantity: number; category: string; valid: boolean }[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Download Excel template
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const sampleData = [
+      { 'Book Title': 'Example Book Name', 'Publisher': publishers[0] || 'Publisher Name', 'Price': 250, 'Quantity': 5, 'Category': 'Fiction' },
+      { 'Book Title': 'Another Book', 'Publisher': publishers[0] || 'Publisher Name', 'Price': 180, 'Quantity': 3, 'Category': 'Poetry' },
+      { 'Book Title': '', 'Publisher': '', 'Price': '', 'Quantity': '', 'Category': '' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 30 }, // Book Title
+      { wch: 20 }, // Publisher
+      { wch: 10 }, // Price
+      { wch: 10 }, // Quantity
+      { wch: 15 }, // Category
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Books');
+    XLSX.writeFile(wb, 'gramakam-book-import-template.xlsx');
+  };
+
+  // Download CSV template
+  const downloadCSVTemplate = () => {
+    const header = 'Book Title,Publisher,Price,Quantity,Category';
+    const row1 = `Example Book Name,${publishers[0] || 'Publisher Name'},250,5,Fiction`;
+    const row2 = `Another Book,${publishers[0] || 'Publisher Name'},180,3,Poetry`;
+    const csv = `${header}\n${row1}\n${row2}\n`;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'gramakam-book-import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Parse uploaded file
+  const handleFile = async (file: File) => {
+    const errs: string[] = [];
+
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
+
+      if (json.length === 0) {
+        setErrors(['The file is empty. Please add book data and try again.']);
+        return;
+      }
+
+      const parsed = json.map((row, i) => {
+        const title = String(row['Book Title'] || row['Title'] || row['book title'] || row['title'] || '').trim();
+        const pub = String(row['Publisher'] || row['publisher'] || '').trim();
+        const priceRaw = row['Price'] || row['price'] || row['Price (₹)'] || 0;
+        const qtyRaw = row['Quantity'] || row['quantity'] || row['Qty'] || row['qty'] || 1;
+        const category = String(row['Category'] || row['category'] || '').trim();
+
+        const price = parseFloat(String(priceRaw)) || 0;
+        const quantity = parseInt(String(qtyRaw)) || 0;
+
+        let valid = true;
+        if (!title) { errs.push(`Row ${i + 2}: Missing book title`); valid = false; }
+        if (!pub) { errs.push(`Row ${i + 2}: Missing publisher`); valid = false; }
+        if (price <= 0) { errs.push(`Row ${i + 2}: Invalid price for "${title}"`); valid = false; }
+        if (quantity <= 0) { errs.push(`Row ${i + 2}: Invalid quantity for "${title}"`); valid = false; }
+
+        return { title, publisher: pub, price, quantity, category, valid };
+      }).filter((r) => r.title || r.publisher); // skip completely empty rows
+
+      setRows(parsed);
+      setErrors(errs);
+      setStep('preview');
+    } catch {
+      setErrors(['Failed to read the file. Please ensure it is a valid Excel (.xlsx) or CSV file.']);
+    }
+  };
+
+  // Import valid rows
+  const handleImport = () => {
+    const validRows = rows.filter((r) => r.valid);
+    if (validRows.length === 0) return;
+
+    addBooksInBulk(
+      validRows.map((r) => ({
+        title: r.title,
+        publisher: r.publisher,
+        price: r.price,
+        quantity: r.quantity,
+        category: r.category,
+      }))
+    );
+
+    onComplete(validRows.length);
+  };
+
+  const validCount = rows.filter((r) => r.valid).length;
+  const invalidCount = rows.filter((r) => !r.valid).length;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-charcoal flex items-center gap-2">
+          <FileSpreadsheet size={18} className="text-emerald-600" /> Import Book List
+        </h3>
+        <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+      </div>
+
+      {step === 'upload' && (
+        <div>
+          {/* Template Download */}
+          <div className="bg-emerald-50 rounded-xl p-4 mb-5 border border-emerald-100">
+            <h4 className="font-medium text-emerald-800 mb-2 flex items-center gap-2">
+              <Download size={16} /> Step 1: Download Template
+            </h4>
+            <p className="text-sm text-emerald-700 mb-3">
+              Download the template, fill in your book data, then upload it below. The columns are:
+            </p>
+            <div className="overflow-x-auto mb-3">
+              <table className="text-xs border border-emerald-200 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-emerald-100">
+                    <th className="px-3 py-2 text-left text-emerald-800">Book Title *</th>
+                    <th className="px-3 py-2 text-left text-emerald-800">Publisher *</th>
+                    <th className="px-3 py-2 text-left text-emerald-800">Price *</th>
+                    <th className="px-3 py-2 text-left text-emerald-800">Quantity *</th>
+                    <th className="px-3 py-2 text-left text-emerald-800">Category</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white">
+                    <td className="px-3 py-2 text-gray-600">The God of Small Things</td>
+                    <td className="px-3 py-2 text-gray-600">DC Books</td>
+                    <td className="px-3 py-2 text-gray-600">350</td>
+                    <td className="px-3 py-2 text-gray-600">10</td>
+                    <td className="px-3 py-2 text-gray-600">Fiction</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={downloadTemplate} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
+                <Download size={14} /> Excel Template (.xlsx)
+              </button>
+              <button onClick={downloadCSVTemplate} className="flex items-center gap-1.5 px-3 py-2 bg-white text-emerald-700 border border-emerald-300 rounded-lg text-sm font-medium hover:bg-emerald-50 transition-colors">
+                <Download size={14} /> CSV Template
+              </button>
+            </div>
+          </div>
+
+          {/* Upload */}
+          <div>
+            <h4 className="font-medium text-charcoal mb-2 flex items-center gap-2">
+              <Upload size={16} /> Step 2: Upload Your File
+            </h4>
+            <div
+              onClick={() => fileRef.current?.click()}
+              className="border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-colors"
+            >
+              <FileSpreadsheet size={40} className="mx-auto mb-3 text-gray-400" />
+              <p className="font-medium text-charcoal">Click to upload Excel or CSV file</p>
+              <p className="text-gray-500 text-sm mt-1">Supports .xlsx, .xls, .csv files</p>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFile(file);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {step === 'preview' && (
+        <div>
+          {/* Status Summary */}
+          <div className="flex gap-3 mb-4">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium">
+              <CheckCircle size={14} /> {validCount} valid
+            </div>
+            {invalidCount > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
+                <AlertCircle size={14} /> {invalidCount} with errors
+              </div>
+            )}
+            <div className="text-sm text-gray-500 self-center">
+              {rows.length} total rows found
+            </div>
+          </div>
+
+          {/* Errors */}
+          {errors.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 max-h-24 overflow-y-auto">
+              {errors.slice(0, 10).map((err, i) => (
+                <p key={i} className="text-xs text-red-600">{err}</p>
+              ))}
+              {errors.length > 10 && <p className="text-xs text-red-500 mt-1">...and {errors.length - 10} more errors</p>}
+            </div>
+          )}
+
+          {/* Preview Table */}
+          <div className="overflow-x-auto max-h-[350px] overflow-y-auto border border-gray-200 rounded-xl mb-4">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-50 z-10">
+                <tr className="border-b border-gray-200">
+                  <th className="px-3 py-2.5 text-left font-semibold text-gray-600 w-8">#</th>
+                  <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Title</th>
+                  <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Publisher</th>
+                  <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Price</th>
+                  <th className="px-3 py-2.5 text-center font-semibold text-gray-600">Qty</th>
+                  <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Category</th>
+                  <th className="px-3 py-2.5 text-center font-semibold text-gray-600">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i} className={`border-b border-gray-50 ${!row.valid ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
+                    <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                    <td className="px-3 py-2 font-medium text-charcoal">{row.title || <span className="text-red-400 italic">missing</span>}</td>
+                    <td className="px-3 py-2 text-gray-600">{row.publisher || <span className="text-red-400 italic">missing</span>}</td>
+                    <td className="px-3 py-2 text-right">{row.price > 0 ? `₹${row.price}` : <span className="text-red-400">—</span>}</td>
+                    <td className="px-3 py-2 text-center">{row.quantity > 0 ? row.quantity : <span className="text-red-400">—</span>}</td>
+                    <td className="px-3 py-2 text-gray-500">{row.category || '—'}</td>
+                    <td className="px-3 py-2 text-center">
+                      {row.valid
+                        ? <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">✓ OK</span>
+                        : <span className="inline-flex px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">✕ Error</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleImport}
+              disabled={validCount === 0}
+              className="btn-primary text-sm rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CheckCircle size={16} /> Import {validCount} Books
+            </button>
+            <button onClick={() => { setStep('upload'); setRows([]); setErrors([]); }} className="btn-secondary text-sm rounded-xl">
+              Upload Different File
+            </button>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-sm px-3 transition-colors">
+              Cancel
             </button>
           </div>
         </div>
