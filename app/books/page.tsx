@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { BookOpen, Eye, EyeOff } from 'lucide-react';
 import BooksDashboard from '@/components/books/BooksDashboard';
@@ -18,6 +18,13 @@ export default function BooksPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
+  // Restore login state from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('gramakam_books_auth') === 'true') {
+      setIsLoggedIn(true);
+    }
+  }, []);
+
   const handleLogin = (e: FormEvent) => {
     e.preventDefault();
     const found = VALID_USERS.find(
@@ -25,14 +32,22 @@ export default function BooksPage() {
     );
     if (found) {
       setIsLoggedIn(true);
+      sessionStorage.setItem('gramakam_books_auth', 'true');
       setError('');
     } else {
       setError('Invalid username or password.');
     }
   };
 
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUsername('');
+    setPassword('');
+    sessionStorage.removeItem('gramakam_books_auth');
+  };
+
   if (isLoggedIn) {
-    return <BooksDashboard onLogout={() => { setIsLoggedIn(false); setUsername(''); setPassword(''); }} />;
+    return <BooksDashboard onLogout={handleLogout} />;
   }
 
   return (
