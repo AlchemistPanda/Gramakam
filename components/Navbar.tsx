@@ -28,7 +28,7 @@ export default function Navbar() {
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
       scrolled
         ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100'
-        : 'bg-transparent'
+        : 'bg-charcoal/80 backdrop-blur-sm'
     }`}>
       <div className="container-custom">
         <div className="flex items-center justify-between h-16 md:h-20">
