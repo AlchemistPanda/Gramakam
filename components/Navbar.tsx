@@ -36,11 +36,11 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <Image
-              src="/images/gramakam-logo.png"
+              src={scrolled ? '/images/gramakam-logo.png' : '/images/gramakam-logo-white.png'}
               alt="Gramakam Logo"
               width={40}
               height={40}
-              className="w-8 h-8 md:w-10 md:h-10 object-contain"
+              className="w-8 h-8 md:w-10 md:h-10 object-contain transition-opacity duration-500"
             />
             <span className={`text-2xl md:text-3xl font-bold transition-colors duration-500 ${scrolled ? 'text-maroon' : 'text-white'}`} style={{ fontFamily: 'var(--font-heading)' }}>
               Gramakam

@@ -55,7 +55,7 @@ export default function HomePage() {
             {/* Festival Logo */}
             <div className="flex justify-center mb-6">
               <Image
-                src="/images/gramakam-logo.png"
+                src="/images/gramakam-logo-white.png"
                 alt="Gramakam 2026 Logo"
                 width={180}
                 height={180}

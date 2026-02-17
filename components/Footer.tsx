@@ -11,7 +11,7 @@ export default function Footer() {
           <div>
             <div className="flex items-center gap-3 mb-4">
               <Image
-                src="/images/gramakam-logo.png"
+                src="/images/gramakam-logo-white.png"
                 alt="Gramakam Logo"
                 width={48}
                 height={48}
