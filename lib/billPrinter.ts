@@ -127,7 +127,13 @@ export async function connectPrinter(): Promise<{ success: boolean; name?: strin
     return { success: true, name };
   } catch (e: any) {
     if (e.name === 'NotFoundError') {
-      return { success: false, error: 'No device selected' };
+      return {
+        success: false,
+        error: 'No device selected. Note: Web Bluetooth only detects BLE printers. Most cheap thermal printers use Classic Bluetooth and won\'t appear in the list. Use the browser print option instead — it works with any printer connected to your phone/PC.'
+      };
+    }
+    if (e.name === 'SecurityError') {
+      return { success: false, error: 'Bluetooth permission denied. Please allow Bluetooth access in your browser settings.' };
     }
     return { success: false, error: e.message || 'Failed to connect' };
   }
@@ -286,18 +292,16 @@ async function sendToPrinter(data: Uint8Array[]): Promise<void> {
   }
 }
 
-// ==================== BROWSER PRINT FALLBACK ====================
+// ==================== BROWSER PRINT (iframe-based, works on mobile) ====================
 
-function printViaBrowser(bill: Bill): void {
-  const printWindow = window.open('', '_blank', 'width=400,height=600');
-  if (!printWindow) return;
-
-  const html = `
+function buildBillHtml(bill: Bill): string {
+  return `
     <!DOCTYPE html>
     <html><head><title>Bill #${bill.billNumber}</title>
     <style>
-      @page { margin: 0; size: 80mm auto; }
-      body { font-family: 'Courier New', monospace; padding: 10px; max-width: 80mm; margin: 0 auto; font-size: 12px; line-height: 1.4; }
+      @page { margin: 4mm; size: 80mm auto; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Courier New', monospace; padding: 8px; max-width: 80mm; margin: 0 auto; font-size: 12px; line-height: 1.4; color: #000; }
       h1 { text-align: center; font-size: 18px; margin: 0 0 2px; }
       .center { text-align: center; margin: 2px 0; }
       .line { border-top: 1px dashed #000; margin: 6px 0; }
@@ -306,9 +310,6 @@ function printViaBrowser(bill: Bill): void {
       th:last-child, td:last-child { text-align: right; }
       .total-row { font-weight: bold; font-size: 14px; }
       .publisher { font-size: 10px; color: #555; }
-      @media print {
-        body { padding: 0; }
-      }
     </style></head><body>
       <h1>GRAMAKAM</h1>
       <p class="center">Book Festival 2026<br/>Velur, Thrissur, Kerala</p>
@@ -329,10 +330,59 @@ function printViaBrowser(bill: Bill): void {
       </table>
       <div class="line"></div>
       <p class="center" style="margin-top:8px">Thank you for visiting!<br/>Gramakam Cultural Academy</p>
-      <script>window.onload = () => { window.print(); window.close(); }<\/script>
     </body></html>
   `;
-  printWindow.document.write(html);
+}
+
+function printViaBrowser(bill: Bill): void {
+  const html = buildBillHtml(bill);
+
+  // Try iframe approach first (works on Android + iOS)
+  try {
+    // Remove any existing print iframe
+    const existing = document.getElementById('gramakam-print-frame');
+    if (existing) existing.remove();
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'gramakam-print-frame';
+    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:80mm;height:auto;border:none;';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      // Wait for content to render, then trigger print
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.print();
+        } catch {
+          // If iframe print fails, try window.open fallback
+          windowPrintFallback(bill, html);
+        }
+        // Clean up iframe after printing
+        setTimeout(() => iframe.remove(), 2000);
+      }, 300);
+      return;
+    }
+  } catch {
+    // iframe approach failed
+  }
+
+  // Fallback: window.open (may be blocked on mobile)
+  windowPrintFallback(bill, html);
+}
+
+function windowPrintFallback(bill: Bill, html: string): void {
+  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  if (!printWindow) {
+    // Last resort: replace current page temporarily
+    alert('Pop-up blocked. Please allow pop-ups for this site to print bills.');
+    return;
+  }
+  printWindow.document.write(html + `<script>setTimeout(() => { window.print(); }, 200);<\/script>`);
   printWindow.document.close();
 }
 
