@@ -22,7 +22,13 @@ export default function FeedClient() {
       try {
         const fetchedPosts = await getFeedPosts();
         if (fetchedPosts.length > 0) {
-          setPosts(fetchedPosts);
+          // Sort by date descending (newest first)
+          const sorted = [...fetchedPosts].sort((a, b) => {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            return dateB - dateA;
+          });
+          setPosts(sorted);
         }
       } catch {
         // Firebase not configured — use fallback data

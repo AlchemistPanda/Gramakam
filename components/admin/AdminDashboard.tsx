@@ -307,6 +307,7 @@ function FeedPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [postDate, setPostDate] = useState(new Date().toISOString().split('T')[0]);
   const [embedUrl, setEmbedUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -320,6 +321,7 @@ function FeedPanel() {
 
   const resetForm = () => {
     setTitle(''); setDescription(''); setEmbedUrl(''); setImageFile(null);
+    setPostDate(new Date().toISOString().split('T')[0]);
     setEditingId(null); setShowForm(false);
   };
 
@@ -335,7 +337,7 @@ function FeedPanel() {
       }
 
       if (editingId) {
-        const updateData: Partial<FeedPost> = { title, description };
+        const updateData: Partial<FeedPost> = { title, description, date: postDate };
         if (imageUrl) updateData.imageUrl = imageUrl;
         if (embedUrl) updateData.embedUrl = embedUrl;
         await updateFeedPost(editingId, updateData);
@@ -343,7 +345,7 @@ function FeedPanel() {
         await addFeedPost({
           title,
           description,
-          date: new Date().toISOString(),
+          date: postDate,
           ...(imageUrl && { imageUrl }),
           ...(embedUrl && { embedUrl }),
         });
@@ -358,6 +360,7 @@ function FeedPanel() {
     setEditingId(post.id);
     setTitle(post.title);
     setDescription(post.description);
+    setPostDate(typeof post.date === 'string' ? post.date.split('T')[0] : new Date(post.date).toISOString().split('T')[0]);
     setEmbedUrl(post.embedUrl || '');
     setShowForm(true);
   };
@@ -382,6 +385,10 @@ function FeedPanel() {
           <form onSubmit={handleSave} className="space-y-4">
             <input type="text" placeholder="Post Title" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" required />
             <textarea placeholder="Description" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none resize-none" required />
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Post Date</label>
+              <input type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" required />
+            </div>
             <input type="url" placeholder="Embed URL (Instagram/Facebook, optional)" value={embedUrl} onChange={(e) => setEmbedUrl(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" />
             <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm" />
             <div className="flex gap-3">
