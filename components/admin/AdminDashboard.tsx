@@ -44,6 +44,7 @@ import type {
   MerchPrebook,
 } from '@/types';
 import { formatDate } from '@/lib/utils';
+import { compressImage, formatFileSize } from '@/lib/imageCompressor';
 
 type AdminTab = 'overview' | 'gallery' | 'feed' | 'contacts' | 'countdown' | 'merch';
 
@@ -222,8 +223,9 @@ function GalleryPanel() {
     if (!imageFile || !title || !category) return;
     setUploading(true);
     try {
-      const path = `gallery/${Date.now()}_${imageFile.name}`;
-      const imageUrl = await uploadImage(imageFile, path);
+      const compressed = await compressImage(imageFile);
+      const path = `gallery/${Date.now()}_${compressed.name}`;
+      const imageUrl = await uploadImage(compressed, path);
       await addGalleryItem({ title, imageUrl, year, category, type: 'image' });
       setShowForm(false);
       setTitle(''); setCategory(''); setImageFile(null);
@@ -332,8 +334,9 @@ function FeedPanel() {
     try {
       let imageUrl = '';
       if (imageFile) {
-        const path = `feed/${Date.now()}_${imageFile.name}`;
-        imageUrl = await uploadImage(imageFile, path);
+        const compressed = await compressImage(imageFile);
+        const path = `feed/${Date.now()}_${compressed.name}`;
+        imageUrl = await uploadImage(compressed, path);
       }
 
       if (editingId) {
@@ -391,9 +394,12 @@ function FeedPanel() {
             </div>
             <input type="url" placeholder="Embed URL (Instagram/Facebook, optional)" value={embedUrl} onChange={(e) => setEmbedUrl(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" />
             <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm" />
+            {imageFile && (
+              <p className="text-xs text-gray-500">Original: {formatFileSize(imageFile.size)} — will be auto-compressed before upload</p>
+            )}
             <div className="flex gap-3">
               <button type="submit" disabled={saving} className="btn-primary text-sm disabled:opacity-50">
-                {saving ? 'Saving...' : editingId ? 'Update Post' : 'Create Post'}
+                {saving ? 'Compressing & Saving...' : editingId ? 'Update Post' : 'Create Post'}
               </button>
               <button type="button" onClick={resetForm} className="btn-secondary text-sm">Cancel</button>
             </div>
