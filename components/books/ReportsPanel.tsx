@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   FileText, FileSpreadsheet, Download, TrendingUp, BarChart3,
-  IndianRupee, Package, BookOpen, Users, Percent,
+  IndianRupee, Package, BookOpen, Users, Percent, Trash2,
 } from 'lucide-react';
 import {
   getStats,
@@ -12,6 +12,7 @@ import {
   getBooks,
   getBills,
   exportAllData,
+  clearAllData,
 } from '@/lib/bookStore';
 
 export default function ReportsPanel() {
@@ -321,7 +322,7 @@ export default function ReportsPanel() {
       )}
 
       {/* Backup */}
-      <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200">
+      <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200 mb-4">
         <div className="flex items-center justify-between">
           <div>
             <h4 className="font-semibold text-charcoal">Data Backup</h4>
@@ -329,6 +330,31 @@ export default function ReportsPanel() {
           </div>
           <button onClick={downloadBackup} className="flex items-center gap-2 px-4 py-2.5 bg-charcoal text-white rounded-xl text-sm font-medium hover:bg-black transition-colors">
             <Download size={16} /> Download Backup
+          </button>
+        </div>
+      </div>
+
+      {/* Clear All Data */}
+      <div className="bg-red-50 rounded-2xl p-5 border border-red-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-semibold text-red-700">Clear All Data</h4>
+            <p className="text-sm text-red-500 mt-0.5">Permanently delete all books, bills, and publisher data. Download a backup first!</p>
+          </div>
+          <button
+            onClick={() => {
+              const confirm1 = window.confirm('Are you sure you want to delete ALL data? This cannot be undone.');
+              if (!confirm1) return;
+              const confirm2 = window.prompt('Type DELETE to confirm:');
+              if (confirm2 !== 'DELETE') { alert('Cancelled. Data is safe.'); return; }
+              clearAllData();
+              setStats(getStats());
+              setPubStats(getPublisherStats());
+              alert('All data has been cleared.');
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            <Trash2 size={16} /> Clear All Data
           </button>
         </div>
       </div>
