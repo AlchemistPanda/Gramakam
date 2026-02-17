@@ -211,6 +211,9 @@ function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
   text(`Bill #${bill.billNumber}`);
   push(ESCPOS.bold(false));
   text(new Date(bill.createdAt).toLocaleString('en-IN'));
+  if (bill.customerName || bill.customerPhone) {
+    text(`${bill.customerName || ''}${bill.customerName && bill.customerPhone ? ' | ' : ''}${bill.customerPhone || ''}`);
+  }
   push(ESCPOS.line('-', width));
 
   // Column headers
@@ -314,7 +317,7 @@ function buildBillHtml(bill: Bill): string {
       <h1>GRAMAKAM</h1>
       <p class="center">Book Festival 2026<br/>Velur, Thrissur, Kerala</p>
       <div class="line"></div>
-      <p><strong>Bill #${bill.billNumber}</strong><br/>${new Date(bill.createdAt).toLocaleString('en-IN')}</p>
+      <p><strong>Bill #${bill.billNumber}</strong><br/>${new Date(bill.createdAt).toLocaleString('en-IN')}${bill.customerName ? `<br/>${bill.customerName}` : ''}${bill.customerPhone ? ` · ${bill.customerPhone}` : ''}</p>
       <div class="line"></div>
       <table>
         <thead><tr><th>Item</th><th>Qty</th><th>Amt</th></tr></thead>

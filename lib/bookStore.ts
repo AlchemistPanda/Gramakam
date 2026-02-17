@@ -396,7 +396,7 @@ export function getBills(): Bill[] {
   return cache.bills;
 }
 
-export function createBill(items: { bookId: string; quantity: number }[], discount: number = 0): Bill | null {
+export function createBill(items: { bookId: string; quantity: number }[], discount: number = 0, customerName?: string, customerPhone?: string): Bill | null {
   const billItems: Bill['items'] = [];
   let total = 0;
 
@@ -429,6 +429,8 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
     total,
     discount,
     grandTotal: total - discount,
+    ...(customerName?.trim() && { customerName: customerName.trim() }),
+    ...(customerPhone?.trim() && { customerPhone: customerPhone.trim() }),
     createdAt: new Date().toISOString(),
   };
 

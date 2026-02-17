@@ -34,6 +34,8 @@ export interface Bill {
   total: number;
   discount: number;
   grandTotal: number;
+  customerName?: string;    // optional customer name
+  customerPhone?: string;   // optional phone number
   createdAt: string;        // ISO date
 }
 

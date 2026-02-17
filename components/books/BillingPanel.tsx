@@ -14,6 +14,8 @@ export default function BillingPanel() {
   const [results, setResults] = useState<Book[]>([]);
   const [cart, setCart] = useState<(BillItem & { available: number })[]>([]);
   const [discount, setDiscount] = useState(0);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [lastBill, setLastBill] = useState<Bill | null>(null);
   const [showBill, setShowBill] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -135,13 +137,17 @@ export default function BillingPanel() {
     if (cart.length === 0) return;
     const bill = createBill(
       cart.map((c) => ({ bookId: c.bookId, quantity: c.quantity })),
-      discount
+      discount,
+      customerName || undefined,
+      customerPhone || undefined
     );
     if (bill) {
       setLastBill(bill);
       setShowBill(true);
       setCart([]);
       setDiscount(0);
+      setCustomerName('');
+      setCustomerPhone('');
       reload();
     }
   };
@@ -221,6 +227,13 @@ export default function BillingPanel() {
             <div className="text-center mb-4">
               <h3 className="text-2xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Bill #{viewingBill.billNumber}</h3>
               <p className="text-gray-500 text-sm">{new Date(viewingBill.createdAt).toLocaleString('en-IN')}</p>
+              {(viewingBill.customerName || viewingBill.customerPhone) && (
+                <p className="text-gray-500 text-sm mt-1">
+                  {viewingBill.customerName && <span className="font-medium">{viewingBill.customerName}</span>}
+                  {viewingBill.customerName && viewingBill.customerPhone && <span> · </span>}
+                  {viewingBill.customerPhone && <span>{viewingBill.customerPhone}</span>}
+                </p>
+              )}
             </div>
 
             <div className="border border-gray-100 rounded-xl overflow-hidden mb-4">
@@ -294,6 +307,9 @@ export default function BillingPanel() {
                     <p className="text-xs text-gray-400 mt-0.5">
                       {new Date(bill.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
                     </p>
+                    {bill.customerName && (
+                      <p className="text-xs text-gray-500 mt-0.5">{bill.customerName}{bill.customerPhone ? ` · ${bill.customerPhone}` : ''}</p>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-charcoal text-lg">₹{bill.grandTotal.toFixed(2)}</p>
@@ -503,6 +519,24 @@ export default function BillingPanel() {
                 placeholder="₹0"
               />
             </div>
+            <div className="flex items-center gap-2 mt-3">
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-maroon outline-none"
+                placeholder="Customer Name (optional)"
+              />
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                type="tel"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-maroon outline-none"
+                placeholder="Phone Number (optional)"
+              />
+            </div>
           </div>
 
           <div className="border-t border-gray-100 pt-4 mb-6">
@@ -548,6 +582,13 @@ export default function BillingPanel() {
                   </div>
                   <h3 className="text-xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Sale Complete!</h3>
                   <p className="text-gray-500 text-sm">Bill #{lastBill.billNumber}</p>
+                  {(lastBill.customerName || lastBill.customerPhone) && (
+                    <p className="text-gray-500 text-sm mt-1">
+                      {lastBill.customerName && <span className="font-medium">{lastBill.customerName}</span>}
+                      {lastBill.customerName && lastBill.customerPhone && <span> · </span>}
+                      {lastBill.customerPhone && <span>{lastBill.customerPhone}</span>}
+                    </p>
+                  )}
                 </div>
 
                 <div className="border border-gray-100 rounded-xl p-4 mb-4 text-sm space-y-1">
