@@ -10,7 +10,7 @@ import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
 import ReportsPanel from './ReportsPanel';
 import PublishersPanel from './PublishersPanel';
-import { getStats } from '@/lib/bookStore';
+import { getStats, getPublisherStats } from '@/lib/bookStore';
 
 type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports';
 
@@ -22,9 +22,12 @@ export default function BooksDashboard({ onLogout }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({ totalBooks: 0, totalSold: 0, totalRemaining: 0, totalRevenue: 0, totalBills: 0, uniquePublishers: 0 });
+  const [totalProfit, setTotalProfit] = useState(0);
 
   useEffect(() => {
     setStats(getStats());
+    const ps = getPublisherStats();
+    setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
   }, [activeTab]);
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; desc: string }[] = [
@@ -148,7 +151,7 @@ export default function BooksDashboard({ onLogout }: Props) {
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <span className="hidden sm:inline">📚 {stats.totalBooks} books</span>
               <span className="hidden sm:inline mx-1">•</span>
-              <span className="hidden sm:inline">💰 ₹{stats.totalRevenue.toFixed(0)} revenue</span>
+              <span className="hidden sm:inline">🧾 {stats.totalBills} bills</span>
             </div>
           </div>
         </header>
@@ -164,7 +167,7 @@ export default function BooksDashboard({ onLogout }: Props) {
               transition={{ duration: 0.15 }}
             >
               {activeTab === 'dashboard' && (
-                <DashboardHome stats={stats} onNavigate={switchTab} quickActions={quickActions} />
+                <DashboardHome stats={stats} totalProfit={totalProfit} onNavigate={switchTab} quickActions={quickActions} />
               )}
               {activeTab === 'inventory' && <InventoryPanel />}
               {activeTab === 'publishers' && <PublishersPanel />}
@@ -181,10 +184,12 @@ export default function BooksDashboard({ onLogout }: Props) {
 /* ========== Dashboard Home ========== */
 function DashboardHome({
   stats,
+  totalProfit,
   onNavigate,
   quickActions,
 }: {
   stats: ReturnType<typeof getStats>;
+  totalProfit: number;
   onNavigate: (tab: Tab) => void;
   quickActions: { label: string; desc: string; tab: Tab; icon: React.ElementType; color: string }[];
 }) {
@@ -196,12 +201,13 @@ function DashboardHome({
       <p className="text-gray-500 text-sm mb-8">Gramakam Book Festival 2026 &mdash; Manage your inventory, billing, and reports.</p>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {[
           { label: 'Total Books', val: stats.totalBooks, sub: `${stats.uniquePublishers} publishers`, color: 'border-blue-400' },
           { label: 'Books Sold', val: stats.totalSold, sub: `${stats.totalBills} bills`, color: 'border-green-400' },
           { label: 'Remaining', val: stats.totalRemaining, sub: 'in stock', color: 'border-yellow-400' },
           { label: 'Revenue', val: `₹${stats.totalRevenue.toFixed(0)}`, sub: 'total earned', color: 'border-purple-400' },
+          { label: 'Our Profit', val: `₹${totalProfit.toFixed(0)}`, sub: 'from all publishers', color: 'border-green-500' },
         ].map((s) => (
           <div key={s.label} className={`bg-white rounded-2xl p-5 border-l-4 ${s.color} shadow-sm`}>
             <p className="text-2xl md:text-3xl font-bold text-charcoal">{s.val}</p>
