@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
-import { getBooks, getBills, createBill, findBookByIsbn } from '@/lib/bookStore';
+import { getBooks, getBills, createBill, findBookByIsbn, onDataChange } from '@/lib/bookStore';
 import BarcodeScanner from './BarcodeScanner';
 
 export default function BillingPanel() {
@@ -28,6 +28,12 @@ export default function BillingPanel() {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // Real-time sync
+  useEffect(() => {
+    const unsub = onDataChange(() => reload());
+    return unsub;
+  }, [reload]);
 
   // Live search — also matches ISBN
   useEffect(() => {

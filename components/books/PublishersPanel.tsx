@@ -13,6 +13,7 @@ import {
   updatePublisher,
   deletePublisher,
   getPublisherStats,
+  onDataChange,
 } from '@/lib/bookStore';
 
 export default function PublishersPanel() {
@@ -37,6 +38,12 @@ export default function PublishersPanel() {
   };
 
   useEffect(() => { reload(); }, [query]);
+
+  // Real-time sync
+  useEffect(() => {
+    const unsub = onDataChange(() => reload());
+    return unsub;
+  }, [query]);
 
   const resetForm = () => {
     setName('');

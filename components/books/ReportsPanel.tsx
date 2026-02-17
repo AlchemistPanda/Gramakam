@@ -13,6 +13,7 @@ import {
   getBills,
   exportAllData,
   clearAllData,
+  onDataChange,
 } from '@/lib/bookStore';
 
 export default function ReportsPanel() {
@@ -23,6 +24,15 @@ export default function ReportsPanel() {
   useEffect(() => {
     setStats(getStats());
     setPubStats(getPublisherStats());
+  }, []);
+
+  // Real-time sync
+  useEffect(() => {
+    const unsub = onDataChange(() => {
+      setStats(getStats());
+      setPubStats(getPublisherStats());
+    });
+    return unsub;
   }, []);
 
   // ========== PDF Export ==========

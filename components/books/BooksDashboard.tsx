@@ -10,7 +10,7 @@ import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
 import ReportsPanel from './ReportsPanel';
 import PublishersPanel from './PublishersPanel';
-import { getStats, getPublisherStats } from '@/lib/bookStore';
+import { getStats, getPublisherStats, initBookStore, isStoreReady, onDataChange } from '@/lib/bookStore';
 
 type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports';
 
@@ -23,12 +23,35 @@ export default function BooksDashboard({ onLogout }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({ totalBooks: 0, totalSold: 0, totalRemaining: 0, totalRevenue: 0, totalBills: 0, uniquePublishers: 0 });
   const [totalProfit, setTotalProfit] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  // Initialize Firestore-backed store on mount
+  useEffect(() => {
+    initBookStore().then(() => {
+      setLoading(false);
+      setStats(getStats());
+      const ps = getPublisherStats();
+      setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
+    });
+  }, []);
 
   useEffect(() => {
-    setStats(getStats());
-    const ps = getPublisherStats();
-    setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
-  }, [activeTab]);
+    if (!loading) {
+      setStats(getStats());
+      const ps = getPublisherStats();
+      setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
+    }
+  }, [activeTab, loading]);
+
+  // Real-time sync from other devices
+  useEffect(() => {
+    const unsub = onDataChange(() => {
+      setStats(getStats());
+      const ps = getPublisherStats();
+      setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
+    });
+    return unsub;
+  }, []);
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; desc: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview' },
@@ -158,6 +181,13 @@ export default function BooksDashboard({ onLogout }: Props) {
 
         {/* Page */}
         <main className="flex-1 p-4 md:p-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <div className="w-10 h-10 border-3 border-maroon border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="font-medium">Loading data...</p>
+              <p className="text-sm mt-1">Syncing with cloud storage</p>
+            </div>
+          ) : (
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -175,6 +205,7 @@ export default function BooksDashboard({ onLogout }: Props) {
               {activeTab === 'reports' && <ReportsPanel />}
             </motion.div>
           </AnimatePresence>
+          )}
         </main>
       </div>
     </div>

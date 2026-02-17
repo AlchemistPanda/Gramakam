@@ -13,6 +13,7 @@ import {
   searchBooks,
   getPublishers,
   findBookByIsbn,
+  onDataChange,
 } from '@/lib/bookStore';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -41,6 +42,12 @@ export default function InventoryPanel() {
   };
 
   useEffect(() => { reload(); }, [query]);
+
+  // Real-time sync: refresh when data changes from another device
+  useEffect(() => {
+    const unsub = onDataChange(() => reload());
+    return unsub;
+  }, [query]);
 
   const resetForm = () => {
     setTitle(''); setPublisher(''); setPrice(''); setQuantity(''); setCategory(''); setIsbn('');
