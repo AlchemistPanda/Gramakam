@@ -22,20 +22,20 @@ export const metadata: Metadata = {
     template: '%s | Gramakam',
   },
   description:
-    'Gramakam is an annual theatre and cultural festival in Kerala, India. Organised by Gramakam Cultural Academy, it celebrates theatre, literature, art, and community at Velur, Thrissur.',
+    'Gramakam is an annual theatre and cultural festival in Kerala, India. Organised by IF Creations, it celebrates theatre, literature, art, and community at Velur, Thrissur.',
   keywords: [
     'Gramakam',
     'theatre festival',
     'Kerala',
     'cultural festival',
-    'Gramakam Cultural Academy',
+    'IF Creations',
     'Thrissur',
     'Velur',
     'drama',
     'performing arts',
     'Indian theatre',
   ],
-  authors: [{ name: 'Gramakam Cultural Academy' }],
+  authors: [{ name: 'IF Creations' }],
   openGraph: {
     title: 'Gramakam — A Celebration of Theatre and Culture',
     description:

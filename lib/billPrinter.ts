@@ -256,7 +256,7 @@ function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
   // Footer
   push(ESCPOS.alignCenter());
   text('Thank you for visiting!');
-  text('Gramakam Cultural Academy');
+  text('IF Creations');
   push(ESCPOS.feed(3));
 
   // Cut paper
@@ -332,7 +332,7 @@ function buildBillHtml(bill: Bill): string {
         <tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${bill.grandTotal.toFixed(2)}</td></tr>
       </table>
       <div class="line"></div>
-      <p class="center" style="margin-top:8px">Thank you for visiting!<br/>Gramakam Cultural Academy</p>
+      <p class="center" style="margin-top:8px">Thank you for visiting!<br/>IF Creations</p>
     </body></html>
   `;
 }

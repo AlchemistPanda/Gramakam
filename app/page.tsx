@@ -49,7 +49,7 @@ export default function HomePage() {
           <AnimatedSection>
             {/* Organised by */}
             <p className="text-white/60 uppercase tracking-[0.4em] text-xs sm:text-sm mb-8 font-medium">
-              Organised by Gramakam Cultural Academy
+              Organised by IF Creations
             </p>
 
             {/* Title */}
@@ -138,7 +138,7 @@ export default function HomePage() {
                 <p className="text-gray-600 leading-relaxed text-lg">
                   <strong className="text-charcoal">Gramakam</strong> is an annual theatre and cultural
                   festival held in Velur, Thrissur, Kerala. Organised by{' '}
-                  <strong className="text-charcoal">Gramakam Cultural Academy</strong>, the festival is a vibrant
+                  <strong className="text-charcoal">IF Creations</strong>, the festival is a vibrant
                   celebration of theatre, literature, art, and community. It brings together
                   playwrights, actors, directors, writers, and art enthusiasts from across Kerala and
                   beyond — creating a space where traditional art forms meet contemporary expression.

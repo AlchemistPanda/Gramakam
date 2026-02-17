@@ -175,7 +175,7 @@ export default function ContactPage() {
               <div>
                 <h3 className="heading-md text-charcoal mb-4">Organised By</h3>
                 <p className="text-gray-600">
-                  <strong className="text-charcoal">Gramakam Cultural Academy</strong>
+                  <strong className="text-charcoal">IF Creations</strong>
                   <br />
                   Velur, Thrissur, Kerala
                 </p>

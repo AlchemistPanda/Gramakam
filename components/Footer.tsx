@@ -16,7 +16,7 @@ export default function Footer() {
             </h3>
             <p className="text-gray-400 text-sm leading-relaxed">
               An annual celebration of theatre, literature, and culture in
-              Kerala. Organised by Gramakam Cultural Academy, Gramakam brings together
+              Kerala. Organised by IF Creations, Gramakam brings together
               artists, performers, and audiences in a vibrant festival of
               creative expression.
             </p>
@@ -91,7 +91,7 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-white/10 text-center text-gray-500 text-sm space-y-1">
-          <p>&copy; {new Date().getFullYear()} Gramakam. All rights reserved. Organised by Gramakam Cultural Academy.</p>
+          <p>&copy; {new Date().getFullYear()} Gramakam. All rights reserved. Organised by IF Creations.</p>
           <p>Developed by <span className="text-gray-400">Manuraj Rajamanikandan</span></p>
         </div>
       </div>

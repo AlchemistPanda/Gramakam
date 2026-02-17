@@ -6,7 +6,7 @@
 
 ## About Gramakam
 
-Gramakam is an annual theatre and cultural festival held in **Velur, Thrissur, Kerala**, organised by **Gramakam Cultural Academy**. The festival celebrates theatre, literature, art, and community participation — bringing together artists and audiences in a vibrant celebration of creative expression.
+Gramakam is an annual theatre and cultural festival held in **Velur, Thrissur, Kerala**, organised by **IF Creations**. The festival celebrates theatre, literature, art, and community participation — bringing together artists and audiences in a vibrant celebration of creative expression.
 
 ## Tech Stack
 
@@ -142,4 +142,4 @@ vercel
 
 ## License
 
-This project is proprietary to Gramakam Cultural Academy / Gramakam Festival.
+This project is proprietary to IF Creations / Gramakam Festival.
