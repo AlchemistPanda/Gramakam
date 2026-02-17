@@ -67,14 +67,23 @@ export default function BarcodeScanner({ onScan, onClose, title = 'Scan Barcode'
           // Success callback
           if (!mountedRef.current) return;
           
-          // Clean up the scanned value (remove any whitespace)
-          const isbn = decodedText.trim();
+          // Clean up the scanned value
+          let cleanedIsbn = decodedText.trim().replace(/[-\s]/g, '');
+          
+          // ISBN should be 10 or 13 digits (or 9 digits + X for ISBN-10)
+          const isValidIsbn = /^(?:\d{9}[\dX]|\d{13})$/i.test(cleanedIsbn);
+          
+          if (!isValidIsbn) {
+            console.warn('Invalid ISBN format:', decodedText);
+            // Still pass it through but with original value
+            cleanedIsbn = decodedText.trim();
+          }
           
           // Avoid duplicate rapid scans
           setLastScanned((prev) => {
-            if (prev === isbn) return prev;
-            onScan(isbn);
-            return isbn;
+            if (prev === cleanedIsbn) return prev;
+            onScan(cleanedIsbn);
+            return cleanedIsbn;
           });
         },
         () => {

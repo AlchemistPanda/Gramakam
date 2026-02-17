@@ -85,7 +85,10 @@ export default function InventoryPanel() {
 
   // Fetch book info from Google Books API by ISBN
   const fetchBookByISBN = async (scannedIsbn: string) => {
-    setIsbn(scannedIsbn);
+    // Clean ISBN: remove dashes, spaces, and non-digit chars except X
+    const cleanIsbn = scannedIsbn.replace(/[-\s]/g, '').toUpperCase();
+    
+    setIsbn(cleanIsbn);
     setShowBarcode(false);
     setShowForm(true);
     setShowOCR(false);
@@ -93,21 +96,47 @@ export default function InventoryPanel() {
     setFetchingISBN(true);
 
     try {
-      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${scannedIsbn}`);
-      const data = await res.json();
+      // Try Google Books API first
+      const googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`);
+      const googleData = await googleRes.json();
 
-      if (data.items && data.items.length > 0) {
-        const info = data.items[0].volumeInfo;
+      if (googleData.items && googleData.items.length > 0) {
+        const info = googleData.items[0].volumeInfo;
         if (info.title && !title) setTitle(info.title);
         if (info.categories?.length && !category) setCategory(info.categories[0]);
-        // If publisher from API matches one we have, set it
         if (info.publisher) {
           const match = publishers.find((p) => p.toLowerCase() === info.publisher.toLowerCase());
           if (match && !publisher) setPublisher(match);
         }
+        setFetchingISBN(false);
+        return;
       }
-    } catch {
-      // Google Books API is optional, ignore errors
+
+      // Fallback to Open Library API
+      const openLibRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`);
+      const openLibData = await openLibRes.json();
+      const bookKey = `ISBN:${cleanIsbn}`;
+      
+      if (openLibData[bookKey]) {
+        const book = openLibData[bookKey];
+        if (book.title && !title) setTitle(book.title);
+        if (book.subjects && book.subjects.length > 0 && !category) {
+          setCategory(book.subjects[0].name);
+        }
+        if (book.publishers && book.publishers.length > 0) {
+          const pubName = book.publishers[0].name;
+          const match = publishers.find((p) => p.toLowerCase() === pubName.toLowerCase());
+          if (match && !publisher) setPublisher(match);
+        }
+        setFetchingISBN(false);
+        return;
+      }
+
+      // No data found - show message but allow manual entry
+      alert(`ISBN ${cleanIsbn} scanned successfully, but book details not found in database. Please enter details manually.`);
+    } catch (error) {
+      console.error('ISBN fetch error:', error);
+      alert('Failed to fetch book details. Please enter manually.');
     } finally {
       setFetchingISBN(false);
     }
@@ -207,14 +236,23 @@ export default function InventoryPanel() {
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" required />
                 <div className="md:col-span-2 relative">
                   <input type="text" placeholder="ISBN / Barcode (optional)" value={isbn} onChange={(e) => setIsbn(e.target.value)}
-                    className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none font-mono" />
-                  <button type="button" onClick={() => setShowBarcode(true)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-violet-600 transition-colors rounded-lg hover:bg-violet-50" title="Scan Barcode">
-                    <ScanBarcode size={18} />
-                  </button>
+                    className="w-full px-4 py-3 pr-24 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none font-mono" />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                    <button type="button" onClick={() => isbn && fetchBookByISBN(isbn)}
+                      disabled={!isbn || fetchingISBN}
+                      className="p-2 text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-blue-50" 
+                      title="Lookup ISBN">
+                      <Search size={18} />
+                    </button>
+                    <button type="button" onClick={() => setShowBarcode(true)}
+                      className="p-2 text-gray-400 hover:text-violet-600 transition-colors rounded-lg hover:bg-violet-50" 
+                      title="Scan Barcode">
+                      <ScanBarcode size={18} />
+                    </button>
+                  </div>
                   {fetchingISBN && (
-                    <div className="absolute right-12 top-1/2 -translate-y-1/2">
-                      <Loader2 size={16} className="animate-spin text-violet-500" />
+                    <div className="absolute right-24 top-1/2 -translate-y-1/2">
+                      <Loader2 size={16} className="animate-spin text-blue-500" />
                     </div>
                   )}
                 </div>
