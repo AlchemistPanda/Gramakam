@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 
@@ -34,6 +35,13 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/images/gramakam-logo.png"
+              alt="Gramakam Logo"
+              width={40}
+              height={40}
+              className="w-8 h-8 md:w-10 md:h-10 object-contain"
+            />
             <span className={`text-2xl md:text-3xl font-bold transition-colors duration-500 ${scrolled ? 'text-maroon' : 'text-white'}`} style={{ fontFamily: 'var(--font-heading)' }}>
               Gramakam
             </span>

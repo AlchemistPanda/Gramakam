@@ -48,9 +48,21 @@ export default function HomePage() {
         <div className="container-custom text-center relative z-10 py-20">
           <AnimatedSection>
             {/* Organised by */}
-            <p className="text-white/60 uppercase tracking-[0.4em] text-xs sm:text-sm mb-8 font-medium">
+            <p className="text-white/60 uppercase tracking-[0.4em] text-xs sm:text-sm mb-6 font-medium">
               Organised by IF Creations
             </p>
+
+            {/* Festival Logo */}
+            <div className="flex justify-center mb-6">
+              <Image
+                src="/images/gramakam-logo.png"
+                alt="Gramakam 2026 Logo"
+                width={180}
+                height={180}
+                className="w-32 h-32 sm:w-40 sm:h-40 md:w-44 md:h-44 object-contain drop-shadow-2xl"
+                priority
+              />
+            </div>
 
             {/* Title */}
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-6 drop-shadow-lg" style={{ fontFamily: 'var(--font-heading)' }}>

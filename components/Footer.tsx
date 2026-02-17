@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Instagram, Facebook, Mail, MapPin, Phone } from 'lucide-react';
 
 export default function Footer() {
@@ -8,12 +9,21 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
           {/* Brand */}
           <div>
-            <h3
-              className="text-2xl font-bold text-cream mb-4"
-              style={{ fontFamily: 'var(--font-heading)' }}
-            >
-              Gramakam
-            </h3>
+            <div className="flex items-center gap-3 mb-4">
+              <Image
+                src="/images/gramakam-logo.png"
+                alt="Gramakam Logo"
+                width={48}
+                height={48}
+                className="w-12 h-12 object-contain"
+              />
+              <h3
+                className="text-2xl font-bold text-cream"
+                style={{ fontFamily: 'var(--font-heading)' }}
+              >
+                Gramakam
+              </h3>
+            </div>
             <p className="text-gray-400 text-sm leading-relaxed">
               An annual celebration of theatre, literature, and culture in
               Kerala. Organised by IF Creations, Gramakam brings together
