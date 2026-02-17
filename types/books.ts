@@ -15,6 +15,7 @@ export interface Book {
   quantity: number;         // total stock received
   sold: number;             // total sold
   category?: string;
+  isbn?: string;            // ISBN / barcode number
   addedAt: string;          // ISO date
 }
 

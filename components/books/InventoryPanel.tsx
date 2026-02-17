@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download, ScanBarcode, Loader2 } from 'lucide-react';
 import type { Book, OCRLine } from '@/types/books';
 import {
   getBooks,
@@ -12,7 +12,9 @@ import {
   deleteBook,
   searchBooks,
   getPublishers,
+  findBookByIsbn,
 } from '@/lib/bookStore';
+import BarcodeScanner from './BarcodeScanner';
 
 export default function InventoryPanel() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -20,8 +22,10 @@ export default function InventoryPanel() {
   const [showForm, setShowForm] = useState(false);
   const [showOCR, setShowOCR] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showBarcode, setShowBarcode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishers, setPublishers] = useState<string[]>([]);
+  const [fetchingISBN, setFetchingISBN] = useState(false);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -29,6 +33,7 @@ export default function InventoryPanel() {
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [category, setCategory] = useState('');
+  const [isbn, setIsbn] = useState('');
 
   const reload = () => {
     setBooks(query ? searchBooks(query) : getBooks());
@@ -38,7 +43,7 @@ export default function InventoryPanel() {
   useEffect(() => { reload(); }, [query]);
 
   const resetForm = () => {
-    setTitle(''); setPublisher(''); setPrice(''); setQuantity(''); setCategory('');
+    setTitle(''); setPublisher(''); setPrice(''); setQuantity(''); setCategory(''); setIsbn('');
     setEditingId(null); setShowForm(false);
   };
 
@@ -48,10 +53,10 @@ export default function InventoryPanel() {
 
     if (editingId) {
       updateBook(editingId, {
-        title, publisher, price: parseFloat(price), quantity: parseInt(quantity), category,
+        title, publisher, price: parseFloat(price), quantity: parseInt(quantity), category, isbn: isbn || undefined,
       });
     } else {
-      addBook({ title, publisher, price: parseFloat(price), quantity: parseInt(quantity), category });
+      addBook({ title, publisher, price: parseFloat(price), quantity: parseInt(quantity), category, isbn: isbn || undefined });
     }
     resetForm();
     reload();
@@ -64,9 +69,41 @@ export default function InventoryPanel() {
     setPrice(book.price.toString());
     setQuantity(book.quantity.toString());
     setCategory(book.category || '');
+    setIsbn(book.isbn || '');
     setShowForm(true);
     setShowOCR(false);
     setShowImport(false);
+    setShowBarcode(false);
+  };
+
+  // Fetch book info from Google Books API by ISBN
+  const fetchBookByISBN = async (scannedIsbn: string) => {
+    setIsbn(scannedIsbn);
+    setShowBarcode(false);
+    setShowForm(true);
+    setShowOCR(false);
+    setShowImport(false);
+    setFetchingISBN(true);
+
+    try {
+      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${scannedIsbn}`);
+      const data = await res.json();
+
+      if (data.items && data.items.length > 0) {
+        const info = data.items[0].volumeInfo;
+        if (info.title && !title) setTitle(info.title);
+        if (info.categories?.length && !category) setCategory(info.categories[0]);
+        // If publisher from API matches one we have, set it
+        if (info.publisher) {
+          const match = publishers.find((p) => p.toLowerCase() === info.publisher.toLowerCase());
+          if (match && !publisher) setPublisher(match);
+        }
+      }
+    } catch {
+      // Google Books API is optional, ignore errors
+    } finally {
+      setFetchingISBN(false);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -107,13 +144,16 @@ export default function InventoryPanel() {
           Book Inventory
         </h2>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => { resetForm(); setShowForm(!showForm); setShowOCR(false); setShowImport(false); }} className="btn-primary text-sm flex items-center gap-2 rounded-xl">
+          <button onClick={() => { resetForm(); setShowForm(!showForm); setShowOCR(false); setShowImport(false); setShowBarcode(false); }} className="btn-primary text-sm flex items-center gap-2 rounded-xl">
             <Plus size={16} /> Add Book
           </button>
-          <button onClick={() => { setShowImport(!showImport); setShowForm(false); setShowOCR(false); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+          <button onClick={() => { setShowBarcode(true); }} className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+            <ScanBarcode size={16} /> Scan ISBN
+          </button>
+          <button onClick={() => { setShowImport(!showImport); setShowForm(false); setShowOCR(false); setShowBarcode(false); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
             <FileSpreadsheet size={16} /> Import List
           </button>
-          <button onClick={() => { setShowOCR(!showOCR); setShowForm(false); setShowImport(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+          <button onClick={() => { setShowOCR(!showOCR); setShowForm(false); setShowImport(false); setShowBarcode(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
             <Camera size={16} /> Scan List
           </button>
         </div>
@@ -124,7 +164,7 @@ export default function InventoryPanel() {
         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
-          placeholder="Search books by title, publisher, or category..."
+          placeholder="Search by title, publisher, category, or ISBN..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none bg-white"
@@ -158,6 +198,19 @@ export default function InventoryPanel() {
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" required />
                 <input type="number" min="1" placeholder="Quantity *" value={quantity} onChange={(e) => setQuantity(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" required />
+                <div className="md:col-span-2 relative">
+                  <input type="text" placeholder="ISBN / Barcode (optional)" value={isbn} onChange={(e) => setIsbn(e.target.value)}
+                    className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none font-mono" />
+                  <button type="button" onClick={() => setShowBarcode(true)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-violet-600 transition-colors rounded-lg hover:bg-violet-50" title="Scan Barcode">
+                    <ScanBarcode size={18} />
+                  </button>
+                  {fetchingISBN && (
+                    <div className="absolute right-12 top-1/2 -translate-y-1/2">
+                      <Loader2 size={16} className="animate-spin text-violet-500" />
+                    </div>
+                  )}
+                </div>
                 <div className="md:col-span-2 flex gap-3">
                   <button type="submit" className="btn-primary text-sm rounded-xl">{editingId ? 'Update Book' : 'Add Book'}</button>
                   <button type="button" onClick={resetForm} className="btn-secondary text-sm rounded-xl">Cancel</button>
@@ -201,6 +254,7 @@ export default function InventoryPanel() {
                 <tr className="border-b border-gray-100 bg-gray-50/80">
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Title</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Publisher</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden lg:table-cell">ISBN</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">Price</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Stock</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Sold</th>
@@ -216,6 +270,7 @@ export default function InventoryPanel() {
                       {book.category && <p className="text-gray-400 text-xs mt-0.5">{book.category}</p>}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{book.publisher}</td>
+                    <td className="px-4 py-3 text-gray-400 font-mono text-xs hidden lg:table-cell">{book.isbn || '—'}</td>
                     <td className="px-4 py-3 text-right font-medium">₹{book.price.toFixed(2)}</td>
                     <td className="px-4 py-3 text-center">{book.quantity}</td>
                     <td className="px-4 py-3 text-center text-green-600 font-medium">{book.sold}</td>
@@ -248,6 +303,17 @@ export default function InventoryPanel() {
           </div>
         )}
       </div>
+
+      {/* Barcode Scanner Modal */}
+      <AnimatePresence>
+        {showBarcode && (
+          <BarcodeScanner
+            title="Scan Book ISBN"
+            onScan={fetchBookByISBN}
+            onClose={() => setShowBarcode(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

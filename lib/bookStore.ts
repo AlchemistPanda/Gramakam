@@ -32,6 +32,11 @@ export function getBooks(): Book[] {
   return loadStore().books;
 }
 
+export function findBookByIsbn(isbn: string): Book | undefined {
+  const store = loadStore();
+  return store.books.find((b) => b.isbn && b.isbn === isbn);
+}
+
 export function addBook(book: Omit<Book, 'id' | 'sold' | 'addedAt'>): Book {
   const store = loadStore();
   const newBook: Book = {
@@ -97,7 +102,8 @@ export function searchBooks(query: string): Book[] {
     (b) =>
       b.title.toLowerCase().includes(q) ||
       b.publisher.toLowerCase().includes(q) ||
-      b.category?.toLowerCase().includes(q)
+      b.category?.toLowerCase().includes(q) ||
+      b.isbn?.toLowerCase().includes(q)
   );
 }
 

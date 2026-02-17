@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
-import { getBooks, getBills, createBill } from '@/lib/bookStore';
+import { getBooks, getBills, createBill, findBookByIsbn } from '@/lib/bookStore';
+import BarcodeScanner from './BarcodeScanner';
 
 export default function BillingPanel() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -17,6 +18,8 @@ export default function BillingPanel() {
   const [showHistory, setShowHistory] = useState(false);
   const [allBills, setAllBills] = useState<Bill[]>([]);
   const [viewingBill, setViewingBill] = useState<Bill | null>(null);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(() => {
@@ -26,7 +29,7 @@ export default function BillingPanel() {
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Live search
+  // Live search — also matches ISBN
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
@@ -35,10 +38,29 @@ export default function BillingPanel() {
     const q = query.toLowerCase();
     const matched = books
       .filter((b) => (b.quantity - b.sold) > 0)
-      .filter((b) => b.title.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q))
+      .filter((b) => b.title.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q) || b.isbn?.toLowerCase().includes(q))
       .slice(0, 8);
     setResults(matched);
   }, [query, books]);
+
+  // Handle barcode scan in billing
+  const handleBarcodeScan = (isbn: string) => {
+    setShowBarcodeScanner(false);
+    const book = findBookByIsbn(isbn);
+    if (book) {
+      const available = book.quantity - book.sold;
+      if (available <= 0) {
+        setScanMessage({ type: 'error', text: `"${book.title}" is out of stock` });
+        return;
+      }
+      addToCart(book);
+      setScanMessage({ type: 'success', text: `Added "${book.title}" to cart` });
+    } else {
+      setScanMessage({ type: 'error', text: `No book found with ISBN ${isbn}` });
+    }
+    // Clear message after 3 seconds
+    setTimeout(() => setScanMessage(null), 3000);
+  };
 
   const addToCart = (book: Book) => {
     const available = book.quantity - book.sold;
@@ -337,19 +359,27 @@ export default function BillingPanel() {
           <input
             ref={searchRef}
             type="text"
-            placeholder="🔍 Search book title or publisher..."
+            placeholder="🔍 Search book title, publisher, or ISBN..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-12 pr-16 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-maroon focus:border-maroon outline-none bg-white shadow-sm"
+            className="w-full pl-12 pr-28 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-maroon focus:border-maroon outline-none bg-white shadow-sm"
             autoFocus
           />
-          {/* History Button */}
-          <button
-            onClick={() => { setShowHistory(true); reload(); }}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-maroon transition-colors rounded-full hover:bg-maroon/5" title="Bill History"
-          >
-            <History size={22} />
-          </button>
+          {/* Action buttons */}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <button
+              onClick={() => setShowBarcodeScanner(true)}
+              className="p-2 text-gray-400 hover:text-violet-600 transition-colors rounded-full hover:bg-violet-50" title="Scan Barcode"
+            >
+              <ScanBarcode size={22} />
+            </button>
+            <button
+              onClick={() => { setShowHistory(true); reload(); }}
+              className="p-2 text-gray-400 hover:text-maroon transition-colors rounded-full hover:bg-maroon/5" title="Bill History"
+            >
+              <History size={22} />
+            </button>
+          </div>
 
           {/* Search Results Dropdown */}
           <AnimatePresence>
@@ -388,6 +418,23 @@ export default function BillingPanel() {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Scan Message */}
+        <AnimatePresence>
+          {scanMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={`mb-3 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
+                scanMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              }`}
+            >
+              {scanMessage.type === 'success' ? <CheckCircle size={16} /> : <X size={16} />}
+              {scanMessage.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Cart Items */}
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
@@ -547,6 +594,17 @@ export default function BillingPanel() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Barcode Scanner Modal */}
+      <AnimatePresence>
+        {showBarcodeScanner && (
+          <BarcodeScanner
+            title="Scan to Add to Cart"
+            onScan={handleBarcodeScan}
+            onClose={() => setShowBarcodeScanner(false)}
+          />
         )}
       </AnimatePresence>
     </div>
