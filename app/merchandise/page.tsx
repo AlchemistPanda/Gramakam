@@ -21,7 +21,7 @@ const products: MerchProduct[] = [
     name: 'Gramakam T-Shirt',
     description:
       'Premium cotton t-shirt with the iconic Gramakam festival design. A wearable piece of cultural art.',
-    images: ['/images/merch/tshirt.jpg', '/images/merch/tshirt2.jpg'],
+    images: ['/images/merch/tshirt2.jpg', '/images/merch/tshirt.jpg'],
     sizes: ['S', 'M', 'L', 'XL', 'XXL'],
   },
   {
