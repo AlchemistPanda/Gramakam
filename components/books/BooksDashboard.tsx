@@ -60,14 +60,14 @@ export default function BooksDashboard({ onLogout }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+            className="fixed inset-0 bg-black/40 z-40 md:hidden"
           />
         )}
       </AnimatePresence>
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 z-50 transform transition-transform duration-200 lg:translate-x-0 lg:static lg:z-auto ${
+        className={`fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 z-50 transform transition-transform duration-200 md:translate-x-0 md:static md:z-auto ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -88,7 +88,7 @@ export default function BooksDashboard({ onLogout }: Props) {
             {/* Close btn on mobile */}
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100"
+              className="md:hidden absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100"
             >
               <X size={18} />
             </button>
@@ -100,13 +100,13 @@ export default function BooksDashboard({ onLogout }: Props) {
               <button
                 key={tab.id}
                 onClick={() => switchTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                className={`w-full flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm transition-all ${
                   activeTab === tab.id
                     ? 'bg-maroon text-white shadow-md shadow-maroon/20'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-charcoal'
                 }`}
               >
-                <tab.icon size={18} />
+                <tab.icon size={20} />
                 <div className="text-left">
                   <div className="font-medium">{tab.label}</div>
                   <div className={`text-[10px] ${activeTab === tab.id ? 'text-white/70' : 'text-gray-400'}`}>
@@ -138,7 +138,7 @@ export default function BooksDashboard({ onLogout }: Props) {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                className="md:hidden p-2 rounded-xl hover:bg-gray-100 transition-colors"
               >
                 <Menu size={20} />
               </button>
@@ -157,7 +157,7 @@ export default function BooksDashboard({ onLogout }: Props) {
         </header>
 
         {/* Page */}
-        <main className="flex-1 p-4 md:p-6 lg:p-8">
+        <main className="flex-1 p-4 md:p-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -201,7 +201,7 @@ function DashboardHome({
       <p className="text-gray-500 text-sm mb-8">Gramakam Book Festival 2026 &mdash; Manage your inventory, billing, and reports.</p>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {[
           { label: 'Total Books', val: stats.totalBooks, sub: `${stats.uniquePublishers} publishers`, color: 'border-blue-400' },
           { label: 'Books Sold', val: stats.totalSold, sub: `${stats.totalBills} bills`, color: 'border-green-400' },
@@ -219,7 +219,7 @@ function DashboardHome({
 
       {/* Quick Actions */}
       <h3 className="text-lg font-semibold text-charcoal mb-3">Quick Actions</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {quickActions.map((action) => (
           <button
             key={action.tab}

@@ -350,7 +350,7 @@ export default function BillingPanel() {
   }
 
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-6">
+    <div className="h-full flex flex-col md:flex-row gap-4 md:gap-6">
       {/* LEFT — Search & Add */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Search Bar — BIG */}
@@ -396,7 +396,7 @@ export default function BillingPanel() {
                     <button
                       key={book.id}
                       onClick={() => addToCart(book)}
-                      className="w-full flex items-center justify-between px-5 py-4 hover:bg-maroon/5 transition-colors text-left border-b border-gray-50 last:border-0"
+                      className="w-full flex items-center justify-between px-5 py-5 hover:bg-maroon/5 active:bg-maroon/10 transition-colors text-left border-b border-gray-50 last:border-0"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-charcoal text-base truncate">{book.title}</p>
@@ -407,8 +407,8 @@ export default function BillingPanel() {
                         <p className="text-xs text-gray-400">{avail} left</p>
                       </div>
                       <div className="ml-3 shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-maroon/10 flex items-center justify-center">
-                          <Plus size={20} className="text-maroon" />
+                        <div className="w-12 h-12 rounded-full bg-maroon/10 flex items-center justify-center">
+                          <Plus size={22} className="text-maroon" />
                         </div>
                       </div>
                     </button>
@@ -459,16 +459,16 @@ export default function BillingPanel() {
                   <p className="text-gray-500 text-sm">{item.publisher} · ₹{item.price.toFixed(2)}</p>
                 </div>
 
-                {/* Quantity Controls — BIG buttons */}
-                <div className="flex items-center gap-1 shrink-0">
+                {/* Quantity Controls — BIG touch-friendly buttons */}
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={() => updateCartQty(item.bookId, -1)}
-                    className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                    <Minus size={18} />
+                    className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 flex items-center justify-center transition-colors">
+                    <Minus size={20} />
                   </button>
                   <span className="w-10 text-center font-bold text-lg text-charcoal">{item.quantity}</span>
                   <button onClick={() => updateCartQty(item.bookId, 1)}
-                    className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                    <Plus size={18} />
+                    className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 flex items-center justify-center transition-colors">
+                    <Plus size={20} />
                   </button>
                 </div>
 
@@ -477,7 +477,7 @@ export default function BillingPanel() {
                 </p>
 
                 <button onClick={() => removeFromCart(item.bookId)}
-                  className="p-2 text-gray-300 hover:text-red-500 transition-colors shrink-0">
+                  className="p-2.5 text-gray-300 hover:text-red-500 active:text-red-600 transition-colors shrink-0">
                   <Trash2 size={18} />
                 </button>
               </motion.div>
@@ -487,8 +487,8 @@ export default function BillingPanel() {
       </div>
 
       {/* RIGHT — Bill Summary */}
-      <div className="lg:w-80 shrink-0">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-4">
+      <div className="md:w-72 lg:w-80 shrink-0">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6 md:sticky md:top-4">
           <h3 className="font-bold text-charcoal text-lg mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
             <ShoppingCart size={20} /> Bill Summary
           </h3>
@@ -528,7 +528,7 @@ export default function BillingPanel() {
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0}
-            className="w-full bg-maroon hover:bg-maroon-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-semibold text-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-maroon/20"
+            className="w-full bg-maroon hover:bg-maroon-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 md:py-5 rounded-2xl font-semibold text-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-maroon/20 active:scale-[0.98]"
           >
             <CheckCircle size={20} /> Complete Sale
           </button>

@@ -144,16 +144,16 @@ export default function InventoryPanel() {
           Book Inventory
         </h2>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => { resetForm(); setShowForm(!showForm); setShowOCR(false); setShowImport(false); setShowBarcode(false); }} className="btn-primary text-sm flex items-center gap-2 rounded-xl">
+          <button onClick={() => { resetForm(); setShowForm(!showForm); setShowOCR(false); setShowImport(false); setShowBarcode(false); }} className="btn-primary text-sm flex items-center gap-2 rounded-xl py-2.5 md:py-3">
             <Plus size={16} /> Add Book
           </button>
-          <button onClick={() => { setShowBarcode(true); }} className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+          <button onClick={() => { setShowBarcode(true); }} className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
             <ScanBarcode size={16} /> Scan ISBN
           </button>
-          <button onClick={() => { setShowImport(!showImport); setShowForm(false); setShowOCR(false); setShowBarcode(false); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+          <button onClick={() => { setShowImport(!showImport); setShowForm(false); setShowOCR(false); setShowBarcode(false); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
             <FileSpreadsheet size={16} /> Import List
           </button>
-          <button onClick={() => { setShowOCR(!showOCR); setShowForm(false); setShowImport(false); setShowBarcode(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+          <button onClick={() => { setShowOCR(!showOCR); setShowForm(false); setShowImport(false); setShowBarcode(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
             <Camera size={16} /> Scan List
           </button>
         </div>
@@ -284,9 +284,9 @@ export default function InventoryPanel() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex justify-center gap-1">
-                        <button onClick={() => handleEdit(book)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"><Edit size={15} /></button>
-                        <button onClick={() => handleDelete(book.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"><Trash2 size={15} /></button>
+                      <div className="flex justify-center gap-1.5">
+                        <button onClick={() => handleEdit(book)} className="p-2 md:p-2.5 text-gray-400 hover:text-blue-600 active:text-blue-700 transition-colors rounded-lg hover:bg-blue-50"><Edit size={16} /></button>
+                        <button onClick={() => handleDelete(book.id)} className="p-2 md:p-2.5 text-gray-400 hover:text-red-500 active:text-red-600 transition-colors rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
                       </div>
                     </td>
                   </tr>
