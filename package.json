@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
+    "@types/web-bluetooth": "^0.0.21",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.6"
   }

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2 } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
 import { getBooks, getBills, createBill, findBookByIsbn, onDataChange } from '@/lib/bookStore';
+import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
 export default function BillingPanel() {
@@ -20,6 +21,11 @@ export default function BillingPanel() {
   const [viewingBill, setViewingBill] = useState<Bill | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [btAvailable, setBtAvailable] = useState(false);
+  const [btConnected, setBtConnected] = useState(false);
+  const [btConnecting, setBtConnecting] = useState(false);
+  const [btName, setBtName] = useState<string | null>(null);
+  const [printStatus, setPrintStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(() => {
@@ -28,6 +34,21 @@ export default function BillingPanel() {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // Check Bluetooth availability
+  useEffect(() => {
+    setBtAvailable(isBluetoothAvailable());
+    setBtConnected(isPrinterConnected());
+    setBtName(getConnectedPrinterName() || getSavedPrinterName());
+  }, []);
+
+  // Auto-clear print status
+  useEffect(() => {
+    if (printStatus) {
+      const t = setTimeout(() => setPrintStatus(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [printStatus]);
 
   // Real-time sync
   useEffect(() => {
@@ -125,90 +146,36 @@ export default function BillingPanel() {
     }
   };
 
-  const printBill = () => {
-    if (!lastBill) return;
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (!printWindow) return;
-
-    const html = `
-      <!DOCTYPE html>
-      <html><head><title>Bill #${lastBill.billNumber}</title>
-      <style>
-        body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: 0 auto; font-size: 13px; }
-        h1 { text-align: center; font-size: 18px; margin-bottom: 4px; }
-        .center { text-align: center; }
-        .line { border-top: 1px dashed #000; margin: 8px 0; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 3px 0; text-align: left; }
-        th:last-child, td:last-child { text-align: right; }
-        .total-row { font-weight: bold; font-size: 15px; }
-      </style></head><body>
-        <h1>GRAMAKAM</h1>
-        <p class="center">Book Festival 2026<br/>Velur, Thrissur, Kerala</p>
-        <div class="line"></div>
-        <p><strong>Bill #${lastBill.billNumber}</strong><br/>${new Date(lastBill.createdAt).toLocaleString('en-IN')}</p>
-        <div class="line"></div>
-        <table>
-          <thead><tr><th>Item</th><th>Qty</th><th>Amt</th></tr></thead>
-          <tbody>
-            ${lastBill.items.map((item) => `<tr><td>${item.title}<br/><small>${item.publisher}</small></td><td>${item.quantity}</td><td>₹${(item.price * item.quantity).toFixed(2)}</td></tr>`).join('')}
-          </tbody>
-        </table>
-        <div class="line"></div>
-        <table>
-          <tr><td>Subtotal</td><td style="text-align:right">₹${lastBill.total.toFixed(2)}</td></tr>
-          ${lastBill.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-₹${lastBill.discount.toFixed(2)}</td></tr>` : ''}
-          <tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${lastBill.grandTotal.toFixed(2)}</td></tr>
-        </table>
-        <div class="line"></div>
-        <p class="center" style="margin-top:12px">Thank you for visiting!<br/>Gramakam Cultural Academy</p>
-        <script>window.onload = () => { window.print(); }</script>
-      </body></html>
-    `;
-    printWindow.document.write(html);
-    printWindow.document.close();
+  const handlePrint = async (bill: Bill) => {
+    setPrintStatus({ type: 'info', text: 'Printing...' });
+    const result = await hybridPrint(bill);
+    if (result.success) {
+      setPrintStatus({
+        type: 'success',
+        text: result.method === 'bluetooth' ? `Printed via ${btName || 'Bluetooth'}` : 'Sent to browser print',
+      });
+    } else {
+      setPrintStatus({ type: 'error', text: result.error || 'Print failed' });
+    }
   };
 
-  const printAnyBill = (bill: Bill) => {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (!printWindow) return;
-    const html = `
-      <!DOCTYPE html>
-      <html><head><title>Bill #${bill.billNumber}</title>
-      <style>
-        body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: 0 auto; font-size: 13px; }
-        h1 { text-align: center; font-size: 18px; margin-bottom: 4px; }
-        .center { text-align: center; }
-        .line { border-top: 1px dashed #000; margin: 8px 0; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 3px 0; text-align: left; }
-        th:last-child, td:last-child { text-align: right; }
-        .total-row { font-weight: bold; font-size: 15px; }
-      </style></head><body>
-        <h1>GRAMAKAM</h1>
-        <p class="center">Book Festival 2026<br/>Velur, Thrissur, Kerala</p>
-        <div class="line"></div>
-        <p><strong>Bill #${bill.billNumber}</strong><br/>${new Date(bill.createdAt).toLocaleString('en-IN')}</p>
-        <div class="line"></div>
-        <table>
-          <thead><tr><th>Item</th><th>Qty</th><th>Amt</th></tr></thead>
-          <tbody>
-            ${bill.items.map((item) => `<tr><td>${item.title}<br/><small>${item.publisher}</small></td><td>${item.quantity}</td><td>₹${(item.price * item.quantity).toFixed(2)}</td></tr>`).join('')}
-          </tbody>
-        </table>
-        <div class="line"></div>
-        <table>
-          <tr><td>Subtotal</td><td style="text-align:right">₹${bill.total.toFixed(2)}</td></tr>
-          ${bill.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-₹${bill.discount.toFixed(2)}</td></tr>` : ''}
-          <tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${bill.grandTotal.toFixed(2)}</td></tr>
-        </table>
-        <div class="line"></div>
-        <p class="center" style="margin-top:12px">Thank you for visiting!<br/>Gramakam Cultural Academy</p>
-        <script>window.onload = () => { window.print(); }<\/script>
-      </body></html>
-    `;
-    printWindow.document.write(html);
-    printWindow.document.close();
+  const handleConnectPrinter = async () => {
+    if (isPrinterConnected()) {
+      await disconnectPrinter();
+      setBtConnected(false);
+      setBtName(null);
+      return;
+    }
+    setBtConnecting(true);
+    const result = await connectPrinter();
+    setBtConnecting(false);
+    if (result.success) {
+      setBtConnected(true);
+      setBtName(result.name || 'Printer');
+      setPrintStatus({ type: 'success', text: `Connected to ${result.name}` });
+    } else {
+      setPrintStatus({ type: 'error', text: result.error || 'Connection failed' });
+    }
   };
 
   // If viewing bill history
@@ -244,7 +211,7 @@ export default function BillingPanel() {
                 <ChevronLeft size={16} /> All Bills
               </button>
               <button
-                onClick={() => printAnyBill(viewingBill)}
+                onClick={() => handlePrint(viewingBill)}
                 className="flex items-center gap-1.5 text-maroon hover:bg-maroon/5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
               >
                 <Printer size={16} /> Reprint
@@ -340,7 +307,7 @@ export default function BillingPanel() {
                       <Eye size={18} />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); printAnyBill(bill); }}
+                      onClick={(e) => { e.stopPropagation(); handlePrint(bill); }}
                       className="p-2 text-gray-400 hover:text-maroon transition-colors" title="Print Bill"
                     >
                       <Printer size={16} />
@@ -373,6 +340,22 @@ export default function BillingPanel() {
           />
           {/* Action buttons */}
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {btAvailable && (
+              <button
+                onClick={handleConnectPrinter}
+                disabled={btConnecting}
+                className={`p-2 transition-colors rounded-full ${
+                  btConnected
+                    ? 'text-green-500 hover:text-red-500 hover:bg-red-50'
+                    : btConnecting
+                    ? 'text-blue-400 animate-pulse'
+                    : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
+                }`}
+                title={btConnected ? `Connected: ${btName} (tap to disconnect)` : btConnecting ? 'Connecting...' : 'Connect Bluetooth Printer'}
+              >
+                {btConnecting ? <Loader2 size={22} className="animate-spin" /> : btConnected ? <BluetoothConnected size={22} /> : <Bluetooth size={22} />}
+              </button>
+            )}
             <button
               onClick={() => setShowBarcodeScanner(true)}
               className="p-2 text-gray-400 hover:text-violet-600 transition-colors rounded-full hover:bg-violet-50" title="Scan Barcode"
@@ -590,8 +573,8 @@ export default function BillingPanel() {
               </div>
 
               <div className="flex border-t border-gray-100">
-                <button onClick={printBill} className="flex-1 py-4 text-center font-medium text-maroon hover:bg-maroon/5 transition-colors flex items-center justify-center gap-2">
-                  <Printer size={18} /> Print Bill
+                <button onClick={() => lastBill && handlePrint(lastBill)} className="flex-1 py-4 text-center font-medium text-maroon hover:bg-maroon/5 transition-colors flex items-center justify-center gap-2">
+                  <Printer size={18} /> {btConnected ? 'Print via Bluetooth' : 'Print Bill'}
                 </button>
                 <div className="w-px bg-gray-100" />
                 <button onClick={() => setShowBill(false)} className="flex-1 py-4 text-center font-medium text-gray-600 hover:bg-gray-50 transition-colors">
@@ -611,6 +594,29 @@ export default function BillingPanel() {
             onScan={handleBarcodeScan}
             onClose={() => setShowBarcodeScanner(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Print Status Toast */}
+      <AnimatePresence>
+        {printStatus && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 text-sm font-medium ${
+              printStatus.type === 'success'
+                ? 'bg-green-600 text-white'
+                : printStatus.type === 'error'
+                ? 'bg-red-600 text-white'
+                : 'bg-blue-600 text-white'
+            }`}
+          >
+            {printStatus.type === 'success' ? <CheckCircle size={18} /> :
+             printStatus.type === 'info' ? <Loader2 size={18} className="animate-spin" /> :
+             <X size={18} />}
+            {printStatus.text}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
