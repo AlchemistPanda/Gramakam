@@ -592,6 +592,7 @@ function MerchPanel() {
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Mobile</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Item</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Size</th>
@@ -604,6 +605,7 @@ function MerchPanel() {
                 {entries.map((entry) => (
                   <tr key={entry.id} className="border-b border-gray-50">
                     <td className="px-4 py-3 font-medium">{entry.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{entry.mobile ? `+91 ${entry.mobile}` : '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{entry.email}</td>
                     <td className="px-4 py-3">{entry.item}</td>
                     <td className="px-4 py-3">{entry.size}</td>

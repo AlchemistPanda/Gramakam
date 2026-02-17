@@ -44,6 +44,7 @@ export interface MerchPrebook {
   id: string;
   name: string;
   email: string;
+  mobile: string;
   item: string;
   size: string;
   quantity: number;

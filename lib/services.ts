@@ -174,6 +174,7 @@ export async function deleteContact(id: string): Promise<void> {
 export async function submitPrebook(data: {
   name: string;
   email: string;
+  mobile: string;
   item: string;
   size: string;
   quantity: number;
