@@ -132,11 +132,14 @@ export default function InventoryPanel() {
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" required />
                 </div>
                 <div className="relative">
-                  <input type="text" placeholder="Publisher Name *" value={publisher} onChange={(e) => setPublisher(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" required list="publishers-list" />
-                  <datalist id="publishers-list">
-                    {publishers.map((p) => <option key={p} value={p} />)}
-                  </datalist>
+                  <select value={publisher} onChange={(e) => setPublisher(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none appearance-none bg-white" required>
+                    <option value="">Select Publisher *</option>
+                    {publishers.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
                 </div>
                 <input type="text" placeholder="Category (optional)" value={category} onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" />

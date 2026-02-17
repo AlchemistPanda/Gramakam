@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   FileText, FileSpreadsheet, Download, TrendingUp, BarChart3,
-  IndianRupee, Package, BookOpen, Users,
+  IndianRupee, Package, BookOpen, Users, Percent,
 } from 'lucide-react';
 import {
   getStats,
@@ -81,13 +81,19 @@ export default function ReportsPanel() {
       doc.text('Publisher-wise Report', 14, 40);
       autoTable(doc, {
         startY: 46,
-        head: [['Publisher', 'Total Books', 'Sold', 'Remaining', 'Revenue']],
+        head: [['Publisher', 'Total Books', 'Sold', 'Remaining', 'Revenue', 'Profit %', 'Our Profit']],
         body: pubStats.map((p) => [
-          p.publisher, p.totalBooks, p.totalSold, p.totalRemaining, `₹${p.revenue.toFixed(2)}`,
+          p.publisher, p.totalBooks, p.totalSold, p.totalRemaining, `₹${p.revenue.toFixed(2)}`, `${p.profitPercent}%`, `₹${p.profit.toFixed(2)}`,
         ]),
         styles: { fontSize: 9 },
         headStyles: { fillColor: [128, 0, 32] },
       });
+      // Profit summary
+      const pubFinalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+      const totalProfit = pubStats.reduce((s, p) => s + p.profit, 0);
+      doc.setFontSize(11);
+      doc.text(`Total Revenue: ₹${pubStats.reduce((s, p) => s + p.revenue, 0).toFixed(2)}`, 14, pubFinalY);
+      doc.text(`Total Profit: ₹${totalProfit.toFixed(2)}`, 14, pubFinalY + 7);
     }
 
     doc.save(`gramakam-${type}-report.pdf`);
@@ -146,6 +152,8 @@ export default function ReportsPanel() {
         'Sold': p.totalSold,
         'Remaining': p.totalRemaining,
         'Revenue (₹)': p.revenue,
+        'Profit %': p.profitPercent,
+        'Our Profit (₹)': p.profit,
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, 'By Publisher');
@@ -171,6 +179,7 @@ export default function ReportsPanel() {
     { label: 'Books Sold', value: stats.totalSold, icon: TrendingUp, color: 'bg-green-100 text-green-600' },
     { label: 'Remaining', value: stats.totalRemaining, icon: BookOpen, color: 'bg-yellow-100 text-yellow-700' },
     { label: 'Revenue', value: `₹${stats.totalRevenue.toFixed(0)}`, icon: IndianRupee, color: 'bg-purple-100 text-purple-600' },
+    { label: 'Our Profit', value: `₹${pubStats.reduce((s, p) => s + p.profit, 0).toFixed(0)}`, icon: Percent, color: 'bg-emerald-100 text-emerald-600' },
     { label: 'Bills', value: stats.totalBills, icon: FileText, color: 'bg-orange-100 text-orange-600' },
     { label: 'Publishers', value: stats.uniquePublishers, icon: Users, color: 'bg-teal-100 text-teal-600' },
   ];
@@ -182,7 +191,7 @@ export default function ReportsPanel() {
       </h2>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
         {statCards.map((s) => (
           <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
             <div className={`w-9 h-9 rounded-xl ${s.color} flex items-center justify-center mb-2`}>
@@ -269,6 +278,8 @@ export default function ReportsPanel() {
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Sold</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Remaining</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">Revenue</th>
+                  <th className="text-center px-4 py-3 font-semibold text-gray-600">Profit %</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600">Our Profit</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Progress</th>
                 </tr>
               </thead>
@@ -286,6 +297,12 @@ export default function ReportsPanel() {
                         }`}>{p.totalRemaining}</span>
                       </td>
                       <td className="px-4 py-3 text-right font-medium">₹{p.revenue.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          p.profitPercent > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}>{p.profitPercent}%</span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-green-600">₹{p.profit.toFixed(2)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">

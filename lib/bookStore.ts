@@ -44,7 +44,7 @@ export function addBook(book: Omit<Book, 'id' | 'sold' | 'addedAt'>): Book {
 
   // Auto-add publisher if new
   if (book.publisher && !store.publishers.find((p) => p.name.toLowerCase() === book.publisher.toLowerCase())) {
-    store.publishers.push({ id: generateId(), name: book.publisher });
+    store.publishers.push({ id: generateId(), name: book.publisher, profitPercent: 0 });
   }
 
   saveStore(store);
@@ -66,7 +66,7 @@ export function addBooksInBulk(books: Omit<Book, 'id' | 'sold' | 'addedAt'>[]): 
     newBooks.push(newBook);
 
     if (book.publisher && !store.publishers.find((p) => p.name.toLowerCase() === book.publisher.toLowerCase())) {
-      store.publishers.push({ id: generateId(), name: book.publisher });
+      store.publishers.push({ id: generateId(), name: book.publisher, profitPercent: 0 });
     }
   }
 
@@ -155,12 +155,44 @@ export function getPublishers(): Publisher[] {
   return loadStore().publishers;
 }
 
-export function addPublisher(name: string): Publisher {
+export function addPublisher(name: string, profitPercent: number = 0, contact?: string): Publisher {
   const store = loadStore();
-  const pub: Publisher = { id: generateId(), name };
+  const pub: Publisher = { id: generateId(), name, profitPercent, contact };
   store.publishers.push(pub);
   saveStore(store);
   return pub;
+}
+
+export function updatePublisher(id: string, data: Partial<Publisher>): void {
+  const store = loadStore();
+  const idx = store.publishers.findIndex((p) => p.id === id);
+  if (idx !== -1) {
+    const oldName = store.publishers[idx].name;
+    store.publishers[idx] = { ...store.publishers[idx], ...data };
+    // If name changed, update all books referencing the old name
+    if (data.name && data.name !== oldName) {
+      for (const book of store.books) {
+        if (book.publisher === oldName) book.publisher = data.name;
+      }
+      for (const bill of store.bills) {
+        for (const item of bill.items) {
+          if (item.publisher === oldName) item.publisher = data.name;
+        }
+      }
+    }
+    saveStore(store);
+  }
+}
+
+export function deletePublisher(id: string): void {
+  const store = loadStore();
+  store.publishers = store.publishers.filter((p) => p.id !== id);
+  saveStore(store);
+}
+
+export function getPublisherByName(name: string): Publisher | undefined {
+  const store = loadStore();
+  return store.publishers.find((p) => p.name.toLowerCase() === name.toLowerCase());
 }
 
 // ==================== STATS ====================
@@ -178,16 +210,23 @@ export function getStats() {
 
 export function getPublisherStats() {
   const store = loadStore();
-  const pubMap: Record<string, { publisher: string; totalBooks: number; totalSold: number; totalRemaining: number; revenue: number }> = {};
+  const pubMap: Record<string, { publisher: string; totalBooks: number; totalSold: number; totalRemaining: number; revenue: number; profitPercent: number; profit: number }> = {};
 
   for (const book of store.books) {
     if (!pubMap[book.publisher]) {
-      pubMap[book.publisher] = { publisher: book.publisher, totalBooks: 0, totalSold: 0, totalRemaining: 0, revenue: 0 };
+      const pub = store.publishers.find((p) => p.name.toLowerCase() === book.publisher.toLowerCase());
+      const profitPct = pub?.profitPercent ?? 0;
+      pubMap[book.publisher] = { publisher: book.publisher, totalBooks: 0, totalSold: 0, totalRemaining: 0, revenue: 0, profitPercent: profitPct, profit: 0 };
     }
     pubMap[book.publisher].totalBooks += book.quantity;
     pubMap[book.publisher].totalSold += book.sold;
     pubMap[book.publisher].totalRemaining += book.quantity - book.sold;
     pubMap[book.publisher].revenue += book.sold * book.price;
+  }
+
+  // Calculate profit for each publisher
+  for (const key of Object.keys(pubMap)) {
+    pubMap[key].profit = (pubMap[key].revenue * pubMap[key].profitPercent) / 100;
   }
 
   return Object.values(pubMap).sort((a, b) => b.revenue - a.revenue);

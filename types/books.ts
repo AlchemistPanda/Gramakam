@@ -4,6 +4,7 @@ export interface Publisher {
   id: string;
   name: string;
   contact?: string;
+  profitPercent: number;    // % of revenue that is our profit
 }
 
 export interface Book {

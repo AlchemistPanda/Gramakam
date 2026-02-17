@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3,
-  LogOut, BookOpen, Menu, X, ChevronRight,
+  LogOut, BookOpen, Menu, X, ChevronRight, Users,
 } from 'lucide-react';
 import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
 import ReportsPanel from './ReportsPanel';
+import PublishersPanel from './PublishersPanel';
 import { getStats } from '@/lib/bookStore';
 
-type Tab = 'dashboard' | 'inventory' | 'billing' | 'reports';
+type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports';
 
 interface Props {
   onLogout: () => void;
@@ -29,14 +30,16 @@ export default function BooksDashboard({ onLogout }: Props) {
   const tabs: { id: Tab; label: string; icon: React.ElementType; desc: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview' },
     { id: 'inventory', label: 'Inventory', icon: Package, desc: 'Manage books' },
+    { id: 'publishers', label: 'Publishers', icon: Users, desc: 'Publisher pool' },
     { id: 'billing', label: 'Billing', icon: ShoppingCart, desc: 'Point of Sale' },
     { id: 'reports', label: 'Reports', icon: BarChart3, desc: 'Export data' },
   ];
 
   const quickActions = [
     { label: 'Add Books', desc: 'Enter new books to inventory', tab: 'inventory' as Tab, icon: Package, color: 'bg-blue-500' },
+    { label: 'Publishers', desc: 'Manage publisher pool & profit %', tab: 'publishers' as Tab, icon: Users, color: 'bg-purple-500' },
     { label: 'New Sale', desc: 'Start billing a customer', tab: 'billing' as Tab, icon: ShoppingCart, color: 'bg-green-500' },
-    { label: 'Export Report', desc: 'Download PDF or Excel', tab: 'reports' as Tab, icon: BarChart3, color: 'bg-purple-500' },
+    { label: 'Export Report', desc: 'Download PDF or Excel', tab: 'reports' as Tab, icon: BarChart3, color: 'bg-orange-500' },
   ];
 
   const switchTab = (tab: Tab) => {
@@ -164,6 +167,7 @@ export default function BooksDashboard({ onLogout }: Props) {
                 <DashboardHome stats={stats} onNavigate={switchTab} quickActions={quickActions} />
               )}
               {activeTab === 'inventory' && <InventoryPanel />}
+              {activeTab === 'publishers' && <PublishersPanel />}
               {activeTab === 'billing' && <BillingPanel />}
               {activeTab === 'reports' && <ReportsPanel />}
             </motion.div>
@@ -209,7 +213,7 @@ function DashboardHome({
 
       {/* Quick Actions */}
       <h3 className="text-lg font-semibold text-charcoal mb-3">Quick Actions</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         {quickActions.map((action) => (
           <button
             key={action.tab}
