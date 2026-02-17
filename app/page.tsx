@@ -57,9 +57,9 @@ export default function HomePage() {
               <Image
                 src="/images/gramakam-logo-white.png"
                 alt="Gramakam 2026 Logo"
-                width={180}
-                height={180}
-                className="w-44 h-44 sm:w-56 sm:h-56 md:w-64 md:h-64 object-contain drop-shadow-2xl"
+                width={400}
+                height={400}
+                className="w-60 h-60 sm:w-72 sm:h-72 md:w-80 md:h-80 lg:w-96 lg:h-96 object-contain drop-shadow-2xl"
                 priority
               />
             </div>
