@@ -1,6 +1,8 @@
-// Book Festival — Firestore-synced data store
-// Data is stored in Firebase Firestore (shared across all devices).
-// Falls back to localStorage if Firebase is not configured.
+// Book Festival — Firestore-synced data store (Collection-based)
+// Data is stored in separate Firestore collections (no document size limits).
+// Offline persistence is enabled in firebase.ts — page refreshes read from
+// IndexedDB cache, NOT from the server, saving read quota.
+// Collections: bookfest_books, bookfest_bills, bookfest_publishers, bookfest/meta
 
 import type { Book, Bill, Publisher, BookStoreData } from '@/types/books';
 import { db } from './firebase';
@@ -31,7 +33,7 @@ export function onDataChange(listener: () => void): () => void {
   };
 }
 
-// ==================== STORAGE LAYER ====================
+// ==================== LOCAL STORAGE (offline fallback) ====================
 
 function loadFromLocalStorage(): BookStoreData {
   if (typeof window === 'undefined') {
@@ -44,86 +46,213 @@ function loadFromLocalStorage(): BookStoreData {
   return { books: [], bills: [], publishers: [], nextBillNumber: 1 };
 }
 
-function saveToLocalStorage(data: BookStoreData): void {
+function saveToLocalStorage(): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    localStorage.setItem(STORE_KEY, JSON.stringify(cache));
   } catch {}
 }
 
-async function loadFromFirestore(): Promise<BookStoreData | null> {
-  if (!db) return null;
-  try {
-    const { doc, getDoc } = await import('firebase/firestore');
-    const snap = await getDoc(doc(db, 'bookfest', 'data'));
-    if (snap.exists()) {
-      return snap.data() as BookStoreData;
-    }
-  } catch (e) {
-    console.warn('Firestore read failed:', e);
-  }
-  return null;
+// ==================== FIRESTORE LAYER (collection-based) ====================
+
+const COL_BOOKS = 'bookfest_books';
+const COL_BILLS = 'bookfest_bills';
+const COL_PUBLISHERS = 'bookfest_publishers';
+
+async function firestoreLib() {
+  return await import('firebase/firestore');
 }
 
-async function saveToFirestore(data: BookStoreData): Promise<void> {
+// Individual Firestore operations (granular writes — no size limits)
+async function fsSetBook(book: Book): Promise<void> {
   if (!db) return;
   try {
-    const { doc, setDoc } = await import('firebase/firestore');
-    await setDoc(doc(db, 'bookfest', 'data'), {
-      books: data.books,
-      bills: data.bills,
-      publishers: data.publishers,
-      nextBillNumber: data.nextBillNumber,
-    });
-  } catch (e) {
-    console.warn('Firestore write failed:', e);
+    const { doc, setDoc } = await firestoreLib();
+    await setDoc(doc(db, COL_BOOKS, book.id), { ...book });
+  } catch (e) { console.warn('Firestore write book failed:', e); }
+}
+
+async function fsDeleteBook(id: string): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, deleteDoc } = await firestoreLib();
+    await deleteDoc(doc(db, COL_BOOKS, id));
+  } catch (e) { console.warn('Firestore delete book failed:', e); }
+}
+
+async function fsSetBill(bill: Bill): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, setDoc } = await firestoreLib();
+    await setDoc(doc(db, COL_BILLS, bill.id), { ...bill });
+  } catch (e) { console.warn('Firestore write bill failed:', e); }
+}
+
+async function fsSetPublisher(pub: Publisher): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, setDoc } = await firestoreLib();
+    await setDoc(doc(db, COL_PUBLISHERS, pub.id), { ...pub });
+  } catch (e) { console.warn('Firestore write publisher failed:', e); }
+}
+
+async function fsDeletePublisher(id: string): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, deleteDoc } = await firestoreLib();
+    await deleteDoc(doc(db, COL_PUBLISHERS, id));
+  } catch (e) { console.warn('Firestore delete publisher failed:', e); }
+}
+
+async function fsSetMeta(): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, setDoc } = await firestoreLib();
+    await setDoc(doc(db, 'bookfest', 'meta'), { nextBillNumber: cache.nextBillNumber });
+  } catch (e) { console.warn('Firestore write meta failed:', e); }
+}
+
+// Commit an array of batch operations in chunks of 500 (Firestore limit)
+async function commitInBatches(ops: Array<{ type: 'set' | 'delete'; ref: any; data?: any }>): Promise<void> {
+  if (!db || ops.length === 0) return;
+  const { writeBatch } = await firestoreLib();
+  for (let i = 0; i < ops.length; i += 500) {
+    const batch = writeBatch(db);
+    const chunk = ops.slice(i, i + 500);
+    for (const op of chunk) {
+      if (op.type === 'set') batch.set(op.ref, op.data);
+      else batch.delete(op.ref);
+    }
+    await batch.commit();
   }
 }
 
-// Save to both cache + localStorage + Firestore
-function persist(data: BookStoreData): void {
-  cache = { ...data };
-  saveToLocalStorage(cache);
-  saveToFirestore(cache).catch(() => {});
+// Bulk write for import / migration / clear — uses batched writes
+async function fsBulkWrite(data: BookStoreData): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, collection, getDocs } = await firestoreLib();
+
+    // Delete all existing docs in all collections
+    const [oldBooks, oldBills, oldPubs] = await Promise.all([
+      getDocs(collection(db, COL_BOOKS)),
+      getDocs(collection(db, COL_BILLS)),
+      getDocs(collection(db, COL_PUBLISHERS)),
+    ]);
+    const deleteOps: Array<{ type: 'set' | 'delete'; ref: any }> = [];
+    oldBooks.forEach((d) => deleteOps.push({ type: 'delete', ref: d.ref }));
+    oldBills.forEach((d) => deleteOps.push({ type: 'delete', ref: d.ref }));
+    oldPubs.forEach((d) => deleteOps.push({ type: 'delete', ref: d.ref }));
+    await commitInBatches(deleteOps);
+
+    // Write new data in batches
+    const writeOps: Array<{ type: 'set' | 'delete'; ref: any; data?: any }> = [];
+    for (const book of data.books) {
+      writeOps.push({ type: 'set', ref: doc(db, COL_BOOKS, book.id), data: { ...book } });
+    }
+    for (const bill of data.bills) {
+      writeOps.push({ type: 'set', ref: doc(db, COL_BILLS, bill.id), data: { ...bill } });
+    }
+    for (const pub of data.publishers) {
+      writeOps.push({ type: 'set', ref: doc(db, COL_PUBLISHERS, pub.id), data: { ...pub } });
+    }
+    writeOps.push({ type: 'set', ref: doc(db, 'bookfest', 'meta'), data: { nextBillNumber: data.nextBillNumber } });
+    await commitInBatches(writeOps);
+  } catch (e) {
+    console.warn('Firestore bulk write failed:', e);
+  }
 }
 
 // ==================== INITIALIZATION ====================
 
+// Uses ONLY onSnapshot (no getDocs) — the initial snapshot from onSnapshot
+// serves as the first data load. With offline persistence enabled, the
+// initial snapshot comes from IndexedDB cache (0 server reads on refresh).
+
 export async function initBookStore(): Promise<void> {
   if (initialized) return;
 
-  // Try Firestore first
-  const firestoreData = await loadFromFirestore();
-  if (firestoreData && (firestoreData.books.length > 0 || firestoreData.bills.length > 0 || firestoreData.publishers.length > 0)) {
-    cache = firestoreData;
-    saveToLocalStorage(cache);
-  } else {
-    // Fall back to localStorage (first-time migration or offline)
+  // Load from localStorage immediately so UI isn't empty while Firestore connects
+  const localData = loadFromLocalStorage();
+  cache = localData;
+
+  initialized = true;
+
+  if (db) {
+    // Set up real-time listeners — the first snapshot IS the initial data load.
+    // No separate getDocs call needed (saves reads).
+    setupRealtimeListeners();
+  }
+}
+
+// Listen to all 3 collections + meta doc for real-time cross-device sync.
+// The initial onSnapshot callback serves as the data load (no getDocs needed).
+function setupRealtimeListeners(): void {
+  if (!db) return;
+  let booksReady = false;
+  let billsReady = false;
+  let pubsReady = false;
+  let metaReady = false;
+  let migrationChecked = false;
+
+  function checkMigration() {
+    if (!booksReady || !billsReady || !pubsReady || !metaReady || migrationChecked) return;
+    migrationChecked = true;
+    // If Firestore has no data but localStorage does, migrate local → Firestore
     const localData = loadFromLocalStorage();
-    cache = localData;
-    // If local has data but Firestore doesn't, push local data up
-    if (localData.books.length > 0 || localData.bills.length > 0 || localData.publishers.length > 0) {
-      saveToFirestore(localData).catch(() => {});
+    if (
+      cache.books.length === 0 && cache.bills.length === 0 && cache.publishers.length === 0 &&
+      (localData.books.length > 0 || localData.bills.length > 0 || localData.publishers.length > 0)
+    ) {
+      cache = localData;
+      fsBulkWrite(localData).catch(() => {});
     }
   }
 
-  initialized = true;
-  setupRealtimeListener();
-}
+  firestoreLib().then(({ collection, doc, onSnapshot }) => {
+    // Books collection
+    onSnapshot(collection(db!, COL_BOOKS), (snap) => {
+      const books: Book[] = [];
+      snap.forEach((d) => books.push({ ...d.data(), id: d.id } as Book));
+      cache.books = books;
+      saveToLocalStorage();
+      booksReady = true;
+      checkMigration();
+      notifyListeners();
+    }, (err) => console.warn('Books listener error:', err));
 
-function setupRealtimeListener(): void {
-  if (!db) return;
-  import('firebase/firestore').then(({ doc, onSnapshot }) => {
-    onSnapshot(doc(db!, 'bookfest', 'data'), (snap) => {
+    // Bills collection
+    onSnapshot(collection(db!, COL_BILLS), (snap) => {
+      const bills: Bill[] = [];
+      snap.forEach((d) => bills.push({ ...d.data(), id: d.id } as Bill));
+      cache.bills = bills;
+      saveToLocalStorage();
+      billsReady = true;
+      checkMigration();
+      notifyListeners();
+    }, (err) => console.warn('Bills listener error:', err));
+
+    // Publishers collection
+    onSnapshot(collection(db!, COL_PUBLISHERS), (snap) => {
+      const publishers: Publisher[] = [];
+      snap.forEach((d) => publishers.push({ ...d.data(), id: d.id } as Publisher));
+      cache.publishers = publishers;
+      saveToLocalStorage();
+      pubsReady = true;
+      checkMigration();
+      notifyListeners();
+    }, (err) => console.warn('Publishers listener error:', err));
+
+    // Meta doc (nextBillNumber)
+    onSnapshot(doc(db!, 'bookfest', 'meta'), (snap) => {
       if (snap.exists()) {
-        const data = snap.data() as BookStoreData;
-        cache = data;
-        saveToLocalStorage(data);
-        notifyListeners();
+        cache.nextBillNumber = snap.data().nextBillNumber ?? cache.nextBillNumber;
+        saveToLocalStorage();
       }
-    }, (err) => {
-      console.warn('Firestore listener error:', err);
-    });
+      metaReady = true;
+      checkMigration();
+    }, (err) => console.warn('Meta listener error:', err));
+
   }).catch(() => {});
 }
 
@@ -152,15 +281,19 @@ export function addBook(book: Omit<Book, 'id' | 'sold' | 'addedAt'>): Book {
 
   // Auto-add publisher if new
   if (book.publisher && !cache.publishers.find((p) => p.name.toLowerCase() === book.publisher.toLowerCase())) {
-    cache.publishers.push({ id: generateId(), name: book.publisher, profitPercent: 0 });
+    const pub: Publisher = { id: generateId(), name: book.publisher, profitPercent: 0 };
+    cache.publishers.push(pub);
+    fsSetPublisher(pub).catch(() => {});
   }
 
-  persist(cache);
+  saveToLocalStorage();
+  fsSetBook(newBook).catch(() => {});
   return newBook;
 }
 
 export function addBooksInBulk(books: Omit<Book, 'id' | 'sold' | 'addedAt'>[]): Book[] {
   const newBooks: Book[] = [];
+  const newPubs: Publisher[] = [];
 
   for (const book of books) {
     const newBook: Book = {
@@ -173,11 +306,28 @@ export function addBooksInBulk(books: Omit<Book, 'id' | 'sold' | 'addedAt'>[]): 
     newBooks.push(newBook);
 
     if (book.publisher && !cache.publishers.find((p) => p.name.toLowerCase() === book.publisher.toLowerCase())) {
-      cache.publishers.push({ id: generateId(), name: book.publisher, profitPercent: 0 });
+      const pub: Publisher = { id: generateId(), name: book.publisher, profitPercent: 0 };
+      cache.publishers.push(pub);
+      newPubs.push(pub);
     }
   }
 
-  persist(cache);
+  saveToLocalStorage();
+
+  // Write all new books + publishers in batches (not individual calls)
+  if (db) {
+    firestoreLib().then(({ doc }) => {
+      const ops: Array<{ type: 'set' | 'delete'; ref: any; data?: any }> = [];
+      for (const b of newBooks) {
+        ops.push({ type: 'set', ref: doc(db!, COL_BOOKS, b.id), data: { ...b } });
+      }
+      for (const p of newPubs) {
+        ops.push({ type: 'set', ref: doc(db!, COL_PUBLISHERS, p.id), data: { ...p } });
+      }
+      commitInBatches(ops).catch(() => {});
+    }).catch(() => {});
+  }
+
   return newBooks;
 }
 
@@ -185,13 +335,15 @@ export function updateBook(id: string, data: Partial<Book>): void {
   const idx = cache.books.findIndex((b) => b.id === id);
   if (idx !== -1) {
     cache.books[idx] = { ...cache.books[idx], ...data };
-    persist(cache);
+    saveToLocalStorage();
+    fsSetBook(cache.books[idx]).catch(() => {});
   }
 }
 
 export function deleteBook(id: string): void {
   cache.books = cache.books.filter((b) => b.id !== id);
-  persist(cache);
+  saveToLocalStorage();
+  fsDeleteBook(id).catch(() => {});
 }
 
 export function searchBooks(query: string): Book[] {
@@ -233,6 +385,7 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
 
     // Update sold count
     book.sold += item.quantity;
+    fsSetBook(book).catch(() => {});
   }
 
   if (billItems.length === 0) return null;
@@ -249,7 +402,9 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
 
   cache.bills.push(bill);
   cache.nextBillNumber++;
-  persist(cache);
+  saveToLocalStorage();
+  fsSetBill(bill).catch(() => {});
+  fsSetMeta().catch(() => {});
   return bill;
 }
 
@@ -262,7 +417,8 @@ export function getPublishers(): Publisher[] {
 export function addPublisher(name: string, profitPercent: number = 0, contact?: string): Publisher {
   const pub: Publisher = { id: generateId(), name, profitPercent, contact };
   cache.publishers.push(pub);
-  persist(cache);
+  saveToLocalStorage();
+  fsSetPublisher(pub).catch(() => {});
   return pub;
 }
 
@@ -273,21 +429,31 @@ export function updatePublisher(id: string, data: Partial<Publisher>): void {
     cache.publishers[idx] = { ...cache.publishers[idx], ...data };
     if (data.name && data.name !== oldName) {
       for (const book of cache.books) {
-        if (book.publisher === oldName) book.publisher = data.name;
-      }
-      for (const bill of cache.bills) {
-        for (const item of bill.items) {
-          if (item.publisher === oldName) item.publisher = data.name;
+        if (book.publisher === oldName) {
+          book.publisher = data.name;
+          fsSetBook(book).catch(() => {});
         }
       }
+      for (const bill of cache.bills) {
+        let updated = false;
+        for (const item of bill.items) {
+          if (item.publisher === oldName) {
+            item.publisher = data.name;
+            updated = true;
+          }
+        }
+        if (updated) fsSetBill(bill).catch(() => {});
+      }
     }
-    persist(cache);
+    saveToLocalStorage();
+    fsSetPublisher(cache.publishers[idx]).catch(() => {});
   }
 }
 
 export function deletePublisher(id: string): void {
   cache.publishers = cache.publishers.filter((p) => p.id !== id);
-  persist(cache);
+  saveToLocalStorage();
+  fsDeletePublisher(id).catch(() => {});
 }
 
 export function getPublisherByName(name: string): Publisher | undefined {
@@ -338,7 +504,9 @@ export function importData(json: string): boolean {
   try {
     const data = JSON.parse(json) as BookStoreData;
     if (data.books && data.bills) {
-      persist(data);
+      cache = data;
+      saveToLocalStorage();
+      fsBulkWrite(data).catch(() => {});
       return true;
     }
   } catch {}
@@ -346,5 +514,8 @@ export function importData(json: string): boolean {
 }
 
 export function clearAllData(): void {
-  persist({ books: [], bills: [], publishers: [], nextBillNumber: 1 });
+  const empty: BookStoreData = { books: [], bills: [], publishers: [], nextBillNumber: 1 };
+  cache = empty;
+  saveToLocalStorage();
+  fsBulkWrite(empty).catch(() => {});
 }

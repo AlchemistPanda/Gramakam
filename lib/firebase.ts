@@ -1,7 +1,7 @@
 // Firebase configuration
 // Replace these values with your Firebase project config
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from 'firebase/firestore';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
@@ -25,7 +25,14 @@ let storage: FirebaseStorage | null = null;
 
 if (isFirebaseConfigured) {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-  db = getFirestore(app);
+  // Use persistent local cache — data is cached in IndexedDB so page refreshes
+  // read from local cache instead of making Firestore reads (saves quota).
+  // Multi-tab manager allows multiple browser tabs to share the cache.
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
   auth = getAuth(app);
   storage = getStorage(app);
 }

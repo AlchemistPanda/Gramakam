@@ -8,6 +8,25 @@
 			"isBackground": true,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "Build",
+			"type": "shell",
+			"command": "npm run build",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Deploy",
+			"type": "shell",
+			"command": "git add -A && git commit -m \"Split Firestore into collections with offline persistence and batched writes\" && git push",
+			"isBackground": false
+		},
+		{
+			"label": "Git Push",
+			"type": "shell",
+			"command": "git add -A ; git commit -m 'Split Firestore into collections with offline persistence and batched writes' ; git push",
+			"isBackground": false
 		}
 	]
 }
