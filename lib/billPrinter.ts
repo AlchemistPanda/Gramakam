@@ -44,6 +44,100 @@ export function getConnectedPrinterName(): string | null {
 
 // ==================== CONNECT / DISCONNECT ====================
 
+// Helper: wait ms
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Helper: connect GATT with retries (handles "GATT Server is disconnected" race condition)
+async function connectGATTWithRetry(device: BluetoothDevice, maxRetries: number = 3): Promise<BluetoothRemoteGATTServer> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`GATT connect attempt ${attempt}/${maxRetries}...`);
+      const server = await device.gatt!.connect();
+      // Wait for connection to stabilise before discovering services
+      await delay(500 + attempt * 200);
+      // Verify still connected
+      if (!server.connected) {
+        throw new Error('GATT Server disconnected immediately after connect');
+      }
+      return server;
+    } catch (e: any) {
+      lastError = e;
+      console.warn(`GATT connect attempt ${attempt} failed:`, e.message);
+      if (attempt < maxRetries) {
+        // Disconnect cleanly before retry
+        try { device.gatt?.disconnect(); } catch {}
+        await delay(1000 * attempt);
+      }
+    }
+  }
+  throw lastError;
+}
+
+// Helper: discover writable characteristic with GATT reconnect on failure
+async function discoverCharacteristic(device: BluetoothDevice, server: BluetoothRemoteGATTServer): Promise<BluetoothRemoteGATTCharacteristic | null> {
+  let foundChar: BluetoothRemoteGATTCharacteristic | null = null;
+
+  // Ensure GATT is still connected before service discovery
+  if (!server.connected) {
+    console.log('GATT disconnected before service discovery, reconnecting...');
+    server = await connectGATTWithRetry(device, 2);
+  }
+
+  // Try getting all services first
+  try {
+    const services = await server.getPrimaryServices();
+    for (const service of services) {
+      try {
+        const chars = await service.getCharacteristics();
+        for (const char of chars) {
+          if (char.properties.write || char.properties.writeWithoutResponse) {
+            foundChar = char;
+            break;
+          }
+        }
+        if (foundChar) break;
+      } catch {
+        continue;
+      }
+    }
+  } catch (e: any) {
+    console.warn('getPrimaryServices failed:', e.message);
+    // If GATT disconnected during discovery, reconnect and retry
+    if (e.message?.includes('GATT') || e.message?.includes('disconnected')) {
+      console.log('Reconnecting GATT for service discovery...');
+      try { device.gatt?.disconnect(); } catch {}
+      await delay(1000);
+      server = await connectGATTWithRetry(device, 2);
+    }
+  }
+
+  if (!foundChar) {
+    // Try known service/characteristic UUIDs directly
+    for (const serviceUUID of PRINTER_SERVICE_UUIDS) {
+      try {
+        const service = await server.getPrimaryService(serviceUUID);
+        for (const charUUID of PRINTER_CHAR_UUIDS) {
+          try {
+            const char = await service.getCharacteristic(charUUID);
+            if (char.properties.write || char.properties.writeWithoutResponse) {
+              foundChar = char;
+              break;
+            }
+          } catch {
+            continue;
+          }
+        }
+        if (foundChar) break;
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return foundChar;
+}
+
 export async function connectPrinter(): Promise<{ success: boolean; name?: string; error?: string }> {
   if (!isBluetoothAvailable()) {
     return { success: false, error: 'Bluetooth not available in this browser' };
@@ -66,49 +160,11 @@ export async function connectPrinter(): Promise<{ success: boolean; name?: strin
       console.log('Printer disconnected');
     });
 
-    const server = await bluetoothDevice.gatt.connect();
+    // Connect GATT with retry logic (fixes "GATT Server is disconnected" error)
+    const server = await connectGATTWithRetry(bluetoothDevice);
 
-    // Try each known service UUID to find the writable characteristic
-    let foundChar: BluetoothRemoteGATTCharacteristic | null = null;
-    const services = await server.getPrimaryServices();
-
-    for (const service of services) {
-      try {
-        const chars = await service.getCharacteristics();
-        for (const char of chars) {
-          if (char.properties.write || char.properties.writeWithoutResponse) {
-            foundChar = char;
-            break;
-          }
-        }
-        if (foundChar) break;
-      } catch {
-        continue;
-      }
-    }
-
-    if (!foundChar) {
-      // Try known characteristic UUIDs directly
-      for (const serviceUUID of PRINTER_SERVICE_UUIDS) {
-        try {
-          const service = await server.getPrimaryService(serviceUUID);
-          for (const charUUID of PRINTER_CHAR_UUIDS) {
-            try {
-              const char = await service.getCharacteristic(charUUID);
-              if (char.properties.write || char.properties.writeWithoutResponse) {
-                foundChar = char;
-                break;
-              }
-            } catch {
-              continue;
-            }
-          }
-          if (foundChar) break;
-        } catch {
-          continue;
-        }
-      }
-    }
+    // Discover writable characteristic (with reconnect fallback)
+    const foundChar = await discoverCharacteristic(bluetoothDevice, server);
 
     if (!foundChar) {
       await bluetoothDevice.gatt.disconnect();
@@ -268,8 +324,24 @@ function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
 // ==================== SEND TO PRINTER ====================
 
 async function sendToPrinter(data: Uint8Array[]): Promise<void> {
-  if (!printerCharacteristic) {
+  if (!printerCharacteristic || !bluetoothDevice) {
     throw new Error('Printer not connected');
+  }
+
+  // Auto-reconnect if GATT disconnected since last use
+  if (!bluetoothDevice.gatt?.connected) {
+    console.log('GATT disconnected, auto-reconnecting for print...');
+    try {
+      const server = await connectGATTWithRetry(bluetoothDevice, 3);
+      const char = await discoverCharacteristic(bluetoothDevice, server);
+      if (!char) throw new Error('Could not rediscover printer characteristic');
+      printerCharacteristic = char;
+      printerConnected = true;
+    } catch (e) {
+      printerConnected = false;
+      printerCharacteristic = null;
+      throw new Error('Printer disconnected and reconnection failed. Please reconnect manually.');
+    }
   }
 
   // Merge all chunks into one buffer
@@ -285,10 +357,10 @@ async function sendToPrinter(data: Uint8Array[]): Promise<void> {
   const CHUNK_SIZE = 20;
   for (let i = 0; i < merged.length; i += CHUNK_SIZE) {
     const slice = merged.slice(i, i + CHUNK_SIZE);
-    if (printerCharacteristic.properties.writeWithoutResponse) {
-      await printerCharacteristic.writeValueWithoutResponse(slice);
+    if (printerCharacteristic!.properties.writeWithoutResponse) {
+      await printerCharacteristic!.writeValueWithoutResponse(slice);
     } else {
-      await printerCharacteristic.writeValue(slice);
+      await printerCharacteristic!.writeValue(slice);
     }
     // Small delay between chunks to prevent buffer overflow
     await new Promise((r) => setTimeout(r, 20));
