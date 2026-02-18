@@ -342,49 +342,58 @@ export default function BillingPanel() {
     <div className="h-full flex flex-col md:flex-row gap-4 md:gap-6">
       {/* LEFT — Search & Add */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Search Bar — BIG */}
+        {/* Toolbar — BLE / Barcode / History above search so search is full-width on mobile */}
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Billing</h2>
+          <div className="flex items-center gap-1">
+            {btAvailable && (
+              <button
+                onClick={handleConnectPrinter}
+                disabled={btConnecting}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+                  btConnected
+                    ? 'bg-green-50 text-green-600 hover:bg-red-50 hover:text-red-500'
+                    : btConnecting
+                    ? 'bg-blue-50 text-blue-400'
+                    : 'bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600'
+                }`}
+                title={btConnected ? `Connected: ${btName} (tap to disconnect)` : btConnecting ? 'Connecting...' : 'Connect Bluetooth Printer'}
+              >
+                {btConnecting ? <Loader2 size={16} className="animate-spin" /> : btConnected ? <BluetoothConnected size={16} /> : <Bluetooth size={16} />}
+                <span className="hidden sm:inline">{btConnected ? (btName || 'Printer') : btConnecting ? 'Connecting…' : 'Printer'}</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowBarcodeScanner(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-500 hover:bg-violet-50 hover:text-violet-600 transition-colors"
+              title="Scan ISBN Barcode"
+            >
+              <ScanBarcode size={16} />
+              <span className="hidden sm:inline">Scan</span>
+            </button>
+            <button
+              onClick={() => { setShowHistory(true); reload(); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-500 hover:bg-maroon/10 hover:text-maroon transition-colors"
+              title="Bill History"
+            >
+              <History size={16} />
+              <span className="hidden sm:inline">History</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Search Bar — full width now that action buttons are above */}
         <div className="relative mb-4">
           <Search size={22} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             ref={searchRef}
             type="text"
-            placeholder="🔍 Search book title, publisher, or ISBN..."
+            placeholder="Search book title, publisher, or ISBN..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-12 pr-28 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-maroon focus:border-maroon outline-none bg-white shadow-sm"
+            className="w-full pl-12 pr-4 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-maroon focus:border-maroon outline-none bg-white shadow-sm"
             autoFocus
           />
-          {/* Action buttons */}
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            {btAvailable && (
-              <button
-                onClick={handleConnectPrinter}
-                disabled={btConnecting}
-                className={`p-2 transition-colors rounded-full ${
-                  btConnected
-                    ? 'text-green-500 hover:text-red-500 hover:bg-red-50'
-                    : btConnecting
-                    ? 'text-blue-400 animate-pulse'
-                    : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
-                }`}
-                title={btConnected ? `Connected: ${btName} (tap to disconnect)` : btConnecting ? 'Connecting...' : 'Connect Bluetooth Printer'}
-              >
-                {btConnecting ? <Loader2 size={22} className="animate-spin" /> : btConnected ? <BluetoothConnected size={22} /> : <Bluetooth size={22} />}
-              </button>
-            )}
-            <button
-              onClick={() => setShowBarcodeScanner(true)}
-              className="p-2 text-gray-400 hover:text-violet-600 transition-colors rounded-full hover:bg-violet-50" title="Scan Barcode"
-            >
-              <ScanBarcode size={22} />
-            </button>
-            <button
-              onClick={() => { setShowHistory(true); reload(); }}
-              className="p-2 text-gray-400 hover:text-maroon transition-colors rounded-full hover:bg-maroon/5" title="Bill History"
-            >
-              <History size={22} />
-            </button>
-          </div>
 
           {/* Search Results Dropdown */}
           <AnimatePresence>
