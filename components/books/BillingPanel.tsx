@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
-import { getBooks, getBills, createBill, findBookByIsbn, onDataChange, markBillAsPaid } from '@/lib/bookStore';
+import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -24,6 +24,13 @@ export default function BillingPanel() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'unpaid'>('all');
+  const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [editItems, setEditItems] = useState<{ bookId: string; title: string; localTitle?: string; publisher: string; price: number; quantity: number; maxQty: number }[]>([]);
+  const [editDiscount, setEditDiscount] = useState(0);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [editSearch, setEditSearch] = useState('');
+  const [editSearchResults, setEditSearchResults] = useState<Book[]>([]);
   const [btAvailable, setBtAvailable] = useState(false);
   const [btConnected, setBtConnected] = useState(false);
   const [btConnecting, setBtConnecting] = useState(false);
@@ -191,6 +198,111 @@ export default function BillingPanel() {
     }
   };
 
+  // ========== Bill Edit Functions ==========
+
+  const startEditBill = (bill: Bill) => {
+    const allBooks = getBooks();
+    const items = bill.items.map((item) => {
+      const book = allBooks.find((b) => b.id === item.bookId);
+      // maxQty = currently available + what's already in this bill item (since we'd reverse it)
+      const available = book ? (book.quantity - book.sold + item.quantity) : item.quantity;
+      return {
+        bookId: item.bookId,
+        title: item.title,
+        localTitle: item.localTitle,
+        publisher: item.publisher,
+        price: item.price,
+        quantity: item.quantity,
+        maxQty: available,
+      };
+    });
+    setEditItems(items);
+    setEditDiscount(bill.discount);
+    setEditCustomerName(bill.customerName || '');
+    setEditCustomerPhone(bill.customerPhone || '');
+    setEditingBill(bill);
+    setEditSearch('');
+    setEditSearchResults([]);
+  };
+
+  const updateEditQty = (bookId: string, delta: number) => {
+    setEditItems((prev) => prev.map((item) => {
+      if (item.bookId !== bookId) return item;
+      const newQty = item.quantity + delta;
+      if (newQty <= 0 || newQty > item.maxQty) return item;
+      return { ...item, quantity: newQty };
+    }));
+  };
+
+  const removeEditItem = (bookId: string) => {
+    setEditItems((prev) => prev.filter((item) => item.bookId !== bookId));
+  };
+
+  const addEditItem = (book: Book) => {
+    const existing = editItems.find((e) => e.bookId === book.id);
+    if (existing) {
+      if (existing.quantity < existing.maxQty) {
+        updateEditQty(book.id, 1);
+      }
+    } else {
+      const available = book.quantity - book.sold;
+      if (available <= 0) return;
+      setEditItems((prev) => [...prev, {
+        bookId: book.id,
+        title: book.title,
+        localTitle: book.localTitle,
+        publisher: book.publisher,
+        price: book.price,
+        quantity: 1,
+        maxQty: available,
+      }]);
+    }
+    setEditSearch('');
+    setEditSearchResults([]);
+  };
+
+  // Live search for add-item-to-edit
+  useEffect(() => {
+    if (!editingBill || !editSearch.trim()) {
+      setEditSearchResults([]);
+      return;
+    }
+    const q = editSearch.toLowerCase();
+    const allBooks = getBooks();
+    const matched = allBooks
+      .filter((b) => {
+        const inEdit = editItems.find((e) => e.bookId === b.id);
+        const available = inEdit ? inEdit.maxQty - inEdit.quantity : (b.quantity - b.sold);
+        return available > 0;
+      })
+      .filter((b) => b.title.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q) || b.isbn?.toLowerCase().includes(q))
+      .slice(0, 6);
+    setEditSearchResults(matched);
+  }, [editSearch, editingBill, editItems]);
+
+  const saveEditBill = () => {
+    if (!editingBill || editItems.length === 0) return;
+    const result = editBill(
+      editingBill.id,
+      editItems.map((e) => ({ bookId: e.bookId, quantity: e.quantity })),
+      editDiscount,
+      editCustomerName || undefined,
+      editCustomerPhone || undefined,
+    );
+    if (result) {
+      setEditingBill(null);
+      setViewingBill(result);
+      reload();
+    }
+  };
+
+  const handleDeleteBill = (bill: Bill) => {
+    if (!confirm(`Delete Bill #${bill.billNumber}? This will reverse all stock changes.`)) return;
+    deleteBill(bill.id);
+    setViewingBill(null);
+    reload();
+  };
+
   // If viewing bill history
   const filteredBills = historyFilter === 'unpaid'
     ? allBills.filter(b => b.status === 'unpaid')
@@ -279,10 +391,22 @@ export default function BillingPanel() {
                   </button>
                 )}
                 <button
+                  onClick={() => startEditBill(viewingBill)}
+                  className="flex items-center gap-1.5 text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                >
+                  <Edit3 size={16} /> Edit
+                </button>
+                <button
                   onClick={() => handlePrint(viewingBill)}
                   className="flex items-center gap-1.5 text-maroon hover:bg-maroon/5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
                 >
                   <Printer size={16} /> Reprint
+                </button>
+                <button
+                  onClick={() => handleDeleteBill(viewingBill)}
+                  className="flex items-center gap-1.5 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                >
+                  <Trash2 size={16} />
                 </button>
               </div>
             </div>
@@ -290,6 +414,9 @@ export default function BillingPanel() {
             <div className="text-center mb-4">
               <h3 className="text-2xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Bill #{viewingBill.billNumber}</h3>
               <p className="text-gray-500 text-sm">{new Date(viewingBill.createdAt).toLocaleString('en-IN')}</p>
+              {viewingBill.editedAt && (
+                <p className="text-blue-500 text-xs mt-0.5">Edited: {new Date(viewingBill.editedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+              )}
               {viewingBill.status === 'unpaid' && (
                 <span className="inline-block mt-1.5 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">UNPAID — Payment Pending</span>
               )}
@@ -399,6 +526,9 @@ export default function BillingPanel() {
                     {bill.status === 'unpaid' && (
                       <span className="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full uppercase">Unpaid</span>
                     )}
+                    {bill.editedAt && (
+                      <span className="inline-block mt-1 ml-1 px-2 py-0.5 bg-blue-50 text-blue-500 text-[10px] font-bold rounded-full">Edited</span>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-charcoal text-lg">₹{bill.grandTotal.toFixed(2)}</p>
@@ -413,6 +543,12 @@ export default function BillingPanel() {
                         <BadgeCheck size={18} />
                       </button>
                     )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); startEditBill(bill); }}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Bill"
+                    >
+                      <Edit3 size={16} />
+                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setViewingBill(bill); }}
                       className="p-2 text-gray-400 hover:text-maroon transition-colors" title="View Bill"
@@ -685,6 +821,175 @@ export default function BillingPanel() {
           </button>
         </div>
       </div>
+
+      {/* Bill Edit Modal */}
+      <AnimatePresence>
+        {editingBill && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setEditingBill(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+            >
+              {/* Edit Header */}
+              <div className="p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="text-lg font-bold text-charcoal flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
+                    <Edit3 size={20} className="text-blue-600" /> Edit Bill #{editingBill.billNumber}
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{new Date(editingBill.createdAt).toLocaleString('en-IN')}</p>
+                </div>
+                <button onClick={() => setEditingBill(null)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400"><X size={20} /></button>
+              </div>
+
+              {/* Edit Body — Scrollable */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {/* Search to add items */}
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Add a book to this bill..."
+                    value={editSearch}
+                    onChange={(e) => setEditSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
+                  />
+                  {editSearchResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-10 max-h-48 overflow-y-auto">
+                      {editSearchResults.map((book) => (
+                        <button
+                          key={book.id}
+                          onClick={() => addEditItem(book)}
+                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-blue-50 text-left text-sm border-b border-gray-50 last:border-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-charcoal truncate">{book.localTitle || book.title}</p>
+                            <p className="text-gray-400 text-xs">{book.publisher} · ₹{book.price}</p>
+                          </div>
+                          <div className="ml-2 w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                            <Plus size={14} className="text-blue-600" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Current items */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bill Items</p>
+                  {editItems.length === 0 ? (
+                    <p className="text-center text-gray-400 text-sm py-6">No items — add books above or this bill will be empty</p>
+                  ) : (
+                    editItems.map((item) => (
+                      <div key={item.bookId} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                        <div className="flex-1 min-w-0">
+                          {item.localTitle ? (
+                            <>
+                              <p className="font-semibold text-charcoal text-sm truncate" style={{ fontFamily: 'system-ui' }}>{item.localTitle}</p>
+                              <p className="text-gray-400 text-xs truncate">{item.title}</p>
+                            </>
+                          ) : (
+                            <p className="font-medium text-charcoal text-sm truncate">{item.title}</p>
+                          )}
+                          <p className="text-gray-400 text-xs">{item.publisher} · ₹{item.price}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => updateEditQty(item.bookId, -1)} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100">
+                            <Minus size={14} />
+                          </button>
+                          <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
+                          <button onClick={() => updateEditQty(item.bookId, 1)} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100">
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                        <p className="font-medium text-sm shrink-0 w-16 text-right">₹{(item.price * item.quantity).toFixed(0)}</p>
+                        <button onClick={() => removeEditItem(item.bookId)} className="p-1.5 text-gray-300 hover:text-red-500 shrink-0">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Edit discount + customer */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Discount (₹)</label>
+                    <input
+                      type="number" min="0" step="1"
+                      value={editDiscount || ''}
+                      onChange={(e) => setEditDiscount(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="₹0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Customer Name</label>
+                    <input
+                      type="text"
+                      value={editCustomerName}
+                      onChange={(e) => setEditCustomerName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={editCustomerPhone}
+                      onChange={(e) => setEditCustomerPhone(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Footer — totals + save */}
+              <div className="p-5 border-t border-gray-100 shrink-0 space-y-3">
+                {(() => {
+                  const editSubtotal = editItems.reduce((s, i) => s + i.price * i.quantity, 0);
+                  const editGrandTotal = editSubtotal - editDiscount;
+                  return (
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-500">
+                        {editItems.reduce((s, i) => s + i.quantity, 0)} items · Subtotal ₹{editSubtotal.toFixed(0)}
+                        {editDiscount > 0 && <span className="text-red-500"> - ₹{editDiscount.toFixed(0)}</span>}
+                      </div>
+                      <p className="text-xl font-bold text-maroon" style={{ fontFamily: 'var(--font-heading)' }}>₹{editGrandTotal.toFixed(2)}</p>
+                    </div>
+                  );
+                })()}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingBill(null)}
+                    className="flex-1 py-3 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEditBill}
+                    disabled={editItems.length === 0}
+                    className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Save size={16} /> Save Changes
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Bill Receipt Modal */}
       <AnimatePresence>

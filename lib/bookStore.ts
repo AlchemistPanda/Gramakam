@@ -510,6 +510,103 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
   return bill;
 }
 
+// Edit an existing bill — reverse old stock, apply new stock, recalculate totals
+export function editBill(
+  billId: string,
+  newItems: { bookId: string; quantity: number }[],
+  discount: number = 0,
+  customerName?: string,
+  customerPhone?: string
+): Bill | null {
+  const billIdx = cache.bills.findIndex((b) => b.id === billId);
+  if (billIdx === -1) return null;
+  const oldBill = cache.bills[billIdx];
+
+  // 1. Reverse old stock — add back sold quantities
+  for (const oldItem of oldBill.items) {
+    const book = cache.books.find((b) => b.id === oldItem.bookId);
+    if (book) {
+      book.sold = Math.max(0, book.sold - oldItem.quantity);
+      fsSetBook(book).catch(() => {});
+    }
+  }
+
+  // 2. Build new bill items and apply new stock
+  const billItems: Bill['items'] = [];
+  let total = 0;
+
+  for (const item of newItems) {
+    if (item.quantity <= 0) continue;
+    const book = cache.books.find((b) => b.id === item.bookId);
+    if (!book) continue;
+    const available = book.quantity - book.sold;
+    const qty = Math.min(item.quantity, available);
+    if (qty <= 0) continue;
+
+    billItems.push({
+      bookId: book.id,
+      title: book.title,
+      ...(book.localTitle && { localTitle: book.localTitle }),
+      publisher: book.publisher,
+      price: book.price,
+      quantity: qty,
+    });
+    total += book.price * qty;
+
+    book.sold += qty;
+    fsSetBook(book).catch(() => {});
+  }
+
+  if (billItems.length === 0) return null;
+
+  // 3. Update the bill in-place (keep same id, billNumber, createdAt, status)
+  const updatedBill: Bill = {
+    ...oldBill,
+    items: billItems,
+    total,
+    discount,
+    grandTotal: total - discount,
+    ...(customerName?.trim() ? { customerName: customerName.trim() } : {}),
+    ...(customerPhone?.trim() ? { customerPhone: customerPhone.trim() } : {}),
+    editedAt: new Date().toISOString(),
+  };
+
+  cache.bills[billIdx] = updatedBill;
+  saveToLocalStorage();
+  fsSetBill(updatedBill).catch(() => {});
+  notifyListeners();
+  return updatedBill;
+}
+
+// Delete a bill entirely — reverse all stock
+export function deleteBill(billId: string): boolean {
+  const billIdx = cache.bills.findIndex((b) => b.id === billId);
+  if (billIdx === -1) return false;
+  const bill = cache.bills[billIdx];
+
+  // Reverse stock
+  for (const item of bill.items) {
+    const book = cache.books.find((b) => b.id === item.bookId);
+    if (book) {
+      book.sold = Math.max(0, book.sold - item.quantity);
+      fsSetBook(book).catch(() => {});
+    }
+  }
+
+  cache.bills.splice(billIdx, 1);
+  saveToLocalStorage();
+
+  // Delete from Firestore
+  if (db) {
+    firestoreLib().then(({ doc, deleteDoc }) => {
+      deleteDoc(doc(db!, COL_BILLS, billId)).catch(() => {});
+    }).catch(() => {});
+  }
+
+  notifyListeners();
+  return true;
+}
+
 // ==================== PUBLISHERS ====================
 
 export function getPublishers(): Publisher[] {
