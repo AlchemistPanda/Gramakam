@@ -320,6 +320,7 @@ export function addBook(book: Omit<Book, 'id' | 'sold' | 'addedAt'>): Book {
 
   saveToLocalStorage();
   fsSetBook(newBook).catch(() => {});
+  notifyListeners();
   return newBook;
 }
 
@@ -345,6 +346,7 @@ export function addBooksInBulk(books: Omit<Book, 'id' | 'sold' | 'addedAt'>[]): 
   }
 
   saveToLocalStorage();
+  notifyListeners();
 
   // Write all new books + publishers in batches (not individual calls)
   if (db) {
@@ -369,6 +371,7 @@ export function updateBook(id: string, data: Partial<Book>): void {
     cache.books[idx] = { ...cache.books[idx], ...data };
     saveToLocalStorage();
     fsSetBook(cache.books[idx]).catch(() => {});
+    notifyListeners();
   }
 }
 
@@ -376,6 +379,7 @@ export function deleteBook(id: string): void {
   cache.books = cache.books.filter((b) => b.id !== id);
   saveToLocalStorage();
   fsDeleteBook(id).catch(() => {});
+  notifyListeners();
 }
 
 export function searchBooks(query: string): Book[] {
@@ -451,6 +455,7 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
   saveToLocalStorage();
   fsSetBill(bill).catch(() => {});
   fsSetMeta().catch(() => {});
+  notifyListeners();
   return bill;
 }
 
@@ -465,6 +470,7 @@ export function addPublisher(name: string, profitPercent: number = 0, contact?: 
   cache.publishers.push(pub);
   saveToLocalStorage();
   fsSetPublisher(pub).catch(() => {});
+  notifyListeners();
   return pub;
 }
 
@@ -493,6 +499,7 @@ export function updatePublisher(id: string, data: Partial<Publisher>): void {
     }
     saveToLocalStorage();
     fsSetPublisher(cache.publishers[idx]).catch(() => {});
+    notifyListeners();
   }
 }
 
@@ -500,6 +507,7 @@ export function deletePublisher(id: string): void {
   cache.publishers = cache.publishers.filter((p) => p.id !== id);
   saveToLocalStorage();
   fsDeletePublisher(id).catch(() => {});
+  notifyListeners();
 }
 
 export function getPublisherByName(name: string): Publisher | undefined {
@@ -572,6 +580,7 @@ export function importData(json: string): boolean {
       cache = data;
       saveToLocalStorage();
       fsBulkWrite(data).catch(() => {});
+      notifyListeners();
       return true;
     }
   } catch {}
@@ -583,4 +592,5 @@ export function clearAllData(): void {
   cache = empty;
   saveToLocalStorage();
   fsBulkWrite(empty).catch(() => {});
+  notifyListeners();
 }
