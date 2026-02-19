@@ -307,6 +307,13 @@ function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
   push(ESCPOS.bold(false));
   push(ESCPOS.alignLeft());
 
+  // Payment method
+  if (bill.paymentMethod) {
+    push(ESCPOS.alignCenter());
+    text(bill.paymentMethod === 'cash' ? 'Payment: Cash' : 'Payment: UPI');
+    push(ESCPOS.alignLeft());
+  }
+
   push(ESCPOS.line('-', width));
 
   // Payment status (for unpaid/credit bills)
@@ -418,6 +425,7 @@ function buildBillHtml(bill: Bill): string {
         <tr><td>Subtotal</td><td style="text-align:right">₹${bill.total.toFixed(2)}</td></tr>
         ${bill.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-₹${bill.discount.toFixed(2)}</td></tr>` : ''}
         <tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${bill.grandTotal.toFixed(2)}</td></tr>
+        ${bill.paymentMethod ? `<tr><td style="color:#666;font-size:11px">Payment</td><td style="text-align:right;font-size:11px;font-weight:bold">${bill.paymentMethod === 'cash' ? 'Cash' : 'UPI'}</td></tr>` : ''}
       </table>
       ${bill.status === 'unpaid' ? '<div class="line"></div><p class="center" style="font-size:16px;font-weight:bold;margin:8px 0 2px;">** UNPAID **</p><p class="center" style="font-size:11px;color:#c00;">CREDIT — Payment Pending</p>' : ''}
       <div class="line"></div>

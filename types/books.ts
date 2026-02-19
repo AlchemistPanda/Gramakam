@@ -39,6 +39,7 @@ export interface Bill {
   customerName?: string;    // optional customer name
   customerPhone?: string;   // optional phone number
   status?: 'paid' | 'unpaid'; // payment status (legacy bills default to 'paid')
+  paymentMethod?: 'cash' | 'upi'; // how the customer paid (optional)
   paidAt?: string;          // ISO date when unpaid bill was later marked paid
   editedAt?: string;        // ISO date when bill was last edited
   createdAt: string;        // ISO date

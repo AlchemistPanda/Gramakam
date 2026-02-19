@@ -465,7 +465,7 @@ export function markBillAsPaid(billId: string): Bill | null {
   return cache.bills[idx];
 }
 
-export function createBill(items: { bookId: string; quantity: number }[], discount: number = 0, customerName?: string, customerPhone?: string, status: 'paid' | 'unpaid' = 'paid'): Bill | null {
+export function createBill(items: { bookId: string; quantity: number }[], discount: number = 0, customerName?: string, customerPhone?: string, status: 'paid' | 'unpaid' = 'paid', paymentMethod?: 'cash' | 'upi'): Bill | null {
   const billItems: Bill['items'] = [];
   let total = 0;
 
@@ -500,6 +500,7 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
     discount,
     grandTotal: total - discount,
     status,
+    ...(paymentMethod && { paymentMethod }),
     ...(customerName?.trim() && { customerName: customerName.trim() }),
     ...(customerPhone?.trim() && { customerPhone: customerPhone.trim() }),
     createdAt: new Date().toISOString(),

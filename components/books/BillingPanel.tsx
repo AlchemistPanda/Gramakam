@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
 import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName } from '@/lib/billPrinter';
@@ -208,6 +208,7 @@ export default function BillingPanel() {
   const [discount, setDiscount] = useState(0);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | undefined>(undefined);
   const [lastBill, setLastBill] = useState<Bill | null>(null);
   const [showBill, setShowBill] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -348,7 +349,8 @@ export default function BillingPanel() {
       cappedDiscount,
       customerName || undefined,
       customerPhone || undefined,
-      status
+      status,
+      paymentMethod
     );
     if (bill) {
       setLastBill(bill);
@@ -357,6 +359,7 @@ export default function BillingPanel() {
       setDiscount(0);
       setCustomerName('');
       setCustomerPhone('');
+      setPaymentMethod(undefined);
       reload();
     }
   };
@@ -667,6 +670,13 @@ export default function BillingPanel() {
               {viewingBill.status === 'paid' && viewingBill.paidAt && (
                 <span className="inline-block mt-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">PAID on {new Date(viewingBill.paidAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
               )}
+              {viewingBill.paymentMethod && (
+                <span className={`inline-block mt-1.5 px-3 py-1 text-xs font-bold rounded-full ${
+                  viewingBill.paymentMethod === 'cash' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'
+                }`}>
+                  {viewingBill.paymentMethod === 'cash' ? '💵 Cash' : '📱 UPI'}
+                </span>
+              )}
               {(viewingBill.customerName || viewingBill.customerPhone) && (
                 <p className="text-gray-500 text-sm mt-1">
                   {viewingBill.customerName && <span className="font-medium">{viewingBill.customerName}</span>}
@@ -772,6 +782,11 @@ export default function BillingPanel() {
                     )}
                     {bill.editedAt && (
                       <span className="inline-block mt-1 ml-1 px-2 py-0.5 bg-blue-50 text-blue-500 text-[10px] font-bold rounded-full">Edited</span>
+                    )}
+                    {bill.paymentMethod && (
+                      <span className={`inline-block mt-1 ml-1 px-2 py-0.5 text-[10px] font-bold rounded-full uppercase ${
+                        bill.paymentMethod === 'cash' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-600'
+                      }`}>{bill.paymentMethod === 'cash' ? 'Cash' : 'UPI'}</span>
                     )}
                   </div>
                   <div className="text-right shrink-0">
@@ -1087,6 +1102,35 @@ export default function BillingPanel() {
             </div>
           </div>
 
+          {/* Payment Method — optional Cash / UPI toggle */}
+          <div className="mb-5">
+            <p className="text-xs font-medium text-gray-400 mb-2">Payment Method <span className="font-normal">(optional)</span></p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod(paymentMethod === 'cash' ? undefined : 'cash')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                  paymentMethod === 'cash'
+                    ? 'bg-green-50 border-green-500 text-green-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                }`}
+              >
+                <Banknote size={15} /> Cash
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod(paymentMethod === 'upi' ? undefined : 'upi')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                  paymentMethod === 'upi'
+                    ? 'bg-blue-50 border-blue-500 text-blue-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                }`}
+              >
+                <Smartphone size={15} /> UPI
+              </button>
+            </div>
+          </div>
+
           <div className="border-t border-gray-100 pt-4 mb-6">
             <div className="flex justify-between items-baseline">
               <span className="text-lg font-bold text-charcoal">Total</span>
@@ -1199,6 +1243,16 @@ export default function BillingPanel() {
                       <span>Total</span>
                       <span>₹{lastBill.grandTotal.toFixed(2)}</span>
                     </div>
+                    {lastBill.paymentMethod && (
+                      <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-50">
+                        <span className="text-gray-400 text-xs">Payment</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${
+                          lastBill.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {lastBill.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
