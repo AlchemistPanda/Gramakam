@@ -510,16 +510,25 @@ export function getPublisherByName(name: string): Publisher | undefined {
 export function getStats() {
   const totalBooks = cache.books.reduce((sum, b) => sum + b.quantity, 0);
   const totalSold = cache.books.reduce((sum, b) => sum + b.sold, 0);
-  const totalRevenue = cache.bills.reduce((sum, b) => sum + b.grandTotal, 0);
+
+  // Only count paid (or legacy) bills in revenue — unpaid/credit bills excluded
+  const paidBills = cache.bills.filter((b) => (b.status ?? 'paid') === 'paid');
+  const unpaidBills = cache.bills.filter((b) => b.status === 'unpaid');
+
+  const totalRevenue = paidBills.reduce((sum, b) => sum + b.grandTotal, 0);
   const totalBills = cache.bills.length;
+  const totalPaidBills = paidBills.length;
+  const totalUnpaidBills = unpaidBills.length;
+  const totalPendingAmount = unpaidBills.reduce((sum, b) => sum + b.grandTotal, 0);
   const uniquePublishers = cache.publishers.length;
 
-  return { totalBooks, totalSold, totalRemaining: totalBooks - totalSold, totalRevenue, totalBills, uniquePublishers };
+  return { totalBooks, totalSold, totalRemaining: totalBooks - totalSold, totalRevenue, totalBills, totalPaidBills, totalUnpaidBills, totalPendingAmount, uniquePublishers };
 }
 
 export function getPublisherStats() {
   const pubMap: Record<string, { publisher: string; totalBooks: number; totalSold: number; totalRemaining: number; revenue: number; profitPercent: number; profit: number }> = {};
 
+  // Stock counts (totalSold = physically given out, regardless of payment status)
   for (const book of cache.books) {
     if (!pubMap[book.publisher]) {
       const pub = cache.publishers.find((p) => p.name.toLowerCase() === book.publisher.toLowerCase());
@@ -529,7 +538,17 @@ export function getPublisherStats() {
     pubMap[book.publisher].totalBooks += book.quantity;
     pubMap[book.publisher].totalSold += book.sold;
     pubMap[book.publisher].totalRemaining += book.quantity - book.sold;
-    pubMap[book.publisher].revenue += book.sold * book.price;
+    // revenue starts at 0 — calculated from paid bills below
+  }
+
+  // Revenue only from paid (or legacy) bills — credit/unpaid excluded
+  for (const bill of cache.bills) {
+    if (bill.status === 'unpaid') continue;
+    for (const item of bill.items) {
+      if (pubMap[item.publisher]) {
+        pubMap[item.publisher].revenue += item.price * item.quantity - (bill.items.length === 1 ? bill.discount : 0);
+      }
+    }
   }
 
   for (const key of Object.keys(pubMap)) {

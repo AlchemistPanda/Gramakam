@@ -23,6 +23,7 @@ export default function BillingPanel() {
   const [viewingBill, setViewingBill] = useState<Bill | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'unpaid'>('all');
   const [btAvailable, setBtAvailable] = useState(false);
   const [btConnected, setBtConnected] = useState(false);
   const [btConnecting, setBtConnecting] = useState(false);
@@ -190,11 +191,15 @@ export default function BillingPanel() {
   };
 
   // If viewing bill history
+  const filteredBills = historyFilter === 'unpaid'
+    ? allBills.filter(b => b.status === 'unpaid')
+    : allBills;
+
   if (showHistory) {
     return (
       <div className="h-full flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => { setShowHistory(false); setViewingBill(null); }}
             className="flex items-center gap-2 text-gray-600 hover:text-maroon transition-colors font-medium"
@@ -213,6 +218,41 @@ export default function BillingPanel() {
             )}
           </span>
         </div>
+
+        {/* Filter Tabs */}
+        {!viewingBill && (
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setHistoryFilter('all')}
+              className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+                historyFilter === 'all' ? 'bg-charcoal text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              All Bills
+            </button>
+            <button
+              onClick={() => setHistoryFilter('unpaid')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+                historyFilter === 'unpaid' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+              }`}
+            >
+              <CreditCard size={14} />
+              Unpaid
+              {allBills.filter(b => b.status === 'unpaid').length > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                  historyFilter === 'unpaid' ? 'bg-white/30 text-white' : 'bg-amber-200 text-amber-800'
+                }`}>
+                  {allBills.filter(b => b.status === 'unpaid').length}
+                </span>
+              )}
+            </button>
+            {historyFilter === 'unpaid' && allBills.filter(b => b.status === 'unpaid').length > 0 && (
+              <div className="ml-auto flex items-center text-sm text-amber-700 font-semibold">
+                Pending: ₹{allBills.filter(b => b.status === 'unpaid').reduce((s, b) => s + b.grandTotal, 0).toFixed(2)}
+              </div>
+            )}
+          </div>
+        )}
 
         {viewingBill ? (
           /* Viewing a specific bill */
@@ -314,8 +354,14 @@ export default function BillingPanel() {
                 <p className="text-xl font-medium">No bills yet</p>
                 <p className="text-sm mt-1">Bills will appear here after sales</p>
               </div>
+            ) : filteredBills.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <BadgeCheck size={56} className="mx-auto mb-4 text-green-200" />
+                <p className="text-xl font-medium">No unpaid bills</p>
+                <p className="text-sm mt-1">All bills have been settled</p>
+              </div>
             ) : (
-              allBills.map((bill, idx) => (
+              filteredBills.map((bill, idx) => (
                 <motion.div
                   key={bill.id}
                   initial={{ opacity: 0, y: 10 }}

@@ -21,7 +21,7 @@ interface Props {
 export default function BooksDashboard({ onLogout }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [stats, setStats] = useState({ totalBooks: 0, totalSold: 0, totalRemaining: 0, totalRevenue: 0, totalBills: 0, uniquePublishers: 0 });
+  const [stats, setStats] = useState({ totalBooks: 0, totalSold: 0, totalRemaining: 0, totalRevenue: 0, totalBills: 0, totalPaidBills: 0, totalUnpaidBills: 0, totalPendingAmount: 0, uniquePublishers: 0 });
   const [totalProfit, setTotalProfit] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -237,8 +237,9 @@ function DashboardHome({
           { label: 'Total Books', val: stats.totalBooks, sub: `${stats.uniquePublishers} publishers`, color: 'border-blue-400' },
           { label: 'Books Sold', val: stats.totalSold, sub: `${stats.totalBills} bills`, color: 'border-green-400' },
           { label: 'Remaining', val: stats.totalRemaining, sub: 'in stock', color: 'border-yellow-400' },
-          { label: 'Revenue', val: `₹${stats.totalRevenue.toFixed(0)}`, sub: 'total earned', color: 'border-purple-400' },
+          { label: 'Revenue', val: `₹${stats.totalRevenue.toFixed(0)}`, sub: 'from paid bills', color: 'border-purple-400' },
           { label: 'Our Profit', val: `₹${totalProfit.toFixed(0)}`, sub: 'from all publishers', color: 'border-green-500' },
+          ...(stats.totalUnpaidBills > 0 ? [{ label: 'Pending Payment', val: `₹${stats.totalPendingAmount.toFixed(0)}`, sub: `${stats.totalUnpaidBills} unpaid bill${stats.totalUnpaidBills !== 1 ? 's' : ''}`, color: 'border-amber-400' }] : []),
         ].map((s) => (
           <div key={s.label} className={`bg-white rounded-2xl p-5 border-l-4 ${s.color} shadow-sm`}>
             <p className="text-2xl md:text-3xl font-bold text-charcoal">{s.val}</p>
