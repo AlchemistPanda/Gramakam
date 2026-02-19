@@ -26,14 +26,38 @@ export default function BooksDashboard({ onLogout }: Props) {
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
 
-  // Track online / offline status — so cashiers know when working without internet
+  // Track online / offline status — so cashiers know when working without internet.
+  // navigator.onLine is unreliable: it stays true if device is on WiFi/LAN even when
+  // that network has no internet (common at festival venues). So we probe a real URL
+  // every 8 seconds. If the fetch fails → truly offline.
   useEffect(() => {
-    setIsOnline(navigator.onLine);
-    const onOnline  = () => setIsOnline(true);
+    let interval: ReturnType<typeof setInterval>;
+
+    const checkConnectivity = async () => {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        // Fetch own favicon — tiny, same origin, no CORS issue
+        await fetch('/favicon.ico?_=' + Date.now(), { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timeout);
+        setIsOnline(true);
+      } catch {
+        setIsOnline(false);
+      }
+    };
+
+    // Immediate check then every 8 seconds
+    checkConnectivity();
+    interval = setInterval(checkConnectivity, 8000);
+
+    // Also use browser events for instant response when network interface drops
+    const onOnline  = () => checkConnectivity();
     const onOffline = () => setIsOnline(false);
     window.addEventListener('online',  onOnline);
     window.addEventListener('offline', onOffline);
+
     return () => {
+      clearInterval(interval);
       window.removeEventListener('online',  onOnline);
       window.removeEventListener('offline', onOffline);
     };
