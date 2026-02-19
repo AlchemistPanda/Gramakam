@@ -8,6 +8,198 @@ import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, o
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
+/* ── Extracted edit-bill modal so it can render in both history & main views ── */
+interface EditBillModalProps {
+  editingBill: Bill;
+  editItems: { bookId: string; title: string; localTitle?: string; publisher: string; price: number; quantity: number; maxQty: number }[];
+  editDiscount: number;
+  editCustomerName: string;
+  editCustomerPhone: string;
+  editSearch: string;
+  editSearchResults: Book[];
+  setEditingBill: (b: Bill | null) => void;
+  setEditSearch: (s: string) => void;
+  setEditDiscount: (n: number) => void;
+  setEditCustomerName: (s: string) => void;
+  setEditCustomerPhone: (s: string) => void;
+  updateEditQty: (bookId: string, delta: number) => void;
+  removeEditItem: (bookId: string) => void;
+  addEditItem: (book: Book) => void;
+  saveEditBill: () => void;
+}
+
+function EditBillModal({
+  editingBill, editItems, editDiscount, editCustomerName, editCustomerPhone,
+  editSearch, editSearchResults, setEditingBill, setEditSearch, setEditDiscount,
+  setEditCustomerName, setEditCustomerPhone, updateEditQty, removeEditItem, addEditItem, saveEditBill,
+}: EditBillModalProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={() => setEditingBill(null)}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+      >
+        {/* Edit Header */}
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-lg font-bold text-charcoal flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
+              <Edit3 size={20} className="text-blue-600" /> Edit Bill #{editingBill.billNumber}
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">{new Date(editingBill.createdAt).toLocaleString('en-IN')}</p>
+          </div>
+          <button onClick={() => setEditingBill(null)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400"><X size={20} /></button>
+        </div>
+
+        {/* Edit Body — Scrollable */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Search to add items */}
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Add a book to this bill..."
+              value={editSearch}
+              onChange={(e) => setEditSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
+            />
+            {editSearchResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-10 max-h-48 overflow-y-auto">
+                {editSearchResults.map((book) => (
+                  <button
+                    key={book.id}
+                    onClick={() => addEditItem(book)}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-blue-50 text-left text-sm border-b border-gray-50 last:border-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-charcoal truncate">{book.localTitle || book.title}</p>
+                      <p className="text-gray-400 text-xs">{book.publisher} · ₹{book.price}</p>
+                    </div>
+                    <div className="ml-2 w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <Plus size={14} className="text-blue-600" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Current items */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bill Items</p>
+            {editItems.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-6">No items — add books above or this bill will be empty</p>
+            ) : (
+              editItems.map((item) => (
+                <div key={item.bookId} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                  <div className="flex-1 min-w-0">
+                    {item.localTitle ? (
+                      <>
+                        <p className="font-semibold text-charcoal text-sm truncate" style={{ fontFamily: 'system-ui' }}>{item.localTitle}</p>
+                        <p className="text-gray-400 text-xs truncate">{item.title}</p>
+                      </>
+                    ) : (
+                      <p className="font-medium text-charcoal text-sm truncate">{item.title}</p>
+                    )}
+                    <p className="text-gray-400 text-xs">{item.publisher} · ₹{item.price}</p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => updateEditQty(item.bookId, -1)} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100">
+                      <Minus size={14} />
+                    </button>
+                    <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
+                    <button onClick={() => updateEditQty(item.bookId, 1)} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100">
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  <p className="font-medium text-sm shrink-0 w-16 text-right">₹{(item.price * item.quantity).toFixed(0)}</p>
+                  <button onClick={() => removeEditItem(item.bookId)} className="p-1.5 text-gray-300 hover:text-red-500 shrink-0">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Edit discount + customer */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Discount (₹)</label>
+              <input
+                type="number" min="0" step="1"
+                value={editDiscount || ''}
+                onChange={(e) => setEditDiscount(parseFloat(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                placeholder="₹0"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Customer Name</label>
+              <input
+                type="text"
+                value={editCustomerName}
+                onChange={(e) => setEditCustomerName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                placeholder="Optional"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+              <input
+                type="tel"
+                value={editCustomerPhone}
+                onChange={(e) => setEditCustomerPhone(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Edit Footer — totals + save */}
+        <div className="p-5 border-t border-gray-100 shrink-0 space-y-3">
+          {(() => {
+            const editSubtotal = editItems.reduce((s, i) => s + i.price * i.quantity, 0);
+            const editGrandTotal = editSubtotal - editDiscount;
+            return (
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  {editItems.reduce((s, i) => s + i.quantity, 0)} items · Subtotal ₹{editSubtotal.toFixed(0)}
+                  {editDiscount > 0 && <span className="text-red-500"> - ₹{editDiscount.toFixed(0)}</span>}
+                </div>
+                <p className="text-xl font-bold text-maroon" style={{ fontFamily: 'var(--font-heading)' }}>₹{editGrandTotal.toFixed(2)}</p>
+              </div>
+            );
+          })()}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setEditingBill(null)}
+              className="flex-1 py-3 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveEditBill}
+              disabled={editItems.length === 0}
+              className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              <Save size={16} /> Save Changes
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function BillingPanel() {
   const [books, setBooks] = useState<Book[]>([]);
   const [query, setQuery] = useState('');
@@ -310,6 +502,7 @@ export default function BillingPanel() {
 
   if (showHistory) {
     return (
+      <>
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -568,6 +761,54 @@ export default function BillingPanel() {
           </div>
         )}
       </div>
+
+      {/* Edit modal — must render in history view too */}
+      <AnimatePresence>
+        {editingBill && (
+          <EditBillModal
+            editingBill={editingBill}
+            editItems={editItems}
+            editDiscount={editDiscount}
+            editCustomerName={editCustomerName}
+            editCustomerPhone={editCustomerPhone}
+            editSearch={editSearch}
+            editSearchResults={editSearchResults}
+            setEditingBill={setEditingBill}
+            setEditSearch={setEditSearch}
+            setEditDiscount={setEditDiscount}
+            setEditCustomerName={setEditCustomerName}
+            setEditCustomerPhone={setEditCustomerPhone}
+            updateEditQty={updateEditQty}
+            removeEditItem={removeEditItem}
+            addEditItem={addEditItem}
+            saveEditBill={saveEditBill}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Print Status Toast */}
+      <AnimatePresence>
+        {printStatus && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 text-sm font-medium ${
+              printStatus.type === 'success'
+                ? 'bg-green-600 text-white'
+                : printStatus.type === 'error'
+                ? 'bg-red-600 text-white'
+                : 'bg-blue-600 text-white'
+            }`}
+          >
+            {printStatus.type === 'success' ? <CheckCircle size={18} /> :
+             printStatus.type === 'info' ? <Loader2 size={18} className="animate-spin" /> :
+             <X size={18} />}
+            {printStatus.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      </>
     );
   }
 
@@ -825,169 +1066,24 @@ export default function BillingPanel() {
       {/* Bill Edit Modal */}
       <AnimatePresence>
         {editingBill && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => setEditingBill(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
-            >
-              {/* Edit Header */}
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <div>
-                  <h3 className="text-lg font-bold text-charcoal flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
-                    <Edit3 size={20} className="text-blue-600" /> Edit Bill #{editingBill.billNumber}
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{new Date(editingBill.createdAt).toLocaleString('en-IN')}</p>
-                </div>
-                <button onClick={() => setEditingBill(null)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400"><X size={20} /></button>
-              </div>
-
-              {/* Edit Body — Scrollable */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                {/* Search to add items */}
-                <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Add a book to this bill..."
-                    value={editSearch}
-                    onChange={(e) => setEditSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
-                  />
-                  {editSearchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-10 max-h-48 overflow-y-auto">
-                      {editSearchResults.map((book) => (
-                        <button
-                          key={book.id}
-                          onClick={() => addEditItem(book)}
-                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-blue-50 text-left text-sm border-b border-gray-50 last:border-0"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-charcoal truncate">{book.localTitle || book.title}</p>
-                            <p className="text-gray-400 text-xs">{book.publisher} · ₹{book.price}</p>
-                          </div>
-                          <div className="ml-2 w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                            <Plus size={14} className="text-blue-600" />
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Current items */}
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bill Items</p>
-                  {editItems.length === 0 ? (
-                    <p className="text-center text-gray-400 text-sm py-6">No items — add books above or this bill will be empty</p>
-                  ) : (
-                    editItems.map((item) => (
-                      <div key={item.bookId} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
-                        <div className="flex-1 min-w-0">
-                          {item.localTitle ? (
-                            <>
-                              <p className="font-semibold text-charcoal text-sm truncate" style={{ fontFamily: 'system-ui' }}>{item.localTitle}</p>
-                              <p className="text-gray-400 text-xs truncate">{item.title}</p>
-                            </>
-                          ) : (
-                            <p className="font-medium text-charcoal text-sm truncate">{item.title}</p>
-                          )}
-                          <p className="text-gray-400 text-xs">{item.publisher} · ₹{item.price}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => updateEditQty(item.bookId, -1)} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100">
-                            <Minus size={14} />
-                          </button>
-                          <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
-                          <button onClick={() => updateEditQty(item.bookId, 1)} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100">
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                        <p className="font-medium text-sm shrink-0 w-16 text-right">₹{(item.price * item.quantity).toFixed(0)}</p>
-                        <button onClick={() => removeEditItem(item.bookId)} className="p-1.5 text-gray-300 hover:text-red-500 shrink-0">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Edit discount + customer */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Discount (₹)</label>
-                    <input
-                      type="number" min="0" step="1"
-                      value={editDiscount || ''}
-                      onChange={(e) => setEditDiscount(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      placeholder="₹0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Customer Name</label>
-                    <input
-                      type="text"
-                      value={editCustomerName}
-                      onChange={(e) => setEditCustomerName(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
-                    <input
-                      type="tel"
-                      value={editCustomerPhone}
-                      onChange={(e) => setEditCustomerPhone(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      placeholder="Optional"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Edit Footer — totals + save */}
-              <div className="p-5 border-t border-gray-100 shrink-0 space-y-3">
-                {(() => {
-                  const editSubtotal = editItems.reduce((s, i) => s + i.price * i.quantity, 0);
-                  const editGrandTotal = editSubtotal - editDiscount;
-                  return (
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-gray-500">
-                        {editItems.reduce((s, i) => s + i.quantity, 0)} items · Subtotal ₹{editSubtotal.toFixed(0)}
-                        {editDiscount > 0 && <span className="text-red-500"> - ₹{editDiscount.toFixed(0)}</span>}
-                      </div>
-                      <p className="text-xl font-bold text-maroon" style={{ fontFamily: 'var(--font-heading)' }}>₹{editGrandTotal.toFixed(2)}</p>
-                    </div>
-                  );
-                })()}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setEditingBill(null)}
-                    className="flex-1 py-3 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={saveEditBill}
-                    disabled={editItems.length === 0}
-                    className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Save size={16} /> Save Changes
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
+          <EditBillModal
+            editingBill={editingBill}
+            editItems={editItems}
+            editDiscount={editDiscount}
+            editCustomerName={editCustomerName}
+            editCustomerPhone={editCustomerPhone}
+            editSearch={editSearch}
+            editSearchResults={editSearchResults}
+            setEditingBill={setEditingBill}
+            setEditSearch={setEditSearch}
+            setEditDiscount={setEditDiscount}
+            setEditCustomerName={setEditCustomerName}
+            setEditCustomerPhone={setEditCustomerPhone}
+            updateEditQty={updateEditQty}
+            removeEditItem={removeEditItem}
+            addEditItem={addEditItem}
+            saveEditBill={saveEditBill}
+          />
         )}
       </AnimatePresence>
 
