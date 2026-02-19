@@ -60,8 +60,14 @@ export default function InventoryPanel() {
     if (!title || !publisher || !price || !quantity) return;
 
     if (editingId) {
+      const parsedQty = parseInt(quantity);
+      const existingBook = getBooks().find((b) => b.id === editingId);
+      if (existingBook && parsedQty < existingBook.sold) {
+        alert(`Cannot reduce quantity to ${parsedQty}. Already sold ${existingBook.sold} copies — minimum is ${existingBook.sold}.`);
+        return;
+      }
       updateBook(editingId, {
-        title, localTitle: localTitle || undefined, publisher, price: parseFloat(price), quantity: parseInt(quantity), category, isbn: isbn || undefined,
+        title, localTitle: localTitle || undefined, publisher, price: parseFloat(price), quantity: parsedQty, category, isbn: isbn || undefined,
       });
     } else {
       addBook({ title, localTitle: localTitle || undefined, publisher, price: parseFloat(price), quantity: parseInt(quantity), category, isbn: isbn || undefined });

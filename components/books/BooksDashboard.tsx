@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3,
-  LogOut, BookOpen, Menu, X, ChevronRight, Users,
+  LogOut, BookOpen, Menu, X, ChevronRight, Users, WifiOff,
 } from 'lucide-react';
 import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
@@ -24,6 +24,20 @@ export default function BooksDashboard({ onLogout }: Props) {
   const [stats, setStats] = useState({ totalBooks: 0, totalSold: 0, totalRemaining: 0, totalRevenue: 0, totalBills: 0, totalPaidBills: 0, totalUnpaidBills: 0, totalPendingAmount: 0, uniquePublishers: 0 });
   const [totalProfit, setTotalProfit] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
+
+  // Track online / offline status — so cashiers know when working without internet
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const onOnline  = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online',  onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online',  onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   // Initialize Firestore-backed store on mount
   useEffect(() => {
@@ -74,7 +88,23 @@ export default function BooksDashboard({ onLogout }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Offline banner — shown when internet is lost */}
+      <AnimatePresence>
+        {!isOnline && (
+          <motion.div
+            initial={{ opacity: 0, y: -40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -40 }}
+            className="w-full z-[60] bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-semibold"
+          >
+            <WifiOff size={16} />
+            Offline — billing still works. Data will sync automatically when internet is restored.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex flex-1">
       {/* Sidebar overlay for mobile */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -172,6 +202,11 @@ export default function BooksDashboard({ onLogout }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
+              {!isOnline && (
+                <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 font-semibold rounded-full">
+                  <WifiOff size={11} /> Offline
+                </span>
+              )}
               <span className="hidden sm:inline">📚 {stats.totalBooks} books</span>
               <span className="hidden sm:inline mx-1">•</span>
               <span className="hidden sm:inline">🧾 {stats.totalBills} bills</span>
@@ -207,6 +242,7 @@ export default function BooksDashboard({ onLogout }: Props) {
           </AnimatePresence>
           )}
         </main>
+      </div>
       </div>
     </div>
   );

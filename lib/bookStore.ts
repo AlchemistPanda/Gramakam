@@ -324,7 +324,10 @@ function setupRealtimeListeners(): void {
     // Meta doc (nextBillNumber)
     onSnapshot(doc(db!, 'bookfest', 'meta'), (snap) => {
       if (snap.exists()) {
-        cache.nextBillNumber = snap.data().nextBillNumber ?? cache.nextBillNumber;
+        // Use Math.max — prevent a stale/lower value from another device or tab from
+        // overwriting a higher local bill number (guards against bill number regression).
+        const serverBillNumber = snap.data().nextBillNumber ?? 1;
+        cache.nextBillNumber = Math.max(cache.nextBillNumber, serverBillNumber);
         saveToLocalStorage();
       }
       metaReady = true;

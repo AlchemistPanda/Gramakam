@@ -331,7 +331,8 @@ export default function BillingPanel() {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const grandTotal = subtotal - discount;
+  // Cap display at 0 so UI never shows a negative total (actual bill is also capped in handleCheckout)
+  const grandTotal = Math.max(0, subtotal - discount);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = (status: 'paid' | 'unpaid' = 'paid') => {
