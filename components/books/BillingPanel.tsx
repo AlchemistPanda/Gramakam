@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
 import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid } from '@/lib/bookStore';
-import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName } from '@/lib/billPrinter';
+import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
 /* ── Extracted edit-bill modal so it can render in both history & main views ── */
@@ -230,6 +230,8 @@ export default function BillingPanel() {
   const [btConnecting, setBtConnecting] = useState(false);
   const [btName, setBtName] = useState<string | null>(null);
   const [printStatus, setPrintStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [billQr, setBillQr] = useState('');
+  const [viewingQr, setViewingQr] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(() => {
@@ -361,6 +363,19 @@ export default function BillingPanel() {
       setCustomerPhone('');
       setPaymentMethod(undefined);
       reload();
+      // Generate UPI QR with amount (skip for cash payments)
+      if (status !== 'unpaid' && paymentMethod !== 'cash') {
+        setBillQr('');
+        generateUpiQR(bill.grandTotal, `Bill #${bill.billNumber}`)
+          .then(setBillQr)
+          .catch(() => {});
+      } else if (status === 'unpaid') {
+        generateUpiQR(bill.grandTotal, `Bill #${bill.billNumber} - Gramakam`)
+          .then(setBillQr)
+          .catch(() => {});
+      } else {
+        setBillQr('');
+      }
     }
   };
 
@@ -500,6 +515,17 @@ export default function BillingPanel() {
     setViewingBill(null);
     reload();
   };
+
+  // Generate UPI QR when viewing a bill detail
+  useEffect(() => {
+    if (!viewingBill || viewingBill.paymentMethod === 'cash') {
+      setViewingQr('');
+      return;
+    }
+    generateUpiQR(viewingBill.grandTotal, `Bill #${viewingBill.billNumber}`)
+      .then(setViewingQr)
+      .catch(() => setViewingQr(''));
+  }, [viewingBill]);
 
   const shareOnWhatsApp = (bill: Bill) => {
     const lines = bill.items
@@ -676,6 +702,15 @@ export default function BillingPanel() {
                 }`}>
                   {viewingBill.paymentMethod === 'cash' ? '💵 Cash' : '📱 UPI'}
                 </span>
+              )}
+              {viewingQr && viewingBill.paymentMethod !== 'cash' && (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-400 mb-1">
+                    {viewingBill.status === 'unpaid' ? 'Scan to Pay' : 'Paid via UPI'}
+                  </p>
+                  <img src={viewingQr} alt="UPI QR" className="w-32 h-32 mx-auto" />
+                  <p className="text-xs text-gray-400 mt-1">9400186188@cnrb &middot; ₹{viewingBill.grandTotal.toFixed(2)}</p>
+                </div>
               )}
               {(viewingBill.customerName || viewingBill.customerPhone) && (
                 <p className="text-gray-500 text-sm mt-1">
@@ -1256,6 +1291,18 @@ export default function BillingPanel() {
                   </div>
                 </div>
               </div>
+
+              {/* UPI QR Code */}
+              {billQr && lastBill.paymentMethod !== 'cash' && (
+                <div className="text-center py-3 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                    {lastBill.status === 'unpaid' ? 'Scan to Pay' : 'Pay / Verify via UPI'}
+                  </p>
+                  <img src={billQr} alt="UPI QR" className="w-36 h-36 mx-auto" />
+                  <p className="text-xs text-gray-400 mt-1">9400186188@cnrb</p>
+                  <p className="text-sm font-bold text-charcoal">₹{lastBill.grandTotal.toFixed(2)}</p>
+                </div>
+              )}
 
               <div className="flex border-t border-gray-100">
                 <button onClick={() => lastBill && handlePrint(lastBill)} className="flex-1 py-4 text-center font-medium text-maroon hover:bg-maroon/5 transition-colors flex items-center justify-center gap-2">

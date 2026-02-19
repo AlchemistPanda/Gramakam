@@ -3,6 +3,18 @@
 // Compatible with 58mm and 80mm thermal printers via Bluetooth Low Energy (BLE)
 
 import type { Bill } from '@/types/books';
+import QRCode from 'qrcode';
+
+// ==================== UPI CONFIG ====================
+
+const UPI_VPA = '9400186188@cnrb';
+const UPI_NAME = 'Gramakam Book Festival';
+
+/** Generate a UPI payment QR code as a data URL with amount pre-filled */
+export async function generateUpiQR(amount: number, note: string = 'Gramakam Book Festival'): Promise<string> {
+  const upiUri = `upi://pay?pa=${UPI_VPA}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
+  return QRCode.toDataURL(upiUri, { width: 180, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
+}
 
 // ==================== BLUETOOTH STATE ====================
 
@@ -390,7 +402,9 @@ async function sendToPrinter(data: Uint8Array[]): Promise<void> {
 
 // ==================== BROWSER PRINT (iframe-based, works on mobile) ====================
 
-function buildBillHtml(bill: Bill): string {
+function buildBillHtml(bill: Bill, qrDataUrl?: string): string {
+  // Show QR for non-cash bills — 'Scan to Pay' for unpaid, 'Pay via UPI' for others
+  const showQr = qrDataUrl && bill.paymentMethod !== 'cash';
   return `
     <!DOCTYPE html>
     <html><head><title>Bill #${bill.billNumber}</title>
@@ -427,6 +441,13 @@ function buildBillHtml(bill: Bill): string {
         <tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${bill.grandTotal.toFixed(2)}</td></tr>
         ${bill.paymentMethod ? `<tr><td style="color:#666;font-size:11px">Payment</td><td style="text-align:right;font-size:11px;font-weight:bold">${bill.paymentMethod === 'cash' ? 'Cash' : 'UPI'}</td></tr>` : ''}
       </table>
+      ${showQr ? `
+      <div class="line"></div>
+      <p class="center" style="font-size:10px;margin:4px 0 2px;font-weight:bold;">${bill.status === 'unpaid' ? 'SCAN TO PAY' : 'PAY VIA UPI'}</p>
+      <p class="center"><img src="${qrDataUrl}" style="width:130px;height:130px;display:block;margin:4px auto;" /></p>
+      <p class="center" style="font-size:9px;color:#555;">${UPI_VPA}</p>
+      <p class="center" style="font-size:10px;font-weight:bold;">₹${bill.grandTotal.toFixed(2)}</p>
+      ` : ''}
       ${bill.status === 'unpaid' ? '<div class="line"></div><p class="center" style="font-size:16px;font-weight:bold;margin:8px 0 2px;">** UNPAID **</p><p class="center" style="font-size:11px;color:#c00;">CREDIT — Payment Pending</p>' : ''}
       <div class="line"></div>
       <p class="center" style="margin-top:8px">Thank you for visiting!<br/>IF Creations</p>
@@ -434,8 +455,16 @@ function buildBillHtml(bill: Bill): string {
   `;
 }
 
-function printViaBrowser(bill: Bill): void {
-  const html = buildBillHtml(bill);
+async function printViaBrowser(bill: Bill): Promise<void> {
+  // Generate UPI QR with amount pre-filled (skip for cash-paid bills)
+  let qrDataUrl: string | undefined;
+  if (bill.paymentMethod !== 'cash') {
+    try {
+      const note = `Bill #${bill.billNumber}`;
+      qrDataUrl = await generateUpiQR(bill.grandTotal, note);
+    } catch { /* non-fatal — print without QR if it fails */ }
+  }
+  const html = buildBillHtml(bill, qrDataUrl);
 
   // Try iframe approach first (works on Android + iOS)
   try {
@@ -508,7 +537,7 @@ export async function printBill(bill: Bill): Promise<PrintResult> {
 
   // Fallback to browser print
   try {
-    printViaBrowser(bill);
+    await printViaBrowser(bill);
     return { success: true, method: 'browser' };
   } catch (e: any) {
     return { success: false, method: 'browser', error: e.message };
