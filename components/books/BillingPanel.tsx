@@ -105,6 +105,7 @@ export default function BillingPanel() {
       setCart((prev) => [...prev, {
         bookId: book.id,
         title: book.title,
+        ...(book.localTitle && { localTitle: book.localTitle }),
         publisher: book.publisher,
         price: book.price,
         quantity: 1,
@@ -317,7 +318,14 @@ export default function BillingPanel() {
                   {viewingBill.items.map((item, i) => (
                     <tr key={i} className="border-t border-gray-50">
                       <td className="px-4 py-3">
-                        <p className="font-medium text-charcoal">{item.title}</p>
+                        {item.localTitle ? (
+                          <>
+                            <p className="font-semibold text-charcoal" style={{ fontFamily: 'system-ui, sans-serif' }}>{item.localTitle}</p>
+                            <p className="text-gray-500 text-xs">{item.title}</p>
+                          </>
+                        ) : (
+                          <p className="font-medium text-charcoal">{item.title}</p>
+                        )}
                         <p className="text-xs text-gray-400">{item.publisher} · ₹{item.price}</p>
                       </td>
                       <td className="text-center px-4 py-3 font-medium">{item.quantity}</td>
@@ -502,7 +510,14 @@ export default function BillingPanel() {
                       className="w-full flex items-center justify-between px-5 py-5 hover:bg-maroon/5 active:bg-maroon/10 transition-colors text-left border-b border-gray-50 last:border-0"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-charcoal text-base truncate">{book.title}</p>
+                        {book.localTitle ? (
+                          <>
+                            <p className="font-bold text-charcoal text-base truncate" style={{ fontFamily: 'system-ui, sans-serif' }}>{book.localTitle}</p>
+                            <p className="text-gray-500 text-xs truncate">{book.title}</p>
+                          </>
+                        ) : (
+                          <p className="font-semibold text-charcoal text-base truncate">{book.title}</p>
+                        )}
                         <p className="text-gray-500 text-sm">{book.publisher}</p>
                       </div>
                       <div className="text-right shrink-0 ml-4">
@@ -558,7 +573,14 @@ export default function BillingPanel() {
                 className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-charcoal truncate text-base">{item.title}</p>
+                  {item.localTitle ? (
+                    <>
+                      <p className="font-bold text-charcoal truncate text-base" style={{ fontFamily: 'system-ui, sans-serif' }}>{item.localTitle}</p>
+                      <p className="text-gray-500 text-xs truncate">{item.title}</p>
+                    </>
+                  ) : (
+                    <p className="font-semibold text-charcoal truncate text-base">{item.title}</p>
+                  )}
                   <p className="text-gray-500 text-sm">{item.publisher} · ₹{item.price.toFixed(2)}</p>
                 </div>
 
@@ -710,7 +732,7 @@ export default function BillingPanel() {
                 <div className="border border-gray-100 rounded-xl p-4 mb-4 text-sm space-y-1">
                   {lastBill.items.map((item, i) => (
                     <div key={i} className="flex justify-between">
-                      <span className="text-gray-700">{item.title} × {item.quantity}</span>
+                      <span className="text-gray-700">{item.localTitle || item.title} × {item.quantity}</span>
                       <span className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</span>
                     </div>
                   ))}

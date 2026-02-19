@@ -399,6 +399,8 @@ function buildBillHtml(bill: Bill): string {
       th:last-child, td:last-child { text-align: right; }
       .total-row { font-weight: bold; font-size: 14px; }
       .publisher { font-size: 10px; color: #555; }
+      .local-title { font-family: system-ui, sans-serif; font-size: 12px; font-weight: 600; }
+      .eng-title { font-size: 9px; color: #555; }
     </style></head><body>
       <h1>GRAMAKAM</h1>
       <p class="center">Book Festival 2026<br/>Velur, Thrissur, Kerala</p>
@@ -408,7 +410,7 @@ function buildBillHtml(bill: Bill): string {
       <table>
         <thead><tr><th>Item</th><th>Qty</th><th>Amt</th></tr></thead>
         <tbody>
-          ${bill.items.map((item) => `<tr><td>${item.title}<br/><span class="publisher">${item.publisher}</span></td><td>${item.quantity}</td><td>₹${(item.price * item.quantity).toFixed(2)}</td></tr>`).join('')}
+          ${bill.items.map((item) => `<tr><td>${item.localTitle ? `<span class="local-title">${item.localTitle}</span><br/><span class="eng-title">${item.title}</span>` : item.title}<br/><span class="publisher">${item.publisher}</span></td><td>${item.quantity}</td><td>₹${(item.price * item.quantity).toFixed(2)}</td></tr>`).join('')}
         </tbody>
       </table>
       <div class="line"></div>

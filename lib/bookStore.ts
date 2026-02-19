@@ -419,6 +419,7 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
     billItems.push({
       bookId: book.id,
       title: book.title,
+      ...(book.localTitle && { localTitle: book.localTitle }),
       publisher: book.publisher,
       price: book.price,
       quantity: item.quantity,

@@ -10,6 +10,7 @@ export interface Publisher {
 export interface Book {
   id: string;
   title: string;
+  localTitle?: string;     // title in local language (Malayalam, Hindi, etc.) — Unicode
   publisher: string;       // publisher name
   price: number;
   quantity: number;         // total stock received
@@ -22,6 +23,7 @@ export interface Book {
 export interface BillItem {
   bookId: string;
   title: string;
+  localTitle?: string;     // local language title (for bill display/print)
   publisher: string;
   price: number;
   quantity: number;         // quantity in this bill

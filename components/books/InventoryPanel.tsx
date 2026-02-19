@@ -30,6 +30,7 @@ export default function InventoryPanel() {
 
   // Form fields
   const [title, setTitle] = useState('');
+  const [localTitle, setLocalTitle] = useState('');
   const [publisher, setPublisher] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -50,7 +51,7 @@ export default function InventoryPanel() {
   }, [query]);
 
   const resetForm = () => {
-    setTitle(''); setPublisher(''); setPrice(''); setQuantity(''); setCategory(''); setIsbn('');
+    setTitle(''); setLocalTitle(''); setPublisher(''); setPrice(''); setQuantity(''); setCategory(''); setIsbn('');
     setEditingId(null); setShowForm(false);
   };
 
@@ -60,10 +61,10 @@ export default function InventoryPanel() {
 
     if (editingId) {
       updateBook(editingId, {
-        title, publisher, price: parseFloat(price), quantity: parseInt(quantity), category, isbn: isbn || undefined,
+        title, localTitle: localTitle || undefined, publisher, price: parseFloat(price), quantity: parseInt(quantity), category, isbn: isbn || undefined,
       });
     } else {
-      addBook({ title, publisher, price: parseFloat(price), quantity: parseInt(quantity), category, isbn: isbn || undefined });
+      addBook({ title, localTitle: localTitle || undefined, publisher, price: parseFloat(price), quantity: parseInt(quantity), category, isbn: isbn || undefined });
     }
     resetForm();
     reload();
@@ -72,6 +73,7 @@ export default function InventoryPanel() {
   const handleEdit = (book: Book) => {
     setEditingId(book.id);
     setTitle(book.title);
+    setLocalTitle(book.localTitle || '');
     setPublisher(book.publisher);
     setPrice(book.price.toString());
     setQuantity(book.quantity.toString());
@@ -230,8 +232,12 @@ export default function InventoryPanel() {
               <h3 className="font-semibold text-charcoal mb-4">{editingId ? 'Edit Book' : 'Add New Book'}</h3>
               <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <input type="text" placeholder="Book Title *" value={title} onChange={(e) => setTitle(e.target.value)}
+                  <input type="text" placeholder="Book Title (English) *" value={title} onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" required />
+                </div>
+                <div className="md:col-span-2">
+                  <input type="text" placeholder="പുസ്തകത്തിന്റെ പേര് — Local Language Title (optional)" value={localTitle} onChange={(e) => setLocalTitle(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" style={{ fontFamily: 'system-ui, sans-serif' }} />
                 </div>
                 <div className="relative">
                   <select value={publisher} onChange={(e) => setPublisher(e.target.value)}
@@ -326,7 +332,14 @@ export default function InventoryPanel() {
                 {books.map((book) => (
                   <tr key={book.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-charcoal">{book.title}</p>
+                      {book.localTitle ? (
+                        <>
+                          <p className="font-semibold text-charcoal text-base" style={{ fontFamily: 'system-ui, sans-serif' }}>{book.localTitle}</p>
+                          <p className="text-gray-500 text-xs mt-0.5">{book.title}</p>
+                        </>
+                      ) : (
+                        <p className="font-medium text-charcoal">{book.title}</p>
+                      )}
                       {book.category && <p className="text-gray-400 text-xs mt-0.5">{book.category}</p>}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{book.publisher}</td>
