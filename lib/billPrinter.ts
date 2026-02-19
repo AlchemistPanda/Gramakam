@@ -248,6 +248,31 @@ const ESCPOS = {
   line: (char: string = '-', width: number = 32) => textEncoder(char.repeat(width) + '\n'),
 };
 
+/**
+ * Build ESC/POS GS ( k commands to print a QR code natively on the thermal printer.
+ * The printer generates the QR from the raw data string — no image needed.
+ *   Model 2, module size 4 (good for 58mm), error correction Level M.
+ */
+function escposQR(data: string): Uint8Array[] {
+  const bytes = new TextEncoder().encode(data);
+  const len = bytes.length + 3; // +3 for cn, fn, m bytes in the store command
+  const pL = len & 0xff;
+  const pH = (len >> 8) & 0xff;
+  return [
+    // 1. Select model 2
+    cmd(GS, 0x28, 0x6b, 4, 0, 49, 65, 50, 0),
+    // 2. Set module size (4 dots = visible on 58mm)
+    cmd(GS, 0x28, 0x6b, 3, 0, 49, 67, 4),
+    // 3. Error correction level M
+    cmd(GS, 0x28, 0x6b, 3, 0, 49, 69, 49),
+    // 4. Store data
+    cmd(GS, 0x28, 0x6b, pL, pH, 49, 80, 48),
+    bytes,
+    // 5. Print the QR
+    cmd(GS, 0x28, 0x6b, 3, 0, 49, 81, 48),
+  ];
+}
+
 // ==================== BILL FORMATTING (ESC/POS) ====================
 
 function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
@@ -338,6 +363,21 @@ function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
     push(ESCPOS.doubleSize(false));
     text('CREDIT — Payment Pending');
     push(ESCPOS.bold(false));
+    push(ESCPOS.alignLeft());
+    push(ESCPOS.line('-', width));
+  }
+
+  // UPI QR code — native ESC/POS GS ( k — printer generates QR from the URI string
+  // Skip for cash-paid bills
+  if (bill.paymentMethod !== 'cash') {
+    const upiUri = `upi://pay?pa=${UPI_VPA}&pn=${encodeURIComponent(UPI_NAME)}&am=${bill.grandTotal.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Bill #' + bill.billNumber)}`;
+    push(ESCPOS.alignCenter());
+    push(ESCPOS.feed(1));
+    text(isUnpaid ? 'SCAN TO PAY' : 'PAY VIA UPI');
+    push(...escposQR(upiUri));
+    push(ESCPOS.feed(1));
+    text(UPI_VPA);
+    text(`Rs.${bill.grandTotal.toFixed(2)}`);
     push(ESCPOS.alignLeft());
     push(ESCPOS.line('-', width));
   }
