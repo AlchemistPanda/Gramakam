@@ -73,7 +73,7 @@ export default function BooksDashboard({ onLogout }: Props) {
       setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
       setLowStockBooks(
         getBooks()
-          .filter((b) => (b.quantity - b.sold) > 0 && (b.quantity - b.sold) <= 3)
+          .filter((b) => (b.quantity - b.sold) >= 0 && (b.quantity - b.sold) <= 3)
           .sort((a, b) => (a.quantity - a.sold) - (b.quantity - b.sold))
           .map((b) => ({ id: b.id, title: b.title, localTitle: b.localTitle, remaining: b.quantity - b.sold }))
       );
@@ -87,7 +87,7 @@ export default function BooksDashboard({ onLogout }: Props) {
       setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
       setLowStockBooks(
         getBooks()
-          .filter((b) => (b.quantity - b.sold) > 0 && (b.quantity - b.sold) <= 3)
+          .filter((b) => (b.quantity - b.sold) >= 0 && (b.quantity - b.sold) <= 3)
           .sort((a, b) => (a.quantity - a.sold) - (b.quantity - b.sold))
           .map((b) => ({ id: b.id, title: b.title, localTitle: b.localTitle, remaining: b.quantity - b.sold }))
       );
@@ -102,7 +102,7 @@ export default function BooksDashboard({ onLogout }: Props) {
       setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
       setLowStockBooks(
         getBooks()
-          .filter((b) => (b.quantity - b.sold) > 0 && (b.quantity - b.sold) <= 3)
+          .filter((b) => (b.quantity - b.sold) >= 0 && (b.quantity - b.sold) <= 3)
           .sort((a, b) => (a.quantity - a.sold) - (b.quantity - b.sold))
           .map((b) => ({ id: b.id, title: b.title, localTitle: b.localTitle, remaining: b.quantity - b.sold }))
       );
@@ -330,40 +330,7 @@ function DashboardHome({
         ))}
       </div>
 
-      {/* Low Stock Alert */}
-      {lowStockBooks.length > 0 && (
-        <div className="mb-8">
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle size={18} className="text-amber-600 shrink-0" />
-              <h3 className="text-sm font-bold text-amber-800">
-                {lowStockBooks.length} book{lowStockBooks.length !== 1 ? 's' : ''} running low — restock soon
-              </h3>
-              <button
-                onClick={() => onNavigate('inventory')}
-                className="ml-auto text-xs text-amber-700 font-semibold hover:text-amber-900 underline underline-offset-2"
-              >
-                Go to Inventory →
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {lowStockBooks.map((b) => (
-                <span
-                  key={b.id}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ${
-                    b.remaining === 1 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
-                  }`}
-                >
-                  {b.localTitle || b.title}
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    b.remaining === 1 ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-900'
-                  }`}>{b.remaining} left</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Low Stock Alert — removed from here, now shown at bottom */}
 
       {/* Quick Actions */}
       <h3 className="text-lg font-semibold text-charcoal mb-3">Quick Actions</h3>
@@ -385,6 +352,101 @@ function DashboardHome({
           </button>
         ))}
       </div>
+
+      {/* Stock Alert — grouped by remaining count, RAG colour-coded */}
+      {lowStockBooks.length > 0 && (() => {
+        const ragGroups = [
+          {
+            remaining: 0,
+            label: 'Out of Stock',
+            headerClass: 'bg-red-600 text-white',
+            pillClass: 'bg-red-100 text-red-800',
+            badgeClass: 'bg-red-200 text-red-900',
+            badgeText: 'OUT',
+          },
+          {
+            remaining: 1,
+            label: 'Only 1 Left',
+            headerClass: 'bg-red-100 text-red-800',
+            pillClass: 'bg-red-50 text-red-700',
+            badgeClass: 'bg-red-200 text-red-800',
+            badgeText: '1 left',
+          },
+          {
+            remaining: 2,
+            label: 'Only 2 Left',
+            headerClass: 'bg-amber-100 text-amber-800',
+            pillClass: 'bg-amber-50 text-amber-700',
+            badgeClass: 'bg-amber-200 text-amber-800',
+            badgeText: '2 left',
+          },
+          {
+            remaining: 3,
+            label: 'Only 3 Left',
+            headerClass: 'bg-yellow-100 text-yellow-800',
+            pillClass: 'bg-yellow-50 text-yellow-700',
+            badgeClass: 'bg-yellow-200 text-yellow-800',
+            badgeText: '3 left',
+          },
+        ].map((g) => ({ ...g, books: lowStockBooks.filter((b) => b.remaining === g.remaining) }))
+         .filter((g) => g.books.length > 0);
+
+        const outCount = lowStockBooks.filter((b) => b.remaining === 0).length;
+        const lowCount = lowStockBooks.filter((b) => b.remaining > 0).length;
+
+        return (
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={17} className="text-red-500 shrink-0" />
+              <h3 className="text-base font-bold text-charcoal">
+                Stock Alert
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  {outCount > 0 && `${outCount} out of stock`}{outCount > 0 && lowCount > 0 && ', '}{lowCount > 0 && `${lowCount} running low`}
+                </span>
+              </h3>
+              <button
+                onClick={() => onNavigate('inventory')}
+                className="ml-auto text-xs text-maroon font-semibold hover:underline"
+              >
+                Manage Inventory →
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {ragGroups.map((group, gi) => (
+                <div key={group.remaining} className={gi > 0 ? 'border-t border-gray-100' : ''}>
+                  {/* Group header row */}
+                  <div className={`flex items-center gap-2 px-4 py-2 ${group.headerClass}`}>
+                    <span className="text-xs font-bold uppercase tracking-wide">{group.label}</span>
+                    <span className="text-xs font-semibold opacity-70">— {group.books.length} book{group.books.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  {/* Book pills */}
+                  <div className="flex flex-wrap gap-2 px-4 py-3">
+                    {group.books.map((b) => (
+                      <span
+                        key={b.id}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${
+                          group.remaining === 0 ? 'bg-red-50 border-red-200 text-red-700' :
+                          group.remaining === 1 ? 'bg-red-50 border-red-100 text-red-600' :
+                          group.remaining === 2 ? 'bg-amber-50 border-amber-100 text-amber-700' :
+                          'bg-yellow-50 border-yellow-100 text-yellow-700'
+                        }`}
+                      >
+                        {b.localTitle || b.title}
+                        {group.remaining > 0 && (
+                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${group.badgeClass}`}>
+                            {group.badgeText}
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
