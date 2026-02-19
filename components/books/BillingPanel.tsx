@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2 } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
-import { getBooks, getBills, createBill, findBookByIsbn, onDataChange } from '@/lib/bookStore';
+import { getBooks, getBills, createBill, findBookByIsbn, onDataChange, markBillAsPaid } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -133,13 +133,18 @@ export default function BillingPanel() {
   const grandTotal = subtotal - discount;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleCheckout = () => {
+  const handleCheckout = (status: 'paid' | 'unpaid' = 'paid') => {
     if (cart.length === 0) return;
+    if (status === 'unpaid' && !customerName.trim()) {
+      alert('Please enter the customer name for credit/pay-later bills.');
+      return;
+    }
     const bill = createBill(
       cart.map((c) => ({ bookId: c.bookId, quantity: c.quantity })),
       discount,
       customerName || undefined,
-      customerPhone || undefined
+      customerPhone || undefined,
+      status
     );
     if (bill) {
       setLastBill(bill);
@@ -199,7 +204,14 @@ export default function BillingPanel() {
           <h2 className="text-xl font-bold text-charcoal flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
             <History size={22} /> Bill History
           </h2>
-          <span className="text-sm text-gray-400">{allBills.length} bills</span>
+          <span className="text-sm text-gray-400">
+            {allBills.length} bills
+            {allBills.filter(b => b.status === 'unpaid').length > 0 && (
+              <span className="ml-1.5 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">
+                {allBills.filter(b => b.status === 'unpaid').length} unpaid
+              </span>
+            )}
+          </span>
         </div>
 
         {viewingBill ? (
@@ -216,17 +228,33 @@ export default function BillingPanel() {
               >
                 <ChevronLeft size={16} /> All Bills
               </button>
-              <button
-                onClick={() => handlePrint(viewingBill)}
-                className="flex items-center gap-1.5 text-maroon hover:bg-maroon/5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
-              >
-                <Printer size={16} /> Reprint
-              </button>
+              <div className="flex items-center gap-2">
+                {viewingBill.status === 'unpaid' && (
+                  <button
+                    onClick={() => { markBillAsPaid(viewingBill.id); setViewingBill({ ...viewingBill, status: 'paid', paidAt: new Date().toISOString() }); reload(); }}
+                    className="flex items-center gap-1.5 bg-green-50 text-green-600 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                  >
+                    <BadgeCheck size={16} /> Mark Paid
+                  </button>
+                )}
+                <button
+                  onClick={() => handlePrint(viewingBill)}
+                  className="flex items-center gap-1.5 text-maroon hover:bg-maroon/5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                >
+                  <Printer size={16} /> Reprint
+                </button>
+              </div>
             </div>
 
             <div className="text-center mb-4">
               <h3 className="text-2xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Bill #{viewingBill.billNumber}</h3>
               <p className="text-gray-500 text-sm">{new Date(viewingBill.createdAt).toLocaleString('en-IN')}</p>
+              {viewingBill.status === 'unpaid' && (
+                <span className="inline-block mt-1.5 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">UNPAID — Payment Pending</span>
+              )}
+              {viewingBill.status === 'paid' && viewingBill.paidAt && (
+                <span className="inline-block mt-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">PAID on {new Date(viewingBill.paidAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+              )}
               {(viewingBill.customerName || viewingBill.customerPhone) && (
                 <p className="text-gray-500 text-sm mt-1">
                   {viewingBill.customerName && <span className="font-medium">{viewingBill.customerName}</span>}
@@ -293,11 +321,15 @@ export default function BillingPanel() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.03 }}
-                  className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:border-maroon/20 transition-colors cursor-pointer"
+                  className={`flex items-center gap-4 bg-white p-4 rounded-2xl border shadow-sm hover:border-maroon/20 transition-colors cursor-pointer ${
+                    bill.status === 'unpaid' ? 'border-amber-200 bg-amber-50/30' : 'border-gray-100'
+                  }`}
                   onClick={() => setViewingBill(bill)}
                 >
-                  <div className="w-12 h-12 rounded-xl bg-maroon/10 flex items-center justify-center shrink-0">
-                    <span className="font-bold text-maroon text-sm">#{bill.billNumber}</span>
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                    bill.status === 'unpaid' ? 'bg-amber-100' : 'bg-maroon/10'
+                  }`}>
+                    <span className={`font-bold text-sm ${bill.status === 'unpaid' ? 'text-amber-700' : 'text-maroon'}`}>#{bill.billNumber}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-charcoal text-sm">
@@ -310,12 +342,23 @@ export default function BillingPanel() {
                     {bill.customerName && (
                       <p className="text-xs text-gray-500 mt-0.5">{bill.customerName}{bill.customerPhone ? ` · ${bill.customerPhone}` : ''}</p>
                     )}
+                    {bill.status === 'unpaid' && (
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full uppercase">Unpaid</span>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-charcoal text-lg">₹{bill.grandTotal.toFixed(2)}</p>
                     {bill.discount > 0 && <p className="text-xs text-red-400">-₹{bill.discount.toFixed(2)} disc</p>}
                   </div>
                   <div className="shrink-0 flex gap-1">
+                    {bill.status === 'unpaid' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); markBillAsPaid(bill.id); reload(); }}
+                        className="p-2 text-amber-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Mark as Paid"
+                      >
+                        <BadgeCheck size={18} />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); setViewingBill(bill); }}
                       className="p-2 text-gray-400 hover:text-maroon transition-colors" title="View Bill"
@@ -558,11 +601,19 @@ export default function BillingPanel() {
           </div>
 
           <button
-            onClick={handleCheckout}
+            onClick={() => handleCheckout('paid')}
             disabled={cart.length === 0}
             className="w-full bg-maroon hover:bg-maroon-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 md:py-5 rounded-2xl font-semibold text-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-maroon/20 active:scale-[0.98]"
           >
             <CheckCircle size={20} /> Complete Sale
+          </button>
+
+          <button
+            onClick={() => handleCheckout('unpaid')}
+            disabled={cart.length === 0}
+            className="w-full mt-2 bg-amber-50 border-2 border-amber-300 hover:bg-amber-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-amber-700 py-3 rounded-2xl font-semibold text-sm transition-colors flex items-center justify-center gap-2 active:scale-[0.98]"
+          >
+            <CreditCard size={18} /> Pay Later (Credit)
           </button>
         </div>
       </div>
@@ -586,11 +637,21 @@ export default function BillingPanel() {
             >
               <div className="p-6">
                 <div className="text-center mb-4">
-                  <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
-                    <CheckCircle size={28} className="text-green-600" />
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${
+                    lastBill.status === 'unpaid' ? 'bg-amber-100' : 'bg-green-100'
+                  }`}>
+                    {lastBill.status === 'unpaid'
+                      ? <CreditCard size={28} className="text-amber-600" />
+                      : <CheckCircle size={28} className="text-green-600" />
+                    }
                   </div>
-                  <h3 className="text-xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Sale Complete!</h3>
+                  <h3 className="text-xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
+                    {lastBill.status === 'unpaid' ? 'Credit Bill Created' : 'Sale Complete!'}
+                  </h3>
                   <p className="text-gray-500 text-sm">Bill #{lastBill.billNumber}</p>
+                  {lastBill.status === 'unpaid' && (
+                    <span className="inline-block mt-1 px-2.5 py-0.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">UNPAID — Pay Later</span>
+                  )}
                   {(lastBill.customerName || lastBill.customerPhone) && (
                     <p className="text-gray-500 text-sm mt-1">
                       {lastBill.customerName && <span className="font-medium">{lastBill.customerName}</span>}

@@ -396,7 +396,17 @@ export function getBills(): Bill[] {
   return cache.bills;
 }
 
-export function createBill(items: { bookId: string; quantity: number }[], discount: number = 0, customerName?: string, customerPhone?: string): Bill | null {
+export function markBillAsPaid(billId: string): Bill | null {
+  const idx = cache.bills.findIndex((b) => b.id === billId);
+  if (idx === -1) return null;
+  cache.bills[idx] = { ...cache.bills[idx], status: 'paid', paidAt: new Date().toISOString() };
+  saveToLocalStorage();
+  fsSetBill(cache.bills[idx]).catch(() => {});
+  notifyListeners();
+  return cache.bills[idx];
+}
+
+export function createBill(items: { bookId: string; quantity: number }[], discount: number = 0, customerName?: string, customerPhone?: string, status: 'paid' | 'unpaid' = 'paid'): Bill | null {
   const billItems: Bill['items'] = [];
   let total = 0;
 
@@ -429,6 +439,7 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
     total,
     discount,
     grandTotal: total - discount,
+    status,
     ...(customerName?.trim() && { customerName: customerName.trim() }),
     ...(customerPhone?.trim() && { customerPhone: customerPhone.trim() }),
     createdAt: new Date().toISOString(),

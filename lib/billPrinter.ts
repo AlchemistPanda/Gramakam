@@ -309,6 +309,20 @@ function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
 
   push(ESCPOS.line('-', width));
 
+  // Payment status (for unpaid/credit bills)
+  const isUnpaid = bill.status === 'unpaid';
+  if (isUnpaid) {
+    push(ESCPOS.alignCenter());
+    push(ESCPOS.bold(true));
+    push(ESCPOS.doubleSize(true));
+    text('** UNPAID **');
+    push(ESCPOS.doubleSize(false));
+    text('CREDIT — Payment Pending');
+    push(ESCPOS.bold(false));
+    push(ESCPOS.alignLeft());
+    push(ESCPOS.line('-', width));
+  }
+
   // Footer
   push(ESCPOS.alignCenter());
   text('Thank you for visiting!');
@@ -403,6 +417,7 @@ function buildBillHtml(bill: Bill): string {
         ${bill.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-₹${bill.discount.toFixed(2)}</td></tr>` : ''}
         <tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${bill.grandTotal.toFixed(2)}</td></tr>
       </table>
+      ${bill.status === 'unpaid' ? '<div class="line"></div><p class="center" style="font-size:16px;font-weight:bold;margin:8px 0 2px;">** UNPAID **</p><p class="center" style="font-size:11px;color:#c00;">CREDIT — Payment Pending</p>' : ''}
       <div class="line"></div>
       <p class="center" style="margin-top:8px">Thank you for visiting!<br/>IF Creations</p>
     </body></html>

@@ -36,6 +36,8 @@ export interface Bill {
   grandTotal: number;
   customerName?: string;    // optional customer name
   customerPhone?: string;   // optional phone number
+  status?: 'paid' | 'unpaid'; // payment status (legacy bills default to 'paid')
+  paidAt?: string;          // ISO date when unpaid bill was later marked paid
   createdAt: string;        // ISO date
 }
 
