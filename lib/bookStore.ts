@@ -19,6 +19,13 @@ let cache: BookStoreData = { books: [], bills: [], publishers: [], nextBillNumbe
 let initialized = false;
 let changeListeners: Array<() => void> = [];
 
+// Write guards — prevent onSnapshot from overwriting cache while local writes are in-flight.
+// Without this, the async gap between cache update and setDoc allows stale onSnapshot data
+// (triggered by OTHER writes like bulk imports) to overwrite unsaved local changes.
+let booksWritesInFlight = 0;
+let billsWritesInFlight = 0;
+let publishersWritesInFlight = 0;
+
 function notifyListeners() {
   for (const fn of changeListeners) {
     try { fn(); } catch {}
@@ -66,42 +73,47 @@ async function firestoreLib() {
 // Individual Firestore operations (granular writes — no size limits)
 async function fsSetBook(book: Book): Promise<void> {
   if (!db) return;
+  booksWritesInFlight++;
   try {
     const { doc, setDoc } = await firestoreLib();
     await setDoc(doc(db, COL_BOOKS, book.id), { ...book });
-  } catch (e) { console.warn('Firestore write book failed:', e); }
+  } catch (e) { console.warn('Firestore write book failed:', e); } finally { booksWritesInFlight--; }
 }
 
 async function fsDeleteBook(id: string): Promise<void> {
   if (!db) return;
+  booksWritesInFlight++;
   try {
     const { doc, deleteDoc } = await firestoreLib();
     await deleteDoc(doc(db, COL_BOOKS, id));
-  } catch (e) { console.warn('Firestore delete book failed:', e); }
+  } catch (e) { console.warn('Firestore delete book failed:', e); } finally { booksWritesInFlight--; }
 }
 
 async function fsSetBill(bill: Bill): Promise<void> {
   if (!db) return;
+  billsWritesInFlight++;
   try {
     const { doc, setDoc } = await firestoreLib();
     await setDoc(doc(db, COL_BILLS, bill.id), { ...bill });
-  } catch (e) { console.warn('Firestore write bill failed:', e); }
+  } catch (e) { console.warn('Firestore write bill failed:', e); } finally { billsWritesInFlight--; }
 }
 
 async function fsSetPublisher(pub: Publisher): Promise<void> {
   if (!db) return;
+  publishersWritesInFlight++;
   try {
     const { doc, setDoc } = await firestoreLib();
     await setDoc(doc(db, COL_PUBLISHERS, pub.id), { ...pub });
-  } catch (e) { console.warn('Firestore write publisher failed:', e); }
+  } catch (e) { console.warn('Firestore write publisher failed:', e); } finally { publishersWritesInFlight--; }
 }
 
 async function fsDeletePublisher(id: string): Promise<void> {
   if (!db) return;
+  publishersWritesInFlight++;
   try {
     const { doc, deleteDoc } = await firestoreLib();
     await deleteDoc(doc(db, COL_PUBLISHERS, id));
-  } catch (e) { console.warn('Firestore delete publisher failed:', e); }
+  } catch (e) { console.warn('Firestore delete publisher failed:', e); } finally { publishersWritesInFlight--; }
 }
 
 async function fsSetMeta(): Promise<void> {
@@ -244,6 +256,7 @@ function setupRealtimeListeners(): void {
   firestoreLib().then(({ collection, doc, onSnapshot }) => {
     // Books collection
     onSnapshot(collection(db!, COL_BOOKS), (snap) => {
+      if (booksWritesInFlight > 0) { booksReady = true; checkMigration(); return; }
       const books: Book[] = [];
       snap.forEach((d) => books.push({ ...d.data(), id: d.id } as Book));
       cache.books = books;
@@ -255,6 +268,7 @@ function setupRealtimeListeners(): void {
 
     // Bills collection
     onSnapshot(collection(db!, COL_BILLS), (snap) => {
+      if (billsWritesInFlight > 0) { billsReady = true; checkMigration(); return; }
       const bills: Bill[] = [];
       snap.forEach((d) => bills.push({ ...d.data(), id: d.id } as Bill));
       cache.bills = bills;
@@ -266,6 +280,7 @@ function setupRealtimeListeners(): void {
 
     // Publishers collection
     onSnapshot(collection(db!, COL_PUBLISHERS), (snap) => {
+      if (publishersWritesInFlight > 0) { pubsReady = true; checkMigration(); return; }
       const publishers: Publisher[] = [];
       snap.forEach((d) => publishers.push({ ...d.data(), id: d.id } as Publisher));
       cache.publishers = publishers;
@@ -350,6 +365,8 @@ export function addBooksInBulk(books: Omit<Book, 'id' | 'sold' | 'addedAt'>[]): 
 
   // Write all new books + publishers in batches (not individual calls)
   if (db) {
+    booksWritesInFlight++;
+    if (newPubs.length > 0) publishersWritesInFlight++;
     firestoreLib().then(({ doc }) => {
       const ops: Array<{ type: 'set' | 'delete'; ref: any; data?: any }> = [];
       for (const b of newBooks) {
@@ -358,8 +375,11 @@ export function addBooksInBulk(books: Omit<Book, 'id' | 'sold' | 'addedAt'>[]): 
       for (const p of newPubs) {
         ops.push({ type: 'set', ref: doc(db!, COL_PUBLISHERS, p.id), data: { ...p } });
       }
-      commitInBatches(ops).catch(() => {});
-    }).catch(() => {});
+      return commitInBatches(ops);
+    }).catch(() => {}).finally(() => {
+      booksWritesInFlight--;
+      if (newPubs.length > 0) publishersWritesInFlight--;
+    });
   }
 
   return newBooks;
@@ -498,7 +518,9 @@ export function updatePublisher(id: string, data: Partial<Publisher>): void {
       }
     }
     saveToLocalStorage();
-    fsSetPublisher(cache.publishers[idx]).catch(() => {});
+    // Capture publisher snapshot BEFORE any async gap
+    const pubSnapshot = { ...cache.publishers[idx] };
+    fsSetPublisher(pubSnapshot).catch((e) => console.warn('Publisher write failed:', e));
     notifyListeners();
   }
 }
