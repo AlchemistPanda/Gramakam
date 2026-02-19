@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   FileText, FileSpreadsheet, Download, TrendingUp, BarChart3,
-  IndianRupee, Package, BookOpen, Users, Percent, Trash2,
+  IndianRupee, Package, BookOpen, Users, Percent, Trash2, Calendar, Award,
 } from 'lucide-react';
 import {
   getStats,
@@ -15,23 +15,80 @@ import {
   clearAllData,
   onDataChange,
 } from '@/lib/bookStore';
+import type { Bill, Book } from '@/types/books';
+
+// ========== Chart data helpers ==========
+
+function getDailySalesData(bills: Bill[]) {
+  const map: Record<string, number> = {};
+  for (const bill of bills) {
+    const day = new Date(bill.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    const qty = bill.items.reduce((s, i) => s + i.quantity, 0);
+    map[day] = (map[day] || 0) + qty;
+  }
+  return Object.entries(map).map(([day, sold]) => ({ day, sold }));
+}
+
+function getPublisherSalesData(pubStats: ReturnType<typeof getPublisherStats>) {
+  return pubStats
+    .filter((p) => p.totalSold > 0)
+    .sort((a, b) => b.totalSold - a.totalSold)
+    .slice(0, 12);
+}
+
+function getTopBooksData(books: Book[]) {
+  return [...books]
+    .filter((b) => b.sold > 0)
+    .sort((a, b) => b.sold - a.sold)
+    .slice(0, 10);
+}
+
+// ========== Reusable horizontal bar chart ==========
+
+function BarChart({ data, color }: { data: { label: string; value: number; sub?: string }[]; color: string }) {
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
+  return (
+    <div className="space-y-2.5">
+      {data.map((d, i) => (
+        <div key={i}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-charcoal truncate max-w-[60%]" title={d.label}>{d.label}</span>
+            <span className="text-xs font-bold text-gray-600 ml-2 shrink-0">{d.value}{d.sub ? <span className="text-[10px] font-normal text-gray-400 ml-1">{d.sub}</span> : null}</span>
+          </div>
+          <div className="h-5 bg-gray-100 rounded-full overflow-hidden">
+            <motion.div
+              className={`h-full rounded-full ${color}`}
+              initial={{ width: 0 }}
+              animate={{ width: `${(d.value / maxVal) * 100}%` }}
+              transition={{ duration: 0.6, delay: i * 0.04, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
+      ))}
+      {data.length === 0 && <p className="text-center text-gray-400 text-sm py-6">No data yet</p>}
+    </div>
+  );
+}
 
 export default function ReportsPanel() {
   const [stats, setStats] = useState({ totalBooks: 0, totalSold: 0, totalRemaining: 0, totalRevenue: 0, totalBills: 0, uniquePublishers: 0 });
   const [pubStats, setPubStats] = useState<ReturnType<typeof getPublisherStats>>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [books, setBooks] = useState<Book[]>([]);
   const [view, setView] = useState<'overview' | 'publisher' | 'books' | 'bills'>('overview');
 
-  useEffect(() => {
+  const reload = () => {
     setStats(getStats());
     setPubStats(getPublisherStats());
-  }, []);
+    setBills(getBills());
+    setBooks(getBooks());
+  };
+
+  useEffect(() => { reload(); }, []);
 
   // Real-time sync
   useEffect(() => {
-    const unsub = onDataChange(() => {
-      setStats(getStats());
-      setPubStats(getPublisherStats());
-    });
+    const unsub = onDataChange(() => { reload(); });
     return unsub;
   }, []);
 
@@ -273,6 +330,77 @@ export default function ReportsPanel() {
           </div>
         </div>
       </div>
+
+      {/* ========== CHARTS SECTION ========== */}
+      {stats.totalSold > 0 && (
+        <div className="mb-8 space-y-4">
+          <h3 className="text-lg font-bold text-charcoal flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
+            <BarChart3 size={20} className="text-maroon" /> Visual Analytics
+          </h3>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Chart 1: Daily Sales */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+              className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Calendar size={16} className="text-blue-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-charcoal text-sm">Daily Book Sales</h4>
+                  <p className="text-[11px] text-gray-400">Books sold each day</p>
+                </div>
+              </div>
+              <BarChart
+                data={getDailySalesData(bills).map((d) => ({ label: d.day, value: d.sold, sub: 'books' }))}
+                color="bg-gradient-to-r from-blue-400 to-blue-600"
+              />
+            </motion.div>
+
+            {/* Chart 2: Publisher Sales */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
+              className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <Users size={16} className="text-purple-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-charcoal text-sm">Sales by Publisher</h4>
+                  <p className="text-[11px] text-gray-400">Top publishers by units sold</p>
+                </div>
+              </div>
+              <BarChart
+                data={getPublisherSalesData(pubStats).map((p) => ({ label: p.publisher, value: p.totalSold, sub: `₹${p.revenue.toFixed(0)}` }))}
+                color="bg-gradient-to-r from-purple-400 to-purple-600"
+              />
+            </motion.div>
+          </div>
+
+          {/* Chart 3: Top Selling Books (full width) */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
+            className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                <Award size={16} className="text-amber-600" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-charcoal text-sm">Top Selling Books</h4>
+                <p className="text-[11px] text-gray-400">Most popular books by units sold</p>
+              </div>
+            </div>
+            <BarChart
+              data={getTopBooksData(books).map((b) => ({ label: b.localTitle || b.title, value: b.sold, sub: b.publisher }))}
+              color="bg-gradient-to-r from-amber-400 to-orange-500"
+            />
+          </motion.div>
+        </div>
+      )}
 
       {/* Publisher Breakdown Table */}
       {pubStats.length > 0 && (
