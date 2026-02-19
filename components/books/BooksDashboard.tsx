@@ -4,13 +4,13 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3,
-  LogOut, BookOpen, Menu, X, ChevronRight, Users, WifiOff,
+  LogOut, BookOpen, Menu, X, ChevronRight, Users, WifiOff, AlertTriangle,
 } from 'lucide-react';
 import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
 import ReportsPanel from './ReportsPanel';
 import PublishersPanel from './PublishersPanel';
-import { getStats, getPublisherStats, initBookStore, isStoreReady, onDataChange } from '@/lib/bookStore';
+import { getStats, getPublisherStats, getBooks, initBookStore, isStoreReady, onDataChange } from '@/lib/bookStore';
 
 type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports';
 
@@ -23,6 +23,7 @@ export default function BooksDashboard({ onLogout }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({ totalBooks: 0, totalSold: 0, totalRemaining: 0, totalRevenue: 0, totalBills: 0, totalPaidBills: 0, totalUnpaidBills: 0, totalPendingAmount: 0, uniquePublishers: 0 });
   const [totalProfit, setTotalProfit] = useState(0);
+  const [lowStockBooks, setLowStockBooks] = useState<{ id: string; title: string; localTitle?: string; remaining: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
 
@@ -70,6 +71,12 @@ export default function BooksDashboard({ onLogout }: Props) {
       setStats(getStats());
       const ps = getPublisherStats();
       setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
+      setLowStockBooks(
+        getBooks()
+          .filter((b) => (b.quantity - b.sold) > 0 && (b.quantity - b.sold) <= 3)
+          .sort((a, b) => (a.quantity - a.sold) - (b.quantity - b.sold))
+          .map((b) => ({ id: b.id, title: b.title, localTitle: b.localTitle, remaining: b.quantity - b.sold }))
+      );
     });
   }, []);
 
@@ -78,6 +85,12 @@ export default function BooksDashboard({ onLogout }: Props) {
       setStats(getStats());
       const ps = getPublisherStats();
       setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
+      setLowStockBooks(
+        getBooks()
+          .filter((b) => (b.quantity - b.sold) > 0 && (b.quantity - b.sold) <= 3)
+          .sort((a, b) => (a.quantity - a.sold) - (b.quantity - b.sold))
+          .map((b) => ({ id: b.id, title: b.title, localTitle: b.localTitle, remaining: b.quantity - b.sold }))
+      );
     }
   }, [activeTab, loading]);
 
@@ -87,6 +100,12 @@ export default function BooksDashboard({ onLogout }: Props) {
       setStats(getStats());
       const ps = getPublisherStats();
       setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));
+      setLowStockBooks(
+        getBooks()
+          .filter((b) => (b.quantity - b.sold) > 0 && (b.quantity - b.sold) <= 3)
+          .sort((a, b) => (a.quantity - a.sold) - (b.quantity - b.sold))
+          .map((b) => ({ id: b.id, title: b.title, localTitle: b.localTitle, remaining: b.quantity - b.sold }))
+      );
     });
     return unsub;
   }, []);
@@ -256,7 +275,7 @@ export default function BooksDashboard({ onLogout }: Props) {
               transition={{ duration: 0.15 }}
             >
               {activeTab === 'dashboard' && (
-                <DashboardHome stats={stats} totalProfit={totalProfit} onNavigate={switchTab} quickActions={quickActions} />
+                <DashboardHome stats={stats} totalProfit={totalProfit} onNavigate={switchTab} quickActions={quickActions} lowStockBooks={lowStockBooks} />
               )}
               {activeTab === 'inventory' && <InventoryPanel />}
               {activeTab === 'publishers' && <PublishersPanel />}
@@ -278,11 +297,13 @@ function DashboardHome({
   totalProfit,
   onNavigate,
   quickActions,
+  lowStockBooks,
 }: {
   stats: ReturnType<typeof getStats>;
   totalProfit: number;
   onNavigate: (tab: Tab) => void;
   quickActions: { label: string; desc: string; tab: Tab; icon: React.ElementType; color: string }[];
+  lowStockBooks: { id: string; title: string; localTitle?: string; remaining: number }[];
 }) {
   return (
     <div>
@@ -308,6 +329,41 @@ function DashboardHome({
           </div>
         ))}
       </div>
+
+      {/* Low Stock Alert */}
+      {lowStockBooks.length > 0 && (
+        <div className="mb-8">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+              <h3 className="text-sm font-bold text-amber-800">
+                {lowStockBooks.length} book{lowStockBooks.length !== 1 ? 's' : ''} running low — restock soon
+              </h3>
+              <button
+                onClick={() => onNavigate('inventory')}
+                className="ml-auto text-xs text-amber-700 font-semibold hover:text-amber-900 underline underline-offset-2"
+              >
+                Go to Inventory →
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {lowStockBooks.map((b) => (
+                <span
+                  key={b.id}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ${
+                    b.remaining === 1 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {b.localTitle || b.title}
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    b.remaining === 1 ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-900'
+                  }`}>{b.remaining} left</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <h3 className="text-lg font-semibold text-charcoal mb-3">Quick Actions</h3>

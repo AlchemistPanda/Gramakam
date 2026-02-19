@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download, ScanBarcode, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download, ScanBarcode, Loader2, PackagePlus } from 'lucide-react';
 import type { Book, OCRLine } from '@/types/books';
 import {
   getBooks,
@@ -27,6 +27,8 @@ export default function InventoryPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishers, setPublishers] = useState<string[]>([]);
   const [fetchingISBN, setFetchingISBN] = useState(false);
+  const [restockingId, setRestockingId] = useState<string | null>(null);
+  const [restockQty, setRestockQty] = useState('');
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -168,6 +170,15 @@ export default function InventoryPanel() {
   const handleDelete = (id: string) => {
     if (!confirm('Delete this book from inventory?')) return;
     deleteBook(id);
+    reload();
+  };
+
+  const handleRestock = (book: Book) => {
+    const qty = parseInt(restockQty);
+    if (!qty || qty <= 0) { setRestockingId(null); setRestockQty(''); return; }
+    updateBook(book.id, { quantity: book.quantity + qty });
+    setRestockingId(null);
+    setRestockQty('');
     reload();
   };
 
@@ -363,10 +374,38 @@ export default function InventoryPanel() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex justify-center gap-1.5">
-                        <button onClick={() => handleEdit(book)} className="p-2 md:p-2.5 text-gray-400 hover:text-blue-600 active:text-blue-700 transition-colors rounded-lg hover:bg-blue-50"><Edit size={16} /></button>
-                        <button onClick={() => handleDelete(book.id)} className="p-2 md:p-2.5 text-gray-400 hover:text-red-500 active:text-red-600 transition-colors rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
-                      </div>
+                      {restockingId === book.id ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-xs font-bold text-green-600 shrink-0">+</span>
+                          <input
+                            type="number"
+                            min="1"
+                            autoFocus
+                            value={restockQty}
+                            onChange={(e) => setRestockQty(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRestock(book);
+                              if (e.key === 'Escape') { setRestockingId(null); setRestockQty(''); }
+                            }}
+                            className="w-14 px-2 py-1 border border-green-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-green-400"
+                            placeholder="qty"
+                          />
+                          <button onClick={() => handleRestock(book)} className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg" title="Confirm restock">
+                            <CheckCircle size={15} />
+                          </button>
+                          <button onClick={() => { setRestockingId(null); setRestockQty(''); }} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg" title="Cancel">
+                            <X size={15} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-center gap-1.5">
+                          <button onClick={() => { setRestockingId(book.id); setRestockQty(''); }} className="p-2 md:p-2.5 text-gray-400 hover:text-green-600 active:text-green-700 transition-colors rounded-lg hover:bg-green-50" title="Quick restock — add copies">
+                            <PackagePlus size={16} />
+                          </button>
+                          <button onClick={() => handleEdit(book)} className="p-2 md:p-2.5 text-gray-400 hover:text-blue-600 active:text-blue-700 transition-colors rounded-lg hover:bg-blue-50"><Edit size={16} /></button>
+                          <button onClick={() => handleDelete(book.id)} className="p-2 md:p-2.5 text-gray-400 hover:text-red-500 active:text-red-600 transition-colors rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

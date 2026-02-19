@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
 import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName } from '@/lib/billPrinter';
@@ -216,6 +216,7 @@ export default function BillingPanel() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'unpaid'>('all');
+  const [historySearch, setHistorySearch] = useState('');
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [editItems, setEditItems] = useState<{ bookId: string; title: string; localTitle?: string; publisher: string; price: number; quantity: number; maxQty: number }[]>([]);
   const [editDiscount, setEditDiscount] = useState(0);
@@ -497,10 +498,32 @@ export default function BillingPanel() {
     reload();
   };
 
-  // If viewing bill history
-  const filteredBills = historyFilter === 'unpaid'
-    ? allBills.filter(b => b.status === 'unpaid')
-    : allBills;
+  const shareOnWhatsApp = (bill: Bill) => {
+    const lines = bill.items
+      .map((item) => `  • ${item.localTitle || item.title} ×${item.quantity} — ₹${(item.price * item.quantity).toFixed(0)}`)
+      .join('\n');
+    const disc = bill.discount > 0 ? `\n  Discount: -₹${bill.discount.toFixed(0)}` : '';
+    const pending = bill.status === 'unpaid' ? '\n⚠️ PAYMENT PENDING' : '';
+    const customer = bill.customerName
+      ? ` — ${bill.customerName}${bill.customerPhone ? ` (${bill.customerPhone})` : ''}`
+      : '';
+    const text = `📚 *Gramakam Book Festival 2026*\nBill #${bill.billNumber}${customer}\n\n${lines}${disc}\n\n  *Total: ₹${bill.grandTotal.toFixed(0)}*${pending}\n\nThank you! 🙏`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  // If viewing bill history — filtered by tab and optional search query
+  const filteredBills = allBills
+    .filter((b) => (historyFilter === 'unpaid' ? b.status === 'unpaid' : true))
+    .filter((b) => {
+      if (!historySearch.trim()) return true;
+      const q = historySearch.toLowerCase();
+      return (
+        String(b.billNumber).includes(q) ||
+        b.customerName?.toLowerCase().includes(q) ||
+        (b.customerPhone && b.customerPhone.includes(q)) ||
+        b.items.some((i) => i.title.toLowerCase().includes(q) || i.localTitle?.toLowerCase().includes(q))
+      );
+    });
 
   if (showHistory) {
     return (
@@ -526,6 +549,25 @@ export default function BillingPanel() {
             )}
           </span>
         </div>
+
+        {/* History Search */}
+        {!viewingBill && (
+          <div className="relative mb-3">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by bill #, customer name, or book title…"
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              className="w-full pl-9 pr-9 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-maroon/30 bg-white"
+            />
+            {historySearch && (
+              <button onClick={() => setHistorySearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Filter Tabs */}
         {!viewingBill && (
@@ -596,6 +638,13 @@ export default function BillingPanel() {
                   className="flex items-center gap-1.5 text-maroon hover:bg-maroon/5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
                 >
                   <Printer size={16} /> Reprint
+                </button>
+                <button
+                  onClick={() => shareOnWhatsApp(viewingBill)}
+                  className="flex items-center gap-1.5 text-green-600 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                  title="Share on WhatsApp"
+                >
+                  <MessageCircle size={16} /> WA
                 </button>
                 <button
                   onClick={() => handleDeleteBill(viewingBill)}
@@ -1156,7 +1205,14 @@ export default function BillingPanel() {
 
               <div className="flex border-t border-gray-100">
                 <button onClick={() => lastBill && handlePrint(lastBill)} className="flex-1 py-4 text-center font-medium text-maroon hover:bg-maroon/5 transition-colors flex items-center justify-center gap-2">
-                  <Printer size={18} /> {btConnected ? 'Print via Bluetooth' : 'Print Bill'}
+                  <Printer size={18} /> {btConnected ? 'Print via BT' : 'Print Bill'}
+                </button>
+                <div className="w-px bg-gray-100" />
+                <button
+                  onClick={() => lastBill && shareOnWhatsApp(lastBill)}
+                  className="flex-1 py-4 text-center font-medium text-green-600 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <MessageCircle size={18} /> WhatsApp
                 </button>
                 <div className="w-px bg-gray-100" />
                 <button onClick={() => setShowBill(false)} className="flex-1 py-4 text-center font-medium text-gray-600 hover:bg-gray-50 transition-colors">
