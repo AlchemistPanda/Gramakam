@@ -4,7 +4,7 @@
 // IndexedDB cache, NOT from the server, saving read quota.
 // Collections: bookfest_books, bookfest_bills, bookfest_publishers, bookfest/meta
 
-import type { Book, Bill, Publisher, BookStoreData } from '@/types/books';
+import type { Book, Bill, Publisher, BookStoreData, BookRequest } from '@/types/books';
 import { db } from './firebase';
 
 const STORE_KEY = 'gramakam_bookfest';
@@ -16,6 +16,7 @@ function generateId(): string {
 // ==================== IN-MEMORY CACHE ====================
 
 let cache: BookStoreData = { books: [], bills: [], publishers: [], nextBillNumber: 1 };
+let requestsCache: BookRequest[] = [];
 let initialized = false;
 let changeListeners: Array<() => void> = [];
 
@@ -65,6 +66,7 @@ function saveToLocalStorage(): void {
 const COL_BOOKS = 'bookfest_books';
 const COL_BILLS = 'bookfest_bills';
 const COL_PUBLISHERS = 'bookfest_publishers';
+const COL_REQUESTS = 'bookfest_requests';
 
 async function firestoreLib() {
   return await import('firebase/firestore');
@@ -97,6 +99,22 @@ async function fsDeleteBook(id: string): Promise<void> {
     const { doc, deleteDoc } = await firestoreLib();
     await deleteDoc(doc(db, COL_BOOKS, id));
   } catch (e) { console.warn('Firestore delete book failed:', e); } finally { booksWritesInFlight--; }
+}
+
+async function fsSetRequest(req: BookRequest): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, setDoc } = await firestoreLib();
+    await setDoc(doc(db, COL_REQUESTS, req.id), cleanData({ ...req }));
+  } catch (e) { console.warn('Firestore write request failed:', e); }
+}
+
+async function fsDeleteRequest(id: string): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, deleteDoc } = await firestoreLib();
+    await deleteDoc(doc(db, COL_REQUESTS, id));
+  } catch (e) { console.warn('Firestore delete request failed:', e); }
 }
 
 async function fsSetBill(bill: Bill): Promise<void> {
@@ -236,6 +254,7 @@ export async function initBookStore(): Promise<void> {
     // Set up real-time listeners — the first snapshot IS the initial data load.
     // No separate getDocs call needed (saves reads).
     setupRealtimeListeners();
+    setupRequestsListener();
   }
 }
 
@@ -751,6 +770,51 @@ export function getPublisherStats() {
 }
 
 // ==================== BACKUP / RESTORE ====================
+
+// ==================== REQUESTS ====================
+
+function setupRequestsListener(): void {
+  if (!db) return;
+  import('firebase/firestore').then(({ collection, onSnapshot }) => {
+    onSnapshot(collection(db!, COL_REQUESTS), (snap) => {
+      const all: BookRequest[] = [];
+      snap.forEach((d) => all.push({ ...d.data(), id: d.id } as BookRequest));
+      requestsCache = all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      notifyListeners();
+    });
+  }).catch(() => {});
+}
+
+export function getRequests(): BookRequest[] {
+  return requestsCache;
+}
+
+export function addRequest(req: Omit<BookRequest, 'id' | 'createdAt' | 'status'>): BookRequest {
+  const newReq: BookRequest = {
+    ...req,
+    id: generateId(),
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
+  requestsCache = [newReq, ...requestsCache];
+  fsSetRequest(newReq).catch(() => {});
+  notifyListeners();
+  return newReq;
+}
+
+export function updateRequestStatus(id: string, status: BookRequest['status']): void {
+  const req = requestsCache.find((r) => r.id === id);
+  if (!req) return;
+  req.status = status;
+  fsSetRequest(req).catch(() => {});
+  notifyListeners();
+}
+
+export function deleteRequest(id: string): void {
+  requestsCache = requestsCache.filter((r) => r.id !== id);
+  fsDeleteRequest(id).catch(() => {});
+  notifyListeners();
+}
 
 export function exportAllData(): string {
   return JSON.stringify(cache, null, 2);

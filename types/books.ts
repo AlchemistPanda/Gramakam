@@ -60,3 +60,15 @@ export interface BookStoreData {
   publishers: Publisher[];
   nextBillNumber: number;
 }
+
+export interface BookRequest {
+  id: string;
+  customerName: string;
+  phone: string;
+  bookTitle: string;        // English title (may be free-text if not in inventory)
+  bookId?: string;          // Inventory Book.id if matched from inventory
+  address?: string;         // optional delivery / contact address
+  notes?: string;           // any other notes
+  status: 'pending' | 'fulfilled';
+  createdAt: string;        // ISO date
+}

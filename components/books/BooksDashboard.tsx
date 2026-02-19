@@ -4,15 +4,16 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3,
-  LogOut, BookOpen, Menu, X, ChevronRight, Users, WifiOff, AlertTriangle,
+  LogOut, BookOpen, Menu, X, ChevronRight, Users, WifiOff, AlertTriangle, ClipboardList,
 } from 'lucide-react';
 import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
 import ReportsPanel from './ReportsPanel';
 import PublishersPanel from './PublishersPanel';
+import RequestsPanel from './RequestsPanel';
 import { getStats, getPublisherStats, getBooks, initBookStore, isStoreReady, onDataChange } from '@/lib/bookStore';
 
-type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports';
+type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports' | 'requests';
 
 interface Props {
   onLogout: () => void;
@@ -116,6 +117,7 @@ export default function BooksDashboard({ onLogout }: Props) {
     { id: 'publishers', label: 'Publishers', icon: Users, desc: 'Publisher pool' },
     { id: 'billing', label: 'Billing', icon: ShoppingCart, desc: 'Point of Sale' },
     { id: 'reports', label: 'Reports', icon: BarChart3, desc: 'Export data' },
+    { id: 'requests', label: 'Requests', icon: ClipboardList, desc: 'Pre-order waitlist' },
   ];
 
   const quickActions = [
@@ -281,6 +283,7 @@ export default function BooksDashboard({ onLogout }: Props) {
               {activeTab === 'publishers' && <PublishersPanel />}
               {activeTab === 'billing' && <BillingPanel />}
               {activeTab === 'reports' && <ReportsPanel />}
+              {activeTab === 'requests' && <RequestsPanel />}
             </motion.div>
           </AnimatePresence>
           )}
