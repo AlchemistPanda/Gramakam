@@ -267,7 +267,7 @@ export default function BillingPanel() {
     const q = query.toLowerCase();
     const matched = books
       .filter((b) => (b.quantity - b.sold) > 0)
-      .filter((b) => b.title.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q) || b.isbn?.toLowerCase().includes(q))
+      .filter((b) => b.title.toLowerCase().includes(q) || b.localTitle?.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q) || b.isbn?.toLowerCase().includes(q))
       .slice(0, 8);
     setResults(matched);
   }, [query, books]);
@@ -340,9 +340,10 @@ export default function BillingPanel() {
       alert('Please enter the customer name for credit/pay-later bills.');
       return;
     }
+    const cappedDiscount = Math.min(discount, subtotal);
     const bill = createBill(
       cart.map((c) => ({ bookId: c.bookId, quantity: c.quantity })),
-      discount,
+      cappedDiscount,
       customerName || undefined,
       customerPhone || undefined,
       status
@@ -467,7 +468,7 @@ export default function BillingPanel() {
         const available = inEdit ? inEdit.maxQty - inEdit.quantity : (b.quantity - b.sold);
         return available > 0;
       })
-      .filter((b) => b.title.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q) || b.isbn?.toLowerCase().includes(q))
+      .filter((b) => b.title.toLowerCase().includes(q) || b.localTitle?.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q) || b.isbn?.toLowerCase().includes(q))
       .slice(0, 6);
     setEditSearchResults(matched);
   }, [editSearch, editingBill, editItems]);

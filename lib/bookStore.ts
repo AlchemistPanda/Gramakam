@@ -439,6 +439,7 @@ export function searchBooks(query: string): Book[] {
   return cache.books.filter(
     (b) =>
       b.title.toLowerCase().includes(q) ||
+      b.localTitle?.toLowerCase().includes(q) ||
       b.publisher.toLowerCase().includes(q) ||
       b.category?.toLowerCase().includes(q) ||
       b.isbn?.toLowerCase().includes(q)
@@ -523,11 +524,13 @@ export function editBill(
   const oldBill = cache.bills[billIdx];
 
   // 1. Reverse old stock — add back sold quantities
+  // Save snapshots so we can rollback if new items fail
+  const stockSnapshots: { bookId: string; oldSold: number }[] = [];
   for (const oldItem of oldBill.items) {
     const book = cache.books.find((b) => b.id === oldItem.bookId);
     if (book) {
+      stockSnapshots.push({ bookId: book.id, oldSold: book.sold });
       book.sold = Math.max(0, book.sold - oldItem.quantity);
-      fsSetBook(book).catch(() => {});
     }
   }
 
@@ -554,18 +557,39 @@ export function editBill(
     total += book.price * qty;
 
     book.sold += qty;
-    fsSetBook(book).catch(() => {});
   }
 
-  if (billItems.length === 0) return null;
+  if (billItems.length === 0) {
+    // Rollback stock reversal — restore old sold counts
+    for (const snap of stockSnapshots) {
+      const book = cache.books.find((b) => b.id === snap.bookId);
+      if (book) book.sold = snap.oldSold;
+    }
+    return null;
+  }
+
+  // Persist all book stock changes to Firestore
+  const touchedBookIds = new Set([...stockSnapshots.map(s => s.bookId), ...billItems.map(i => i.bookId)]);
+  for (const bookId of touchedBookIds) {
+    const book = cache.books.find((b) => b.id === bookId);
+    if (book) fsSetBook(book).catch(() => {});
+  }
+
+  // Cap discount to avoid negative total
+  const cappedDiscount = Math.min(discount, total);
 
   // 3. Update the bill in-place (keep same id, billNumber, createdAt, status)
+  // Explicitly set customer fields (don't rely on ...oldBill spread) so clearing works
   const updatedBill: Bill = {
-    ...oldBill,
+    id: oldBill.id,
+    billNumber: oldBill.billNumber,
+    createdAt: oldBill.createdAt,
+    status: oldBill.status,
+    ...(oldBill.paidAt && { paidAt: oldBill.paidAt }),
     items: billItems,
     total,
-    discount,
-    grandTotal: total - discount,
+    discount: cappedDiscount,
+    grandTotal: total - cappedDiscount,
     ...(customerName?.trim() ? { customerName: customerName.trim() } : {}),
     ...(customerPhone?.trim() ? { customerPhone: customerPhone.trim() } : {}),
     editedAt: new Date().toISOString(),
@@ -596,11 +620,12 @@ export function deleteBill(billId: string): boolean {
   cache.bills.splice(billIdx, 1);
   saveToLocalStorage();
 
-  // Delete from Firestore
+  // Delete from Firestore — use write guard to prevent onSnapshot from re-adding the bill
   if (db) {
+    billsWritesInFlight++;
     firestoreLib().then(({ doc, deleteDoc }) => {
-      deleteDoc(doc(db!, COL_BILLS, billId)).catch(() => {});
-    }).catch(() => {});
+      return deleteDoc(doc(db!, COL_BILLS, billId));
+    }).catch(() => {}).finally(() => { billsWritesInFlight--; });
   }
 
   notifyListeners();
@@ -701,11 +726,15 @@ export function getPublisherStats() {
   }
 
   // Revenue only from paid (or legacy) bills — credit/unpaid excluded
+  // Discount is distributed proportionally across publishers in multi-item bills
   for (const bill of cache.bills) {
     if (bill.status === 'unpaid') continue;
+    const billSubtotal = bill.items.reduce((s, i) => s + i.price * i.quantity, 0);
     for (const item of bill.items) {
       if (pubMap[item.publisher]) {
-        pubMap[item.publisher].revenue += item.price * item.quantity - (bill.items.length === 1 ? bill.discount : 0);
+        const itemAmount = item.price * item.quantity;
+        const itemDiscount = billSubtotal > 0 ? (bill.discount * itemAmount / billSubtotal) : 0;
+        pubMap[item.publisher].revenue += itemAmount - itemDiscount;
       }
     }
   }
