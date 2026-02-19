@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3,
-  LogOut, BookOpen, Menu, X, ChevronRight, Users, WifiOff, AlertTriangle, ClipboardList,
+  LogOut, BookOpen, Menu, X, ChevronRight, ChevronDown, Users, WifiOff, AlertTriangle, ClipboardList,
 } from 'lucide-react';
 import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
@@ -112,12 +112,12 @@ export default function BooksDashboard({ onLogout }: Props) {
   }, []);
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; desc: string }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview' },
-    { id: 'inventory', label: 'Inventory', icon: Package, desc: 'Manage books' },
-    { id: 'publishers', label: 'Publishers', icon: Users, desc: 'Publisher pool' },
-    { id: 'billing', label: 'Billing', icon: ShoppingCart, desc: 'Point of Sale' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, desc: 'Export data' },
-    { id: 'requests', label: 'Requests', icon: ClipboardList, desc: 'Pre-order waitlist' },
+    { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard, desc: 'Overview' },
+    { id: 'billing',    label: 'Billing',    icon: ShoppingCart,    desc: 'Point of Sale' },
+    { id: 'inventory',  label: 'Inventory',  icon: Package,         desc: 'Manage books' },
+    { id: 'publishers', label: 'Publishers', icon: Users,           desc: 'Publisher pool' },
+    { id: 'reports',    label: 'Reports',    icon: BarChart3,       desc: 'Export data' },
+    { id: 'requests',   label: 'Requests',   icon: ClipboardList,  desc: 'Pre-order waitlist' },
   ];
 
   const quickActions = [
@@ -356,100 +356,129 @@ function DashboardHome({
         ))}
       </div>
 
-      {/* Stock Alert — grouped by remaining count, RAG colour-coded */}
-      {lowStockBooks.length > 0 && (() => {
-        const ragGroups = [
-          {
-            remaining: 0,
-            label: 'Out of Stock',
-            headerClass: 'bg-red-600 text-white',
-            pillClass: 'bg-red-100 text-red-800',
-            badgeClass: 'bg-red-200 text-red-900',
-            badgeText: 'OUT',
-          },
-          {
-            remaining: 1,
-            label: 'Only 1 Left',
-            headerClass: 'bg-red-100 text-red-800',
-            pillClass: 'bg-red-50 text-red-700',
-            badgeClass: 'bg-red-200 text-red-800',
-            badgeText: '1 left',
-          },
-          {
-            remaining: 2,
-            label: 'Only 2 Left',
-            headerClass: 'bg-amber-100 text-amber-800',
-            pillClass: 'bg-amber-50 text-amber-700',
-            badgeClass: 'bg-amber-200 text-amber-800',
-            badgeText: '2 left',
-          },
-          {
-            remaining: 3,
-            label: 'Only 3 Left',
-            headerClass: 'bg-yellow-100 text-yellow-800',
-            pillClass: 'bg-yellow-50 text-yellow-700',
-            badgeClass: 'bg-yellow-200 text-yellow-800',
-            badgeText: '3 left',
-          },
-        ].map((g) => ({ ...g, books: lowStockBooks.filter((b) => b.remaining === g.remaining) }))
-         .filter((g) => g.books.length > 0);
+      {/* Stock Alert — collapsible, collapsed by default */}
+      <StockAlertSection lowStockBooks={lowStockBooks} onNavigate={onNavigate} />
+    </div>
+  );
+}
 
-        const outCount = lowStockBooks.filter((b) => b.remaining === 0).length;
-        const lowCount = lowStockBooks.filter((b) => b.remaining > 0).length;
+/* ── Collapsible Stock Alert ──────────────────────────── */
+const RAG_GROUPS = [
+  { remaining: 0, label: 'Out of Stock',  headerClass: 'bg-red-600 text-white',        badgeClass: 'bg-red-200 text-red-900' },
+  { remaining: 1, label: 'Only 1 Left',   headerClass: 'bg-red-100 text-red-800',      badgeClass: 'bg-red-200 text-red-800' },
+  { remaining: 2, label: 'Only 2 Left',   headerClass: 'bg-amber-100 text-amber-800',  badgeClass: 'bg-amber-200 text-amber-800' },
+  { remaining: 3, label: 'Only 3 Left',   headerClass: 'bg-yellow-100 text-yellow-800',badgeClass: 'bg-yellow-200 text-yellow-800' },
+] as const;
 
-        return (
-          <div className="mt-8">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle size={17} className="text-red-500 shrink-0" />
-              <h3 className="text-base font-bold text-charcoal">
-                Stock Alert
-                <span className="ml-2 text-sm font-normal text-gray-500">
-                  {outCount > 0 && `${outCount} out of stock`}{outCount > 0 && lowCount > 0 && ', '}{lowCount > 0 && `${lowCount} running low`}
-                </span>
-              </h3>
-              <button
-                onClick={() => onNavigate('inventory')}
-                className="ml-auto text-xs text-maroon font-semibold hover:underline"
-              >
-                Manage Inventory →
-              </button>
-            </div>
+function StockAlertSection({
+  lowStockBooks,
+  onNavigate,
+}: {
+  lowStockBooks: { id: string; title: string; localTitle?: string; remaining: number }[];
+  onNavigate: (tab: Tab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (lowStockBooks.length === 0) return null;
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              {ragGroups.map((group, gi) => (
-                <div key={group.remaining} className={gi > 0 ? 'border-t border-gray-100' : ''}>
-                  {/* Group header row */}
-                  <div className={`flex items-center gap-2 px-4 py-2 ${group.headerClass}`}>
-                    <span className="text-xs font-bold uppercase tracking-wide">{group.label}</span>
-                    <span className="text-xs font-semibold opacity-70">— {group.books.length} book{group.books.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  {/* Book pills */}
-                  <div className="flex flex-wrap gap-2 px-4 py-3">
-                    {group.books.map((b) => (
-                      <span
-                        key={b.id}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${
-                          group.remaining === 0 ? 'bg-red-50 border-red-200 text-red-700' :
-                          group.remaining === 1 ? 'bg-red-50 border-red-100 text-red-600' :
-                          group.remaining === 2 ? 'bg-amber-50 border-amber-100 text-amber-700' :
-                          'bg-yellow-50 border-yellow-100 text-yellow-700'
-                        }`}
-                      >
-                        {b.localTitle || b.title}
-                        {group.remaining > 0 && (
-                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${group.badgeClass}`}>
-                            {group.badgeText}
-                          </span>
-                        )}
+  const ragGroups = RAG_GROUPS
+    .map((g) => ({ ...g, books: lowStockBooks.filter((b) => b.remaining === g.remaining) }))
+    .filter((g) => g.books.length > 0);
+
+  const outCount = lowStockBooks.filter((b) => b.remaining === 0).length;
+  const lowCount = lowStockBooks.filter((b) => b.remaining > 0).length;
+
+  const summaryText = [
+    outCount > 0 && `${outCount} out of stock`,
+    lowCount > 0 && `${lowCount} running low`,
+  ].filter(Boolean).join(', ');
+
+  return (
+    <div className="mt-8">
+      {/* Clickable header — always visible */}
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="w-full flex items-center gap-2 group"
+      >
+        <AlertTriangle size={17} className={`shrink-0 transition-colors ${outCount > 0 ? 'text-red-500' : 'text-amber-500'}`} />
+        <span className="text-base font-bold text-charcoal">Stock Alert</span>
+        <span className="text-sm font-normal text-gray-500 ml-1">{summaryText}</span>
+
+        {/* pill counts */}
+        {outCount > 0 && (
+          <span className="ml-1 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+            {outCount} out
+          </span>
+        )}
+        {lowCount > 0 && (
+          <span className="ml-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+            {lowCount} low
+          </span>
+        )}
+
+        <ChevronDown
+          size={16}
+          className={`ml-auto text-gray-400 group-hover:text-gray-600 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {/* Expandable body */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="stock-body"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3">
+              {/* Manage link */}
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => onNavigate('inventory')}
+                  className="text-xs text-maroon font-semibold hover:underline"
+                >
+                  Manage Inventory →
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {ragGroups.map((group, gi) => (
+                  <div key={group.remaining} className={gi > 0 ? 'border-t border-gray-100' : ''}>
+                    <div className={`flex items-center gap-2 px-4 py-2 ${group.headerClass}`}>
+                      <span className="text-xs font-bold uppercase tracking-wide">{group.label}</span>
+                      <span className="text-xs font-semibold opacity-70">
+                        — {group.books.length} book{group.books.length !== 1 ? 's' : ''}
                       </span>
-                    ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2 px-4 py-3">
+                      {group.books.map((b) => (
+                        <span
+                          key={b.id}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${
+                            group.remaining === 0 ? 'bg-red-50 border-red-200 text-red-700' :
+                            group.remaining === 1 ? 'bg-red-50 border-red-100 text-red-600' :
+                            group.remaining === 2 ? 'bg-amber-50 border-amber-100 text-amber-700' :
+                            'bg-yellow-50 border-yellow-100 text-yellow-700'
+                          }`}
+                        >
+                          {b.localTitle || b.title}
+                          {group.remaining > 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${group.badgeClass}`}>
+                              {group.remaining} left
+                            </span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
