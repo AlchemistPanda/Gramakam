@@ -612,7 +612,7 @@ function ImportListPanel({
   onClose: () => void;
 }) {
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
-  const [rows, setRows] = useState<{ title: string; publisher: string; price: number; quantity: number; category: string; valid: boolean }[]>([]);
+  const [rows, setRows] = useState<{ title: string; localTitle: string; publisher: string; price: number; quantity: number; category: string; valid: boolean }[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -621,15 +621,16 @@ function ImportListPanel({
     const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const sampleData = [
-      { 'Book Title': 'Example Book Name', 'Publisher': publishers[0] || 'Publisher Name', 'Price': 250, 'Quantity': 5, 'Category': 'Fiction' },
-      { 'Book Title': 'Another Book', 'Publisher': publishers[0] || 'Publisher Name', 'Price': 180, 'Quantity': 3, 'Category': 'Poetry' },
-      { 'Book Title': '', 'Publisher': '', 'Price': '', 'Quantity': '', 'Category': '' },
+      { 'Book Title': 'Example Book Name', 'Local Title': 'ഉദാഹരണം', 'Publisher': publishers[0] || 'Publisher Name', 'Price': 250, 'Quantity': 5, 'Category': 'Fiction' },
+      { 'Book Title': 'Another Book', 'Local Title': '', 'Publisher': publishers[0] || 'Publisher Name', 'Price': 180, 'Quantity': 3, 'Category': 'Poetry' },
+      { 'Book Title': '', 'Local Title': '', 'Publisher': '', 'Price': '', 'Quantity': '', 'Category': '' },
     ];
     const ws = XLSX.utils.json_to_sheet(sampleData);
 
     // Set column widths
     ws['!cols'] = [
       { wch: 30 }, // Book Title
+      { wch: 30 }, // Local Title
       { wch: 20 }, // Publisher
       { wch: 10 }, // Price
       { wch: 10 }, // Quantity
@@ -642,9 +643,9 @@ function ImportListPanel({
 
   // Download CSV template
   const downloadCSVTemplate = () => {
-    const header = 'Book Title,Publisher,Price,Quantity,Category';
-    const row1 = `Example Book Name,${publishers[0] || 'Publisher Name'},250,5,Fiction`;
-    const row2 = `Another Book,${publishers[0] || 'Publisher Name'},180,3,Poetry`;
+    const header = 'Book Title,Local Title,Publisher,Price,Quantity,Category';
+    const row1 = `Example Book Name,ഉദാഹരണം,${publishers[0] || 'Publisher Name'},250,5,Fiction`;
+    const row2 = `Another Book,,${publishers[0] || 'Publisher Name'},180,3,Poetry`;
     const csv = `${header}\n${row1}\n${row2}\n`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -673,6 +674,7 @@ function ImportListPanel({
 
       const parsed = json.map((row, i) => {
         const title = String(row['Book Title'] || row['Title'] || row['book title'] || row['title'] || '').trim();
+        const localTitle = String(row['Local Title'] || row['local title'] || row['Local title'] || row['localTitle'] || row['പേര്'] || '').trim();
         const pub = String(row['Publisher'] || row['publisher'] || '').trim();
         const priceRaw = row['Price'] || row['price'] || row['Price (₹)'] || 0;
         const qtyRaw = row['Quantity'] || row['quantity'] || row['Qty'] || row['qty'] || 1;
@@ -687,7 +689,7 @@ function ImportListPanel({
         if (price <= 0) { errs.push(`Row ${i + 2}: Invalid price for "${title}"`); valid = false; }
         if (quantity <= 0) { errs.push(`Row ${i + 2}: Invalid quantity for "${title}"`); valid = false; }
 
-        return { title, publisher: pub, price, quantity, category, valid };
+        return { title, localTitle, publisher: pub, price, quantity, category, valid };
       }).filter((r) => r.title || r.publisher); // skip completely empty rows
 
       setRows(parsed);
@@ -706,6 +708,7 @@ function ImportListPanel({
     addBooksInBulk(
       validRows.map((r) => ({
         title: r.title,
+        ...(r.localTitle && { localTitle: r.localTitle }),
         publisher: r.publisher,
         price: r.price,
         quantity: r.quantity,
@@ -743,6 +746,7 @@ function ImportListPanel({
                 <thead>
                   <tr className="bg-emerald-100">
                     <th className="px-3 py-2 text-left text-emerald-800">Book Title *</th>
+                    <th className="px-3 py-2 text-left text-emerald-800">Local Title</th>
                     <th className="px-3 py-2 text-left text-emerald-800">Publisher *</th>
                     <th className="px-3 py-2 text-left text-emerald-800">Price *</th>
                     <th className="px-3 py-2 text-left text-emerald-800">Quantity *</th>
@@ -752,6 +756,7 @@ function ImportListPanel({
                 <tbody>
                   <tr className="bg-white">
                     <td className="px-3 py-2 text-gray-600">The God of Small Things</td>
+                    <td className="px-3 py-2 text-gray-600" style={{ fontFamily: 'system-ui, sans-serif' }}>കുട്ടിപ്രാണികളുടെ ദൈവം</td>
                     <td className="px-3 py-2 text-gray-600">DC Books</td>
                     <td className="px-3 py-2 text-gray-600">350</td>
                     <td className="px-3 py-2 text-gray-600">10</td>
@@ -831,6 +836,7 @@ function ImportListPanel({
                 <tr className="border-b border-gray-200">
                   <th className="px-3 py-2.5 text-left font-semibold text-gray-600 w-8">#</th>
                   <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Title</th>
+                  <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Local Title</th>
                   <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Publisher</th>
                   <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Price</th>
                   <th className="px-3 py-2.5 text-center font-semibold text-gray-600">Qty</th>
@@ -843,6 +849,7 @@ function ImportListPanel({
                   <tr key={i} className={`border-b border-gray-50 ${!row.valid ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2 font-medium text-charcoal">{row.title || <span className="text-red-400 italic">missing</span>}</td>
+                    <td className="px-3 py-2 text-gray-600" style={{ fontFamily: 'system-ui, sans-serif' }}>{row.localTitle || <span className="text-gray-300">—</span>}</td>
                     <td className="px-3 py-2 text-gray-600">{row.publisher || <span className="text-red-400 italic">missing</span>}</td>
                     <td className="px-3 py-2 text-right">{row.price > 0 ? `₹${row.price}` : <span className="text-red-400">—</span>}</td>
                     <td className="px-3 py-2 text-center">{row.quantity > 0 ? row.quantity : <span className="text-red-400">—</span>}</td>
