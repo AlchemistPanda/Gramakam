@@ -70,13 +70,23 @@ async function firestoreLib() {
   return await import('firebase/firestore');
 }
 
+// Firestore rejects `undefined` values — strip them before writing.
+// This prevents silent write failures when optional fields (e.g. contact) are undefined.
+function cleanData(obj: Record<string, any>): Record<string, any> {
+  const cleaned: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) cleaned[key] = val;
+  }
+  return cleaned;
+}
+
 // Individual Firestore operations (granular writes — no size limits)
 async function fsSetBook(book: Book): Promise<void> {
   if (!db) return;
   booksWritesInFlight++;
   try {
     const { doc, setDoc } = await firestoreLib();
-    await setDoc(doc(db, COL_BOOKS, book.id), { ...book });
+    await setDoc(doc(db, COL_BOOKS, book.id), cleanData({ ...book }));
   } catch (e) { console.warn('Firestore write book failed:', e); } finally { booksWritesInFlight--; }
 }
 
@@ -94,7 +104,7 @@ async function fsSetBill(bill: Bill): Promise<void> {
   billsWritesInFlight++;
   try {
     const { doc, setDoc } = await firestoreLib();
-    await setDoc(doc(db, COL_BILLS, bill.id), { ...bill });
+    await setDoc(doc(db, COL_BILLS, bill.id), cleanData({ ...bill }));
   } catch (e) { console.warn('Firestore write bill failed:', e); } finally { billsWritesInFlight--; }
 }
 
@@ -103,7 +113,7 @@ async function fsSetPublisher(pub: Publisher): Promise<void> {
   publishersWritesInFlight++;
   try {
     const { doc, setDoc } = await firestoreLib();
-    await setDoc(doc(db, COL_PUBLISHERS, pub.id), { ...pub });
+    await setDoc(doc(db, COL_PUBLISHERS, pub.id), cleanData({ ...pub }));
   } catch (e) { console.warn('Firestore write publisher failed:', e); } finally { publishersWritesInFlight--; }
 }
 
@@ -160,13 +170,13 @@ async function fsBulkWrite(data: BookStoreData): Promise<void> {
     // Write new data in batches
     const writeOps: Array<{ type: 'set' | 'delete'; ref: any; data?: any }> = [];
     for (const book of data.books) {
-      writeOps.push({ type: 'set', ref: doc(db, COL_BOOKS, book.id), data: { ...book } });
+      writeOps.push({ type: 'set', ref: doc(db, COL_BOOKS, book.id), data: cleanData({ ...book }) });
     }
     for (const bill of data.bills) {
-      writeOps.push({ type: 'set', ref: doc(db, COL_BILLS, bill.id), data: { ...bill } });
+      writeOps.push({ type: 'set', ref: doc(db, COL_BILLS, bill.id), data: cleanData({ ...bill }) });
     }
     for (const pub of data.publishers) {
-      writeOps.push({ type: 'set', ref: doc(db, COL_PUBLISHERS, pub.id), data: { ...pub } });
+      writeOps.push({ type: 'set', ref: doc(db, COL_PUBLISHERS, pub.id), data: cleanData({ ...pub }) });
     }
     writeOps.push({ type: 'set', ref: doc(db, 'bookfest', 'meta'), data: { nextBillNumber: data.nextBillNumber } });
     await commitInBatches(writeOps);
@@ -281,9 +291,30 @@ function setupRealtimeListeners(): void {
     // Publishers collection
     onSnapshot(collection(db!, COL_PUBLISHERS), (snap) => {
       if (publishersWritesInFlight > 0) { pubsReady = true; checkMigration(); return; }
-      const publishers: Publisher[] = [];
-      snap.forEach((d) => publishers.push({ ...d.data(), id: d.id } as Publisher));
-      cache.publishers = publishers;
+      const fsPublishers: Publisher[] = [];
+      snap.forEach((d) => fsPublishers.push({ ...d.data(), id: d.id } as Publisher));
+
+      // Reconcile: if local cache has publishers with edited profitPercent/contact
+      // that Firestore doesn't have yet (e.g. previous write failed), re-push them.
+      for (const fsPub of fsPublishers) {
+        const localPub = cache.publishers.find((p) => p.id === fsPub.id);
+        if (localPub) {
+          let needsPush = false;
+          if (localPub.profitPercent > 0 && (fsPub.profitPercent === 0 || fsPub.profitPercent == null)) {
+            fsPub.profitPercent = localPub.profitPercent;
+            needsPush = true;
+          }
+          if (localPub.contact && !fsPub.contact) {
+            fsPub.contact = localPub.contact;
+            needsPush = true;
+          }
+          if (needsPush) {
+            fsSetPublisher(fsPub).catch(() => {});
+          }
+        }
+      }
+
+      cache.publishers = fsPublishers;
       saveToLocalStorage();
       pubsReady = true;
       checkMigration();
@@ -370,10 +401,10 @@ export function addBooksInBulk(books: Omit<Book, 'id' | 'sold' | 'addedAt'>[]): 
     firestoreLib().then(({ doc }) => {
       const ops: Array<{ type: 'set' | 'delete'; ref: any; data?: any }> = [];
       for (const b of newBooks) {
-        ops.push({ type: 'set', ref: doc(db!, COL_BOOKS, b.id), data: { ...b } });
+        ops.push({ type: 'set', ref: doc(db!, COL_BOOKS, b.id), data: cleanData({ ...b }) });
       }
       for (const p of newPubs) {
-        ops.push({ type: 'set', ref: doc(db!, COL_PUBLISHERS, p.id), data: { ...p } });
+        ops.push({ type: 'set', ref: doc(db!, COL_PUBLISHERS, p.id), data: cleanData({ ...p }) });
       }
       return commitInBatches(ops);
     }).catch(() => {}).finally(() => {
@@ -486,7 +517,7 @@ export function getPublishers(): Publisher[] {
 }
 
 export function addPublisher(name: string, profitPercent: number = 0, contact?: string): Publisher {
-  const pub: Publisher = { id: generateId(), name, profitPercent, contact };
+  const pub: Publisher = { id: generateId(), name, profitPercent, ...(contact ? { contact } : {}) };
   cache.publishers.push(pub);
   saveToLocalStorage();
   fsSetPublisher(pub).catch(() => {});
