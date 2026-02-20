@@ -204,12 +204,12 @@ export default function BooksDashboard({ onLogout }: Props) {
   }, []);
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; desc: string }[] = [
-    { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard, desc: 'Overview' },
     { id: 'billing',    label: 'Billing',    icon: ShoppingCart,    desc: 'Point of Sale' },
+    { id: 'requests',   label: 'Requests',   icon: ClipboardList,   desc: 'Pre-order waitlist' },
+    { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard, desc: 'Overview' },
     { id: 'inventory',  label: 'Inventory',  icon: Package,         desc: 'Manage books' },
     { id: 'publishers', label: 'Publishers', icon: Users,           desc: 'Publisher pool' },
     { id: 'reports',    label: 'Reports',    icon: BarChart3,       desc: 'Export data' },
-    { id: 'requests',   label: 'Requests',   icon: ClipboardList,  desc: 'Pre-order waitlist' },
   ];
 
   const quickActions = [
