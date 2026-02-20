@@ -209,6 +209,7 @@ export default function BillingPanel() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | undefined>(undefined);
+  const [paymentMethodError, setPaymentMethodError] = useState(false);
   const [lastBill, setLastBill] = useState<Bill | null>(null);
   const [showBill, setShowBill] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -345,6 +346,13 @@ export default function BillingPanel() {
       alert('Please enter the customer name for credit/pay-later bills.');
       return;
     }
+    // Payment method is mandatory for paid bills
+    if (status === 'paid' && !paymentMethod) {
+      setPaymentMethodError(true);
+      document.getElementById('payment-method-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    setPaymentMethodError(false);
     const cappedDiscount = Math.min(discount, subtotal);
     const bill = createBill(
       cart.map((c) => ({ bookId: c.bookId, quantity: c.quantity })),
@@ -362,6 +370,7 @@ export default function BillingPanel() {
       setCustomerName('');
       setCustomerPhone('');
       setPaymentMethod(undefined);
+      setPaymentMethodError(false);
       reload();
       // Generate UPI QR with amount (skip for cash payments)
       if (status !== 'unpaid' && paymentMethod !== 'cash') {
@@ -1137,16 +1146,29 @@ export default function BillingPanel() {
             </div>
           </div>
 
-          {/* Payment Method — optional Cash / UPI toggle */}
-          <div className="mb-5">
-            <p className="text-xs font-medium text-gray-400 mb-2">Payment Method <span className="font-normal">(optional)</span></p>
+          {/* Payment Method — required for paid bills */}
+          <div id="payment-method-section" className="mb-5">
+            <div className="flex items-center gap-1.5 mb-2">
+              <p className={`text-xs font-semibold ${paymentMethodError ? 'text-red-600' : 'text-gray-500'}`}>
+                Payment Method
+              </p>
+              <span className="text-red-500 text-xs font-bold">*</span>
+              <span className="text-[10px] text-gray-400 font-normal">(not needed for Pay Later)</span>
+            </div>
+            {paymentMethodError && (
+              <p className="text-xs text-red-600 font-semibold bg-red-50 px-3 py-1.5 rounded-lg mb-2 flex items-center gap-1.5">
+                <span>⚠</span> Select Cash or UPI before completing the sale.
+              </p>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setPaymentMethod(paymentMethod === 'cash' ? undefined : 'cash')}
+                onClick={() => { setPaymentMethod(paymentMethod === 'cash' ? undefined : 'cash'); setPaymentMethodError(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors ${
                   paymentMethod === 'cash'
                     ? 'bg-green-50 border-green-500 text-green-700'
+                    : paymentMethodError
+                    ? 'bg-red-50 border-red-300 text-red-400 hover:border-red-400'
                     : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
                 }`}
               >
@@ -1154,10 +1176,12 @@ export default function BillingPanel() {
               </button>
               <button
                 type="button"
-                onClick={() => setPaymentMethod(paymentMethod === 'upi' ? undefined : 'upi')}
+                onClick={() => { setPaymentMethod(paymentMethod === 'upi' ? undefined : 'upi'); setPaymentMethodError(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors ${
                   paymentMethod === 'upi'
                     ? 'bg-blue-50 border-blue-500 text-blue-700'
+                    : paymentMethodError
+                    ? 'bg-red-50 border-red-300 text-red-400 hover:border-red-400'
                     : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
                 }`}
               >

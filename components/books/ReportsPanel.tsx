@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import {
   FileText, FileSpreadsheet, Download, TrendingUp, BarChart3,
   IndianRupee, Package, BookOpen, Users, Percent, Trash2, Calendar, Award,
+  Banknote, Smartphone,
 } from 'lucide-react';
 import {
   getStats,
@@ -251,7 +252,14 @@ export default function ReportsPanel() {
     { label: 'Bills', value: stats.totalBills, icon: FileText, color: 'bg-orange-100 text-orange-600' },
     { label: 'Publishers', value: stats.uniquePublishers, icon: Users, color: 'bg-teal-100 text-teal-600' },
   ];
-
+  const paidBills = bills.filter((b) => b.status !== 'unpaid');
+  const cashRevenue = paidBills.filter((b) => b.paymentMethod === 'cash').reduce((s, b) => s + b.grandTotal, 0);
+  const upiRevenue  = paidBills.filter((b) => b.paymentMethod === 'upi').reduce((s, b) => s + b.grandTotal, 0);
+  const unknownRevenue = paidBills.filter((b) => !b.paymentMethod).reduce((s, b) => s + b.grandTotal, 0);
+  const splitTotal = cashRevenue + upiRevenue + unknownRevenue;
+  const cashPct   = splitTotal > 0 ? (cashRevenue / splitTotal) * 100 : 0;
+  const upiPct    = splitTotal > 0 ? (upiRevenue  / splitTotal) * 100 : 0;
+  const unknownPct = splitTotal > 0 ? (unknownRevenue / splitTotal) * 100 : 0;
   return (
     <div>
       <h2 className="text-2xl font-bold text-charcoal mb-6" style={{ fontFamily: 'var(--font-heading)' }}>
@@ -259,7 +267,7 @@ export default function ReportsPanel() {
       </h2>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
         {statCards.map((s) => (
           <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
             <div className={`w-9 h-9 rounded-xl ${s.color} flex items-center justify-center mb-2`}>
@@ -269,6 +277,82 @@ export default function ReportsPanel() {
             <p className="text-gray-500 text-xs">{s.label}</p>
           </div>
         ))}
+      </div>
+
+      {/* Cash vs UPI breakdown */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-8">
+        <h3 className="text-sm font-bold text-charcoal mb-4 flex items-center gap-2">
+          <IndianRupee size={15} className="text-maroon" />
+          Payment Method Breakdown
+        </h3>
+
+        {/* Three stat tiles */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-green-50 rounded-xl p-3 text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Banknote size={14} className="text-green-600" />
+              <span className="text-xs font-semibold text-green-700">Cash</span>
+            </div>
+            <p className="text-lg font-bold text-green-800">₹{cashRevenue.toFixed(0)}</p>
+            <p className="text-[11px] text-green-600">{cashPct.toFixed(1)}%</p>
+          </div>
+          <div className="bg-blue-50 rounded-xl p-3 text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Smartphone size={14} className="text-blue-600" />
+              <span className="text-xs font-semibold text-blue-700">UPI</span>
+            </div>
+            <p className="text-lg font-bold text-blue-800">₹{upiRevenue.toFixed(0)}</p>
+            <p className="text-[11px] text-blue-600">{upiPct.toFixed(1)}%</p>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3 text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <IndianRupee size={14} className="text-gray-500" />
+              <span className="text-xs font-semibold text-gray-500">Unknown</span>
+            </div>
+            <p className="text-lg font-bold text-gray-700">₹{unknownRevenue.toFixed(0)}</p>
+            <p className="text-[11px] text-gray-400">{unknownPct.toFixed(1)}%</p>
+          </div>
+        </div>
+
+        {/* Stacked bar */}
+        {splitTotal > 0 && (
+          <div>
+            <div className="flex h-3 rounded-full overflow-hidden gap-[1px]">
+              {cashPct > 0 && (
+                <motion.div
+                  className="bg-green-400 h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${cashPct}%` }}
+                  transition={{ duration: 0.7, ease: 'easeOut' }}
+                />
+              )}
+              {upiPct > 0 && (
+                <motion.div
+                  className="bg-blue-400 h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${upiPct}%` }}
+                  transition={{ duration: 0.7, delay: 0.1, ease: 'easeOut' }}
+                />
+              )}
+              {unknownPct > 0 && (
+                <motion.div
+                  className="bg-gray-200 h-full flex-1"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${unknownPct}%` }}
+                  transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+                />
+              )}
+            </div>
+            <div className="flex items-center gap-4 mt-2 text-[11px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Cash</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />UPI</span>
+              {unknownPct > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />Untagged (older bills)</span>}
+            </div>
+          </div>
+        )}
+        {splitTotal === 0 && (
+          <p className="text-xs text-gray-400 text-center py-2">No paid bills yet</p>
+        )}
       </div>
 
       {/* Export Buttons */}
