@@ -21,13 +21,21 @@ import type { Bill, Book } from '@/types/books';
 // ========== Chart data helpers ==========
 
 function getDailySalesData(bills: Bill[]) {
-  const map: Record<string, number> = {};
+  // Use ISO date string (YYYY-MM-DD) as map key for reliable sorting
+  const map: Record<string, { sold: number; revenue: number; label: string }> = {};
   for (const bill of bills) {
-    const day = new Date(bill.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    const d = new Date(bill.createdAt);
+    const isoDay = d.toISOString().slice(0, 10); // e.g. "2026-02-20"
+    const label = d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }); // e.g. "Fri, 20 Feb"
     const qty = bill.items.reduce((s, i) => s + i.quantity, 0);
-    map[day] = (map[day] || 0) + qty;
+    if (!map[isoDay]) map[isoDay] = { sold: 0, revenue: 0, label };
+    map[isoDay].sold += qty;
+    map[isoDay].revenue += bill.grandTotal;
   }
-  return Object.entries(map).map(([day, sold]) => ({ day, sold }));
+  // Sort chronologically by ISO date key
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, v]) => ({ day: v.label, sold: v.sold, revenue: v.revenue }));
 }
 
 function getPublisherSalesData(pubStats: ReturnType<typeof getPublisherStats>) {
@@ -422,27 +430,30 @@ export default function ReportsPanel() {
             <BarChart3 size={20} className="text-maroon" /> Visual Analytics
           </h3>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Chart 1: Daily Sales */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-              className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
-            >
-              <div className="flex items-center gap-2 mb-4">
+          {/* Chart 1: Daily Sales — full width so all days are visible */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+            className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
                   <Calendar size={16} className="text-blue-600" />
                 </div>
                 <div>
                   <h4 className="font-semibold text-charcoal text-sm">Daily Book Sales</h4>
-                  <p className="text-[11px] text-gray-400">Books sold each day</p>
+                  <p className="text-[11px] text-gray-400">Books sold &amp; revenue — all festival days</p>
                 </div>
               </div>
-              <BarChart
-                data={getDailySalesData(bills).map((d) => ({ label: d.day, value: d.sold, sub: 'books' }))}
-                color="bg-gradient-to-r from-blue-400 to-blue-600"
-              />
-            </motion.div>
+              <span className="text-[11px] text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">{getDailySalesData(bills).length} day{getDailySalesData(bills).length !== 1 ? 's' : ''}</span>
+            </div>
+            <BarChart
+              data={getDailySalesData(bills).map((d) => ({ label: d.day, value: d.sold, sub: `₹${d.revenue.toFixed(0)}` }))}
+              color="bg-gradient-to-r from-blue-400 to-blue-600"
+            />
+          </motion.div>
 
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Chart 2: Publisher Sales */}
             <motion.div
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
@@ -462,27 +473,27 @@ export default function ReportsPanel() {
                 color="bg-gradient-to-r from-purple-400 to-purple-600"
               />
             </motion.div>
-          </div>
 
-          {/* Chart 3: Top Selling Books (full width) */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
-            className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                <Award size={16} className="text-amber-600" />
+            {/* Chart 3: Top Selling Books */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
+              className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Award size={16} className="text-amber-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-charcoal text-sm">Top Selling Books</h4>
+                  <p className="text-[11px] text-gray-400">Most popular books by units sold</p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-semibold text-charcoal text-sm">Top Selling Books</h4>
-                <p className="text-[11px] text-gray-400">Most popular books by units sold</p>
-              </div>
-            </div>
-            <BarChart
-              data={getTopBooksData(books).map((b) => ({ label: b.localTitle || b.title, value: b.sold, sub: b.publisher }))}
-              color="bg-gradient-to-r from-amber-400 to-orange-500"
-            />
-          </motion.div>
+              <BarChart
+                data={getTopBooksData(books).map((b) => ({ label: b.localTitle || b.title, value: b.sold, sub: b.publisher }))}
+                color="bg-gradient-to-r from-amber-400 to-orange-500"
+              />
+            </motion.div>
+          </div>
         </div>
       )}
 
