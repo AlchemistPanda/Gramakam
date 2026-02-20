@@ -190,11 +190,9 @@ export default function RequestsPanel() {
                   req={req}
                   onDelete={() => {
                     deleteRequest(req.id);
-                    setRequests(getRequests());
                   }}
                   onToggleStatus={() => {
                     updateRequestStatus(req.id, req.status === 'pending' ? 'fulfilled' : 'pending');
-                    setRequests(getRequests());
                   }}
                 />
               </motion.div>
@@ -692,9 +690,10 @@ function RequestCard({
           <RequestActionPasscode
             type={pendingAction}
             onConfirm={() => {
-              if (pendingAction === 'delete') onDelete();
+              const action = pendingAction;
+              setPendingAction(null); // unmount modal before the card itself disappears
+              if (action === 'delete') onDelete();
               else onToggleStatus();
-              setPendingAction(null);
             }}
             onClose={() => setPendingAction(null)}
           />
