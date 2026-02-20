@@ -42,6 +42,7 @@ export default function RequestsPanel() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'fulfilled'>('all');
   const [showForm, setShowForm] = useState(false);
   const [searchQ, setSearchQ] = useState('');
+  const [pendingAction, setPendingAction] = useState<{ type: 'delete' | 'fulfill'; id: string } | null>(null);
 
   // Refresh whenever store changes
   useEffect(() => {
@@ -188,18 +189,31 @@ export default function RequestsPanel() {
               >
                 <RequestCard
                   req={req}
-                  onDelete={() => {
-                    deleteRequest(req.id);
-                  }}
-                  onToggleStatus={() => {
-                    updateRequestStatus(req.id, req.status === 'pending' ? 'fulfilled' : 'pending');
-                  }}
+                  onDeleteIntent={() => setPendingAction({ type: 'delete', id: req.id })}
+                  onFulfillIntent={() => setPendingAction({ type: 'fulfill', id: req.id })}
+                  onUnfulfill={() => updateRequestStatus(req.id, 'pending')}
                 />
               </motion.div>
             ))}
           </AnimatePresence>
         </div>
       )}
+
+      {/* Passcode modal — lives at panel level, never inside a card */}
+      <AnimatePresence>
+        {pendingAction && (
+          <RequestActionPasscode
+            type={pendingAction.type}
+            onConfirm={() => {
+              const pa = pendingAction;
+              setPendingAction(null);
+              if (pa.type === 'delete') deleteRequest(pa.id);
+              else updateRequestStatus(pa.id, 'fulfilled');
+            }}
+            onClose={() => setPendingAction(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -572,14 +586,15 @@ function RequestActionPasscode({
 /* ── Request Card ──────────────────────────────────────────────── */
 function RequestCard({
   req,
-  onDelete,
-  onToggleStatus,
+  onDeleteIntent,
+  onFulfillIntent,
+  onUnfulfill,
 }: {
   req: BookRequest;
-  onDelete: () => void;
-  onToggleStatus: () => void;
+  onDeleteIntent: () => void;
+  onFulfillIntent: () => void;
+  onUnfulfill: () => void;
 }) {
-  const [pendingAction, setPendingAction] = useState<'delete' | 'fulfill' | null>(null);
   const isFulfilled = req.status === 'fulfilled';
 
   const date = new Date(req.createdAt).toLocaleDateString('en-IN', {
@@ -623,13 +638,7 @@ function RequestCard({
 
             {/* Mark fulfilled / pending */}
             <button
-              onClick={() => {
-                if (!isFulfilled) {
-                  setPendingAction('fulfill');
-                } else {
-                  onToggleStatus(); // un-fulfilling needs no passcode
-                }
-              }}
+              onClick={() => isFulfilled ? onUnfulfill() : onFulfillIntent()}
               title={isFulfilled ? 'Mark as pending' : 'Mark as fulfilled'}
               className={`p-1.5 rounded-xl transition-colors ${
                 isFulfilled
@@ -642,7 +651,7 @@ function RequestCard({
 
             {/* Delete */}
             <button
-              onClick={() => setPendingAction('delete')}
+              onClick={onDeleteIntent}
               title="Delete request"
               className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
             >
@@ -684,21 +693,6 @@ function RequestCard({
         </div>
       </div>
 
-      {/* Passcode modal */}
-      <AnimatePresence>
-        {pendingAction && (
-          <RequestActionPasscode
-            type={pendingAction}
-            onConfirm={() => {
-              const action = pendingAction;
-              setPendingAction(null); // unmount modal before the card itself disappears
-              if (action === 'delete') onDelete();
-              else onToggleStatus();
-            }}
-            onClose={() => setPendingAction(null)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }
