@@ -5,13 +5,14 @@ import { motion } from 'framer-motion';
 import {
   FileText, FileSpreadsheet, Download, TrendingUp, BarChart3,
   IndianRupee, Package, BookOpen, Users, Percent, Trash2, Calendar, Award,
-  Banknote, Smartphone,
+  Banknote, Smartphone, Phone,
 } from 'lucide-react';
 import {
   getStats,
   getPublisherStats,
   getBooks,
   getBills,
+  getRequests,
   exportAllData,
   clearAllData,
   onDataChange,
@@ -243,6 +244,63 @@ export default function ReportsPanel() {
     XLSX.writeFile(wb, `gramakam-${type}-report.xlsx`);
   };
 
+  // ========== Customer List Export ==========
+  const exportCustomers = async () => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+
+    // Collect from bills (sorted newest first)
+    const allBills = getBills().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const allRequests = getRequests().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // Deduplicate by normalised phone; prefer bill entry with most recent date
+    const map = new Map<string, { name: string; phone: string; source: string; date: string }>();
+
+    for (const b of allBills) {
+      if (!b.customerName && !b.customerPhone) continue;
+      const key = (b.customerPhone || b.customerName || '').trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          name: b.customerName || '',
+          phone: b.customerPhone || '',
+          source: 'Billing',
+          date: new Date(b.createdAt).toLocaleDateString('en-IN'),
+        });
+      }
+    }
+
+    for (const r of allRequests) {
+      const key = (r.phone || r.customerName || '').trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          name: r.customerName || '',
+          phone: r.phone || '',
+          source: 'Pre-order Request',
+          date: new Date(r.createdAt).toLocaleDateString('en-IN'),
+        });
+      }
+    }
+
+    const rows = Array.from(map.values()).map((c, i) => ({
+      '#': i + 1,
+      'Customer Name': c.name,
+      'Phone': c.phone,
+      'Source': c.source,
+      'First Seen': c.date,
+    }));
+
+    if (rows.length === 0) {
+      alert('No customers with name/phone data found yet.');
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Widen columns
+    ws['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 16 }, { wch: 20 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Customers');
+    XLSX.writeFile(wb, `gramakam-customers-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   // ========== JSON Backup ==========
   const downloadBackup = () => {
     const json = exportAllData();
@@ -368,7 +426,7 @@ export default function ReportsPanel() {
       </div>
 
       {/* Export Buttons */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {/* Inventory Report */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3 mb-3">
@@ -422,6 +480,25 @@ export default function ReportsPanel() {
             </button>
             <button onClick={() => exportExcel('publisher')} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-green-50 text-green-600 rounded-xl text-sm font-medium hover:bg-green-100 transition-colors">
               <FileSpreadsheet size={15} /> Excel
+            </button>
+          </div>
+        </div>
+
+        {/* Customer List */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center"><Phone size={20} className="text-teal-600" /></div>
+            <div>
+              <h4 className="font-semibold text-charcoal">Customer List</h4>
+              <p className="text-xs text-gray-500">Names &amp; numbers from bills</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={exportCustomers}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-teal-50 text-teal-700 rounded-xl text-sm font-medium hover:bg-teal-100 transition-colors"
+            >
+              <FileSpreadsheet size={15} /> Export Excel
             </button>
           </div>
         </div>
