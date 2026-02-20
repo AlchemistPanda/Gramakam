@@ -27,6 +27,9 @@ let booksWritesInFlight = 0;
 let billsWritesInFlight = 0;
 let publishersWritesInFlight = 0;
 let requestsWritesInFlight = 0;
+let requestsFirestoreError: string | null = null;
+
+export function getRequestsFirestoreError(): string | null { return requestsFirestoreError; }
 
 function notifyListeners() {
   for (const fn of changeListeners) {
@@ -275,7 +278,11 @@ export async function initBookStore(): Promise<void> {
     // Set up real-time listeners — the first snapshot IS the initial data load.
     // No separate getDocs call needed (saves reads).
     setupRealtimeListeners();
-    setupRequestsListener();
+    // Requests: use getDocs for guaranteed initial load (not just onSnapshot)
+    // then set up onSnapshot for real-time updates after initial data arrives.
+    loadRequestsFromFirestore().then(() => {
+      setupRequestsListener();
+    });
   }
 }
 
@@ -794,35 +801,62 @@ export function getPublisherStats() {
 
 // ==================== REQUESTS ====================
 
-function setupRequestsListener(): void {
-  if (!db) return;
-  let requestsMigrationChecked = false;
-  firestoreLib().then(({ collection, onSnapshot }) => {
-    onSnapshot(collection(db!, COL_REQUESTS), (snap) => {
-      if (requestsWritesInFlight > 0) return; // don't overwrite during local write
-      const all: BookRequest[] = [];
-      snap.forEach((d) => all.push({ ...d.data(), id: d.id } as BookRequest));
+async function loadRequestsFromFirestore(): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const { collection, getDocs } = await firestoreLib();
+    const snap = await getDocs(collection(db, COL_REQUESTS));
+    const all: BookRequest[] = [];
+    snap.forEach((d) => all.push({ ...d.data(), id: d.id } as BookRequest));
 
-      // One-time migration: if Firestore has no requests but localStorage does, push them up
-      if (!requestsMigrationChecked) {
-        requestsMigrationChecked = true;
-        const localRequests = loadRequestsFromLocalStorage();
-        if (all.length === 0 && localRequests.length > 0) {
-          // Push each local request to Firestore
-          for (const req of localRequests) {
-            fsSetRequest(req).catch(() => {});
-          }
-          requestsCache = localRequests;
-          notifyListeners();
-          return;
-        }
+    // One-time migration: if Firestore has 0 requests but localStorage has some, push them up
+    const localRequests = loadRequestsFromLocalStorage();
+    if (all.length === 0 && localRequests.length > 0) {
+      console.log(`Migrating ${localRequests.length} requests from localStorage → Firestore`);
+      for (const req of localRequests) {
+        await fsSetRequest(req);
       }
-
+      requestsCache = localRequests;
+    } else {
       requestsCache = all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       saveRequestsToLocalStorage();
-      notifyListeners();
-    }, (err) => console.warn('Requests listener error:', err));
-  }).catch(() => {});
+    }
+    requestsFirestoreError = null;
+    notifyListeners();
+    return true;
+  } catch (e: any) {
+    const msg = e?.message || String(e);
+    console.error('Requests Firestore load failed:', msg);
+    requestsFirestoreError = msg;
+    notifyListeners();
+    return false;
+  }
+}
+
+function setupRequestsListener(): void {
+  if (!db) return;
+  firestoreLib().then(({ collection, onSnapshot }) => {
+    onSnapshot(collection(db!, COL_REQUESTS),
+      (snap) => {
+        if (requestsWritesInFlight > 0) return; // don't overwrite during in-flight write
+        const all: BookRequest[] = [];
+        snap.forEach((d) => all.push({ ...d.data(), id: d.id } as BookRequest));
+        requestsCache = all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        saveRequestsToLocalStorage();
+        requestsFirestoreError = null;
+        notifyListeners();
+      },
+      (err) => {
+        // Error on the listener — surface it to the UI
+        console.error('Requests onSnapshot error:', err.code, err.message);
+        requestsFirestoreError = `Firestore error: ${err.code} — ${err.message}`;
+        notifyListeners();
+      }
+    );
+  }).catch((e) => {
+    requestsFirestoreError = `Failed to import Firestore: ${e?.message}`;
+    notifyListeners();
+  });
 }
 
 export function getRequests(): BookRequest[] {

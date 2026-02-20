@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, CheckCircle, Clock, Phone, MapPin, BookOpen,
-  Search, X, MessageCircle, User, StickyNote, ChevronDown,
+  Search, X, MessageCircle, User, StickyNote, ChevronDown, AlertTriangle,
 } from 'lucide-react';
 import {
   getBooks,
   getRequests,
+  getRequestsFirestoreError,
   addRequest,
   deleteRequest,
   updateRequestStatus,
@@ -29,6 +30,7 @@ function buildWhatsAppUrl(req: BookRequest): string {
 /* ══ Main component ══════════════════════════════════════ */
 export default function RequestsPanel() {
   const [requests, setRequests] = useState<BookRequest[]>([]);
+  const [firestoreError, setFirestoreError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'fulfilled'>('all');
   const [showForm, setShowForm] = useState(false);
   const [searchQ, setSearchQ] = useState('');
@@ -36,7 +38,11 @@ export default function RequestsPanel() {
   // Refresh whenever store changes
   useEffect(() => {
     setRequests(getRequests());
-    const unsub = onDataChange(() => setRequests(getRequests()));
+    setFirestoreError(getRequestsFirestoreError());
+    const unsub = onDataChange(() => {
+      setRequests(getRequests());
+      setFirestoreError(getRequestsFirestoreError());
+    });
     return unsub;
   }, []);
 
@@ -55,6 +61,20 @@ export default function RequestsPanel() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+
+      {/* Firestore error banner */}
+      {firestoreError && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+          <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">Could not load requests from Firestore</p>
+            <p className="text-xs text-red-500 mt-0.5 font-mono break-all">{firestoreError}</p>
+            <p className="text-xs text-red-600 mt-1">
+              Go to <strong>Firebase Console → Firestore → Rules</strong> and make sure the <code>bookfest_requests</code> collection is allowed.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Header row */}
       <div className="flex items-center justify-between flex-wrap gap-3">
