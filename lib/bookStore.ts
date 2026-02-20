@@ -637,6 +637,7 @@ export function editBill(
     createdAt: oldBill.createdAt,
     status: oldBill.status,
     ...(oldBill.paidAt && { paidAt: oldBill.paidAt }),
+    ...(oldBill.paymentMethod && { paymentMethod: oldBill.paymentMethod }),
     items: billItems,
     total,
     discount: cappedDiscount,
@@ -937,7 +938,7 @@ export function deleteRequest(id: string): void {
 }
 
 export function exportAllData(): string {
-  return JSON.stringify(cache, null, 2);
+  return JSON.stringify({ ...cache, requests: requestsCache }, null, 2);
 }
 
 export function importData(json: string): boolean {

@@ -201,6 +201,10 @@ export default function ReportsPanel() {
       const billData = bills.map((b) => ({
         'Bill #': b.billNumber,
         'Date': new Date(b.createdAt).toLocaleString('en-IN'),
+        'Customer': b.customerName || '',
+        'Phone': b.customerPhone || '',
+        'Status': b.status === 'unpaid' ? 'Unpaid' : 'Paid',
+        'Payment': b.paymentMethod ? (b.paymentMethod === 'cash' ? 'Cash' : 'UPI') : '',
         'Items Count': b.items.reduce((s, i) => s + i.quantity, 0),
         'Subtotal (₹)': b.total,
         'Discount (₹)': b.discount,
