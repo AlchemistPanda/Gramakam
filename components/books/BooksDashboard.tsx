@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3,
   LogOut, BookOpen, Menu, X, ChevronRight, ChevronDown, Users, WifiOff, AlertTriangle, ClipboardList,
+  Lock, ShieldCheck,
 } from 'lucide-react';
 import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
@@ -15,13 +16,95 @@ import { getStats, getPublisherStats, getBooks, initBookStore, isStoreReady, onD
 
 type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports' | 'requests';
 
+const FREE_TABS: Tab[] = ['billing', 'requests'];
+const PASSCODE      = '9090';
+const ADMIN_CODE    = 'pandaboy';
+
 interface Props {
   onLogout: () => void;
 }
 
+// ==================== PASSCODE MODAL ====================
+function PasscodeLock({
+  tabLabel,
+  onUnlock,
+  onAdminUnlock,
+}: {
+  tabLabel: string;
+  onUnlock: () => void;
+  onAdminUnlock: () => void;
+}) {
+  const [value, setValue] = useState('');
+  const [shake, setShake]  = useState(false);
+  const [error, setError]  = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const attempt = () => {
+    if (value === PASSCODE) {
+      onUnlock();
+    } else if (value === ADMIN_CODE) {
+      onAdminUnlock();
+    } else {
+      setShake(true);
+      setError('Incorrect passcode. Try again.');
+      setValue('');
+      setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm mx-4"
+      >
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-14 h-14 rounded-2xl bg-maroon/10 flex items-center justify-center mb-3">
+            <Lock size={26} className="text-maroon" />
+          </div>
+          <h2 className="text-xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Restricted Access</h2>
+          <p className="text-sm text-gray-500 mt-1 text-center">Enter passcode to open <span className="font-semibold text-charcoal">{tabLabel}</span></p>
+        </div>
+
+        <motion.div animate={shake ? { x: [0, -8, 8, -8, 8, 0] } : {}} transition={{ duration: 0.4 }}>
+          <input
+            ref={inputRef}
+            type="password"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setError(''); }}
+            onKeyDown={(e) => e.key === 'Enter' && attempt()}
+            className={`w-full text-center text-2xl tracking-[0.5em] px-4 py-4 border-2 rounded-2xl outline-none transition-colors font-mono ${
+              error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-maroon'
+            }`}
+            placeholder="••••"
+            maxLength={20}
+          />
+        </motion.div>
+
+        {error && (
+          <p className="text-xs text-red-500 font-medium text-center mt-2">{error}</p>
+        )}
+
+        <button
+          onClick={attempt}
+          className="w-full mt-5 bg-maroon text-white py-3.5 rounded-2xl font-semibold text-base hover:bg-opacity-90 active:scale-[0.98] transition-all"
+        >
+          Unlock
+        </button>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function BooksDashboard({ onLogout }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [activeTab, setActiveTab] = useState<Tab>('billing');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [unlockedTabs, setUnlockedTabs] = useState<Tab[]>([...FREE_TABS]);
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [pendingTab, setPendingTab] = useState<Tab | null>(null);
   const [stats, setStats] = useState({ totalBooks: 0, totalSold: 0, totalRemaining: 0, totalRevenue: 0, totalBills: 0, totalPaidBills: 0, totalUnpaidBills: 0, totalPendingAmount: 0, uniquePublishers: 0 });
   const [totalProfit, setTotalProfit] = useState(0);
   const [lowStockBooks, setLowStockBooks] = useState<{ id: string; title: string; localTitle?: string; remaining: number }[]>([]);
@@ -127,9 +210,29 @@ export default function BooksDashboard({ onLogout }: Props) {
     { label: 'Export Report', desc: 'Download PDF or Excel', tab: 'reports' as Tab, icon: BarChart3, color: 'bg-orange-500' },
   ];
 
+  const isTabLocked = (tab: Tab) => !adminUnlocked && !FREE_TABS.includes(tab) && !unlockedTabs.includes(tab);
+
   const switchTab = (tab: Tab) => {
+    if (isTabLocked(tab)) {
+      setPendingTab(tab);
+      setSidebarOpen(false);
+      return;
+    }
     setActiveTab(tab);
     setSidebarOpen(false);
+  };
+
+  const handleUnlock = () => {
+    if (!pendingTab) return;
+    setUnlockedTabs((prev) => [...prev, pendingTab]);
+    setActiveTab(pendingTab);
+    setPendingTab(null);
+  };
+
+  const handleAdminUnlock = () => {
+    setAdminUnlocked(true);
+    if (pendingTab) setActiveTab(pendingTab);
+    setPendingTab(null);
   };
 
   return (
@@ -205,12 +308,15 @@ export default function BooksDashboard({ onLogout }: Props) {
                 }`}
               >
                 <tab.icon size={20} />
-                <div className="text-left">
+                <div className="text-left flex-1">
                   <div className="font-medium">{tab.label}</div>
                   <div className={`text-[10px] ${activeTab === tab.id ? 'text-white/70' : 'text-gray-400'}`}>
                     {tab.desc}
                   </div>
                 </div>
+                {isTabLocked(tab.id) && (
+                  <Lock size={13} className={activeTab === tab.id ? 'text-white/60' : 'text-gray-300'} />
+                )}
               </button>
             ))}
           </nav>
@@ -247,6 +353,11 @@ export default function BooksDashboard({ onLogout }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
+              {adminUnlocked && (
+                <span className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 font-semibold rounded-full">
+                  <ShieldCheck size={11} /> Admin
+                </span>
+              )}
               {!isOnline && (
                 <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 font-semibold rounded-full">
                   <WifiOff size={11} /> Offline
@@ -261,6 +372,17 @@ export default function BooksDashboard({ onLogout }: Props) {
 
         {/* Page */}
         <main className="flex-1 p-4 md:p-6">
+          {/* Passcode modal */}
+          <AnimatePresence>
+            {pendingTab && (
+              <PasscodeLock
+                tabLabel={tabs.find((t) => t.id === pendingTab)?.label ?? ''}
+                onUnlock={handleUnlock}
+                onAdminUnlock={handleAdminUnlock}
+              />
+            )}
+          </AnimatePresence>
+
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
               <div className="w-10 h-10 border-3 border-maroon border-t-transparent rounded-full animate-spin mb-4" />
