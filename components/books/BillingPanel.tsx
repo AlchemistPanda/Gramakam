@@ -2,11 +2,107 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
 import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
+
+/* ── Bill action passcode modal ───────────────────────
+   Requires passcode '9090' before editing or deleting a bill
+──────────────────────────────────────────────────── */
+const BILL_PASSCODE = '9090';
+
+function BillActionPasscode({
+  type,
+  billNumber,
+  onConfirm,
+  onClose,
+}: {
+  type: 'edit' | 'delete';
+  billNumber: number;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState('');
+  const [shake, setShake]  = useState(false);
+  const [error, setError]  = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const attempt = () => {
+    if (value === BILL_PASSCODE) {
+      onConfirm();
+    } else {
+      setShake(true);
+      setError('Incorrect passcode.');
+      setValue('');
+      setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  const isDelete = type === 'delete';
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl shadow-2xl p-7 w-full max-w-sm mx-4 relative"
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+          <X size={18} />
+        </button>
+
+        <div className="flex flex-col items-center mb-5">
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 ${isDelete ? 'bg-red-100' : 'bg-blue-100'}`}>
+            {isDelete ? <AlertTriangle size={26} className="text-red-600" /> : <Lock size={26} className="text-blue-600" />}
+          </div>
+          <h2 className="text-lg font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
+            {isDelete ? `Delete Bill #${billNumber}?` : `Edit Bill #${billNumber}`}
+          </h2>
+          {isDelete && (
+            <p className="text-xs text-red-500 font-medium text-center mt-1">
+              This will permanently delete the bill and reverse all stock changes.
+            </p>
+          )}
+          <p className="text-sm text-gray-500 text-center mt-2">Enter passcode to confirm</p>
+        </div>
+
+        <motion.div animate={shake ? { x: [0, -8, 8, -8, 8, 0] } : {}} transition={{ duration: 0.4 }}>
+          <input
+            ref={inputRef}
+            type="password"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setError(''); }}
+            onKeyDown={(e) => e.key === 'Enter' && attempt()}
+            className={`w-full text-center text-2xl tracking-[0.5em] px-4 py-3.5 border-2 rounded-2xl outline-none transition-colors font-mono ${
+              error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-maroon'
+            }`}
+            placeholder="••••"
+            maxLength={20}
+          />
+        </motion.div>
+
+        {error && <p className="text-xs text-red-500 font-medium text-center mt-2">{error}</p>}
+
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border-2 border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={attempt}
+            className={`flex-1 py-3 rounded-2xl font-semibold text-sm text-white transition-colors ${
+              isDelete ? 'bg-red-600 hover:bg-red-700' : 'bg-maroon hover:bg-opacity-90'
+            }`}
+          >
+            {isDelete ? 'Delete' : 'Unlock'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 /* ── Indian mobile number validator ───────────────────
    Accepts: 10-digit numbers starting with 6-9,
@@ -242,6 +338,7 @@ export default function BillingPanel() {
   const [btConnected, setBtConnected] = useState(false);
   const [btConnecting, setBtConnecting] = useState(false);
   const [btName, setBtName] = useState<string | null>(null);
+  const [pendingBillAction, setPendingBillAction] = useState<{ type: 'edit' | 'delete'; bill: Bill } | null>(null);
   const [printStatus, setPrintStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [billQr, setBillQr] = useState('');
   const [viewingQr, setViewingQr] = useState('');
@@ -531,10 +628,28 @@ export default function BillingPanel() {
   };
 
   const handleDeleteBill = (bill: Bill) => {
-    if (!confirm(`Delete Bill #${bill.billNumber}? This will reverse all stock changes.`)) return;
+    setPendingBillAction({ type: 'delete', bill });
+  };
+
+  const doDeleteBill = (bill: Bill) => {
     deleteBill(bill.id);
     setViewingBill(null);
+    setPendingBillAction(null);
     reload();
+  };
+
+  const requestEditBill = (bill: Bill) => {
+    setPendingBillAction({ type: 'edit', bill });
+  };
+
+  const confirmBillAction = () => {
+    if (!pendingBillAction) return;
+    if (pendingBillAction.type === 'delete') {
+      doDeleteBill(pendingBillAction.bill);
+    } else {
+      startEditBill(pendingBillAction.bill);
+      setPendingBillAction(null);
+    }
   };
 
   // Generate UPI QR when viewing a bill detail
@@ -683,7 +798,7 @@ export default function BillingPanel() {
                   </button>
                 )}
                 <button
-                  onClick={() => startEditBill(viewingBill)}
+                  onClick={() => requestEditBill(viewingBill)}
                   className="flex items-center gap-1.5 text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
                 >
                   <Edit3 size={16} /> Edit
@@ -864,7 +979,7 @@ export default function BillingPanel() {
                       </button>
                     )}
                     <button
-                      onClick={(e) => { e.stopPropagation(); startEditBill(bill); }}
+                      onClick={(e) => { e.stopPropagation(); requestEditBill(bill); }}
                       className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Bill"
                     >
                       <Edit3 size={16} />
@@ -909,6 +1024,18 @@ export default function BillingPanel() {
             removeEditItem={removeEditItem}
             addEditItem={addEditItem}
             saveEditBill={saveEditBill}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Bill action passcode modal */}
+      <AnimatePresence>
+        {pendingBillAction && (
+          <BillActionPasscode
+            type={pendingBillAction.type}
+            billNumber={pendingBillAction.bill.billNumber}
+            onConfirm={confirmBillAction}
+            onClose={() => setPendingBillAction(null)}
           />
         )}
       </AnimatePresence>
