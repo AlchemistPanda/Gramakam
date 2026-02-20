@@ -514,7 +514,7 @@ async function sendToPrinter(data: Uint8Array[]): Promise<void> {
       await printerCharacteristic!.writeValue(slice);
     }
     // Small delay between chunks to prevent buffer overflow
-    await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 10));
   }
 }
 
@@ -644,8 +644,8 @@ export async function printBill(bill: Bill): Promise<PrintResult> {
   // Try Bluetooth first if connected
   if (isPrinterConnected()) {
     try {
-      // Pre-load logo as ESC/POS raster bytes (58mm printer = 240 dots wide)
-      const logoChunks = await loadImageAsEscposRaster('/images/gramakam-logo.png', 240);
+      // Pre-load logo as ESC/POS raster bytes (160 dots — faster BLE transfer, less heat)
+      const logoChunks = await loadImageAsEscposRaster('/images/gramakam-logo.png', 160);
       const data = formatBillForPrinter(bill, 32, logoChunks ?? undefined);
       await sendToPrinter(data);
       return { success: true, method: 'bluetooth' };
