@@ -304,9 +304,6 @@ function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
   text(`Bill #${bill.billNumber}`);
   push(ESCPOS.bold(false));
   text(new Date(bill.createdAt).toLocaleString('en-IN'));
-  if (bill.customerName || bill.customerPhone) {
-    text(`${bill.customerName || ''}${bill.customerName && bill.customerPhone ? ' | ' : ''}${bill.customerPhone || ''}`);
-  }
   push(ESCPOS.line('-', width));
 
   // Column headers
