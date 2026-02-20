@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, CheckCircle, Clock, Phone, MapPin, BookOpen,
-  Search, X, MessageCircle, User, StickyNote, ChevronDown, AlertTriangle,
+  Search, X, MessageCircle, User, StickyNote, ChevronDown, AlertTriangle, Lock,
 } from 'lucide-react';
 
 /* ── Indian mobile number validator ────────────────────────── */
@@ -481,7 +481,97 @@ function AddRequestForm({
   );
 }
 
-/* ══ Request Card ════════════════════════════════════════ */
+/* ── Passcode for request actions ─────────────────────────── */
+const REQ_PASSCODE = '9090';
+
+function RequestActionPasscode({
+  type,
+  onConfirm,
+  onClose,
+}: {
+  type: 'delete' | 'fulfill';
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState('');
+  const [shake, setShake]  = useState(false);
+  const [error, setError]  = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const attempt = () => {
+    if (value === REQ_PASSCODE) {
+      onConfirm();
+    } else {
+      setShake(true);
+      setError('Incorrect passcode.');
+      setValue('');
+      setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  const isDelete = type === 'delete';
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl shadow-2xl p-7 w-full max-w-sm mx-4 relative"
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+          <X size={18} />
+        </button>
+        <div className="flex flex-col items-center mb-5">
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 ${isDelete ? 'bg-red-100' : 'bg-green-100'}`}>
+            {isDelete
+              ? <AlertTriangle size={26} className="text-red-600" />
+              : <CheckCircle size={26} className="text-green-600" />}
+          </div>
+          <h2 className="text-lg font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
+            {isDelete ? 'Delete Request?' : 'Mark as Fulfilled?'}
+          </h2>
+          <p className={`text-xs font-medium text-center mt-1 ${isDelete ? 'text-red-500' : 'text-green-600'}`}>
+            {isDelete
+              ? 'This will permanently remove the pre-order record.'
+              : 'Confirm this book request has been fulfilled.'}
+          </p>
+          <p className="text-sm text-gray-500 text-center mt-2">Enter passcode to confirm</p>
+        </div>
+        <motion.div animate={shake ? { x: [0, -8, 8, -8, 8, 0] } : {}} transition={{ duration: 0.4 }}>
+          <input
+            ref={inputRef}
+            type="password"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setError(''); }}
+            onKeyDown={(e) => e.key === 'Enter' && attempt()}
+            className={`w-full text-center text-2xl tracking-[0.5em] px-4 py-3.5 border-2 rounded-2xl outline-none transition-colors font-mono ${
+              error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-maroon'
+            }`}
+            placeholder="••••"
+            maxLength={20}
+          />
+        </motion.div>
+        {error && <p className="text-xs text-red-500 font-medium text-center mt-2">{error}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border-2 border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={attempt}
+            className={`flex-1 py-3 rounded-2xl font-semibold text-sm text-white transition-colors ${
+              isDelete ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {isDelete ? 'Delete' : 'Confirm'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ── Request Card ──────────────────────────────────────────────── */
 function RequestCard({
   req,
   onDelete,
@@ -491,7 +581,7 @@ function RequestCard({
   onDelete: () => void;
   onToggleStatus: () => void;
 }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'delete' | 'fulfill' | null>(null);
   const isFulfilled = req.status === 'fulfilled';
 
   const date = new Date(req.createdAt).toLocaleDateString('en-IN', {
@@ -535,7 +625,13 @@ function RequestCard({
 
             {/* Mark fulfilled / pending */}
             <button
-              onClick={onToggleStatus}
+              onClick={() => {
+                if (!isFulfilled) {
+                  setPendingAction('fulfill');
+                } else {
+                  onToggleStatus(); // un-fulfilling needs no passcode
+                }
+              }}
               title={isFulfilled ? 'Mark as pending' : 'Mark as fulfilled'}
               className={`p-1.5 rounded-xl transition-colors ${
                 isFulfilled
@@ -547,30 +643,13 @@ function RequestCard({
             </button>
 
             {/* Delete */}
-            {confirmDelete ? (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={onDelete}
-                  className="px-2.5 py-1 text-[11px] font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
-                >
-                  Delete
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="px-2.5 py-1 text-[11px] font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  No
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmDelete(true)}
-                title="Delete request"
-                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-              >
-                <Trash2 size={15} />
-              </button>
-            )}
+            <button
+              onClick={() => setPendingAction('delete')}
+              title="Delete request"
+              className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+            >
+              <Trash2 size={15} />
+            </button>
           </div>
         </div>
 
@@ -606,6 +685,21 @@ function RequestCard({
           )}
         </div>
       </div>
+
+      {/* Passcode modal */}
+      <AnimatePresence>
+        {pendingAction && (
+          <RequestActionPasscode
+            type={pendingAction}
+            onConfirm={() => {
+              if (pendingAction === 'delete') onDelete();
+              else onToggleStatus();
+              setPendingAction(null);
+            }}
+            onClose={() => setPendingAction(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

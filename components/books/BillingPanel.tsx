@@ -19,7 +19,7 @@ function BillActionPasscode({
   onConfirm,
   onClose,
 }: {
-  type: 'edit' | 'delete';
+  type: 'edit' | 'delete' | 'mark_paid';
   billNumber: number;
   onConfirm: () => void;
   onClose: () => void;
@@ -41,7 +41,8 @@ function BillActionPasscode({
     }
   };
 
-  const isDelete = type === 'delete';
+  const isDelete  = type === 'delete';
+  const isMarkPaid = type === 'mark_paid';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -55,15 +56,20 @@ function BillActionPasscode({
         </button>
 
         <div className="flex flex-col items-center mb-5">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 ${isDelete ? 'bg-red-100' : 'bg-blue-100'}`}>
-            {isDelete ? <AlertTriangle size={26} className="text-red-600" /> : <Lock size={26} className="text-blue-600" />}
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 ${isDelete ? 'bg-red-100' : isMarkPaid ? 'bg-green-100' : 'bg-blue-100'}`}>
+            {isDelete ? <AlertTriangle size={26} className="text-red-600" /> : isMarkPaid ? <BadgeCheck size={26} className="text-green-600" /> : <Lock size={26} className="text-blue-600" />}
           </div>
           <h2 className="text-lg font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
-            {isDelete ? `Delete Bill #${billNumber}?` : `Edit Bill #${billNumber}`}
+            {isDelete ? `Delete Bill #${billNumber}?` : isMarkPaid ? `Mark Bill #${billNumber} as Paid?` : `Edit Bill #${billNumber}`}
           </h2>
           {isDelete && (
             <p className="text-xs text-red-500 font-medium text-center mt-1">
               This will permanently delete the bill and reverse all stock changes.
+            </p>
+          )}
+          {isMarkPaid && (
+            <p className="text-xs text-green-600 font-medium text-center mt-1">
+              Confirm payment has been received from the customer.
             </p>
           )}
           <p className="text-sm text-gray-500 text-center mt-2">Enter passcode to confirm</p>
@@ -93,10 +99,10 @@ function BillActionPasscode({
           <button
             onClick={attempt}
             className={`flex-1 py-3 rounded-2xl font-semibold text-sm text-white transition-colors ${
-              isDelete ? 'bg-red-600 hover:bg-red-700' : 'bg-maroon hover:bg-opacity-90'
+              isDelete ? 'bg-red-600 hover:bg-red-700' : isMarkPaid ? 'bg-green-600 hover:bg-green-700' : 'bg-maroon hover:bg-opacity-90'
             }`}
           >
-            {isDelete ? 'Delete' : 'Unlock'}
+            {isDelete ? 'Delete' : isMarkPaid ? 'Confirm Paid' : 'Unlock'}
           </button>
         </div>
       </motion.div>
@@ -338,7 +344,7 @@ export default function BillingPanel() {
   const [btConnected, setBtConnected] = useState(false);
   const [btConnecting, setBtConnecting] = useState(false);
   const [btName, setBtName] = useState<string | null>(null);
-  const [pendingBillAction, setPendingBillAction] = useState<{ type: 'edit' | 'delete'; bill: Bill } | null>(null);
+  const [pendingBillAction, setPendingBillAction] = useState<{ type: 'edit' | 'delete' | 'mark_paid'; bill: Bill } | null>(null);
   const [printStatus, setPrintStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [billQr, setBillQr] = useState('');
   const [viewingQr, setViewingQr] = useState('');
@@ -627,6 +633,10 @@ export default function BillingPanel() {
     }
   };
 
+  const requestMarkPaid = (bill: Bill) => {
+    setPendingBillAction({ type: 'mark_paid', bill });
+  };
+
   const handleDeleteBill = (bill: Bill) => {
     setPendingBillAction({ type: 'delete', bill });
   };
@@ -646,6 +656,13 @@ export default function BillingPanel() {
     if (!pendingBillAction) return;
     if (pendingBillAction.type === 'delete') {
       doDeleteBill(pendingBillAction.bill);
+    } else if (pendingBillAction.type === 'mark_paid') {
+      markBillAsPaid(pendingBillAction.bill.id);
+      if (viewingBill?.id === pendingBillAction.bill.id) {
+        setViewingBill({ ...pendingBillAction.bill, status: 'paid', paidAt: new Date().toISOString() });
+      }
+      setPendingBillAction(null);
+      reload();
     } else {
       startEditBill(pendingBillAction.bill);
       setPendingBillAction(null);
@@ -791,7 +808,7 @@ export default function BillingPanel() {
               <div className="flex items-center gap-2">
                 {viewingBill.status === 'unpaid' && (
                   <button
-                    onClick={() => { markBillAsPaid(viewingBill.id); setViewingBill({ ...viewingBill, status: 'paid', paidAt: new Date().toISOString() }); reload(); }}
+                    onClick={() => requestMarkPaid(viewingBill)}
                     className="flex items-center gap-1.5 bg-green-50 text-green-600 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
                   >
                     <BadgeCheck size={16} /> Mark Paid
@@ -972,7 +989,7 @@ export default function BillingPanel() {
                   <div className="shrink-0 flex gap-1">
                     {bill.status === 'unpaid' && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); markBillAsPaid(bill.id); reload(); }}
+                      onClick={(e) => { e.stopPropagation(); requestMarkPaid(bill); }}
                         className="p-2 text-amber-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Mark as Paid"
                       >
                         <BadgeCheck size={18} />
