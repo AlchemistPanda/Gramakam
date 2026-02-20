@@ -8,7 +8,19 @@ import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, o
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
-/* ── Extracted edit-bill modal so it can render in both history & main views ── */
+/* ── Indian mobile number validator ───────────────────
+   Accepts: 10-digit numbers starting with 6-9,
+   optionally prefixed with +91 or 91
+──────────────────────────────────────────────────── */
+function normaliseIndianMobile(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  // strip leading 91 only if result is still 10 digits
+  const ten = digits.startsWith('91') && digits.length === 12 ? digits.slice(2) : digits;
+  if (ten.length === 10 && /^[6-9]/.test(ten)) return ten;
+  return null;
+}
+
+
 interface EditBillModalProps {
   editingBill: Bill;
   editItems: { bookId: string; title: string; localTitle?: string; publisher: string; price: number; quantity: number; maxQty: number }[];
@@ -546,7 +558,12 @@ export default function BillingPanel() {
       ? ` — ${bill.customerName}${bill.customerPhone ? ` (${bill.customerPhone})` : ''}`
       : '';
     const text = `📚 *Gramakam Book Festival 2026*\nBill #${bill.billNumber}${customer}\n\n${lines}${disc}\n\n  *Total: ₹${bill.grandTotal.toFixed(0)}*${pending}\n\nThank you! 🙏`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+
+    const validPhone = bill.customerPhone ? normaliseIndianMobile(bill.customerPhone) : null;
+    const url = validPhone
+      ? `https://wa.me/91${validPhone}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
   };
 
   // If viewing bill history — filtered by tab and optional search query
@@ -1136,14 +1153,38 @@ export default function BillingPanel() {
               />
             </div>
             <div className="flex items-center gap-2 mt-2">
-              <input
-                type="tel"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-maroon outline-none"
-                placeholder="Phone Number (optional)"
-              />
+              <div className="relative flex-1">
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className={`w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-1 outline-none transition-colors pr-8 ${
+                    customerPhone && !normaliseIndianMobile(customerPhone)
+                      ? 'border-red-300 focus:ring-red-300 bg-red-50'
+                      : customerPhone && normaliseIndianMobile(customerPhone)
+                      ? 'border-green-400 focus:ring-green-300 bg-green-50'
+                      : 'border-gray-200 focus:ring-maroon'
+                  }`}
+                  placeholder="Phone Number (optional)"
+                />
+                {customerPhone && normaliseIndianMobile(customerPhone) && (
+                  <CheckCircle size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500 pointer-events-none" />
+                )}
+                {customerPhone && !normaliseIndianMobile(customerPhone) && (
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-red-400 text-xs font-bold pointer-events-none">!</span>
+                )}
+              </div>
             </div>
+            {customerPhone && !normaliseIndianMobile(customerPhone) && (
+              <p className="text-[11px] text-red-500 font-medium mt-1 ml-0.5">
+                Enter a valid 10-digit Indian mobile number (starts with 6–9)
+              </p>
+            )}
+            {customerPhone && normaliseIndianMobile(customerPhone) && (
+              <p className="text-[11px] text-green-600 font-medium mt-1 ml-0.5 flex items-center gap-1">
+                <CheckCircle size={10} /> WhatsApp will send directly to this number
+              </p>
+            )}
           </div>
 
           {/* Payment Method — required for paid bills */}
