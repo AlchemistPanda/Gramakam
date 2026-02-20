@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Countdown from '@/components/Countdown';
 import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
-import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar } from 'lucide-react';
+import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar, QrCode } from 'lucide-react';
 
 // Real festival images from past editions
 const carouselImages = [
@@ -22,6 +22,7 @@ const quickLinks = [
   { href: '/feed', label: 'Latest Feed', icon: Newspaper, description: 'News, updates & announcements' },
   { href: '/merchandise', label: 'Merchandise', icon: ShoppingBag, description: 'Exclusive festival collectibles' },
   { href: '/contact', label: 'Contact Us', icon: Mail, description: 'Reach out to the Gramakam team' },
+  { href: '/qrgen', label: 'QR Generator', icon: QrCode, description: 'Create and download custom QR codes' },
 ];
 
 export default function HomePage() {
@@ -200,7 +201,7 @@ export default function HomePage() {
               <p className="text-maroon uppercase tracking-[0.2em] text-sm mb-2 font-semibold">Explore</p>
               <h2 className="heading-lg text-charcoal">Discover Gramakam</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
               {quickLinks.map((link, index) => (
                 <AnimatedSection key={link.href} delay={index * 0.1}>
                   <Link
