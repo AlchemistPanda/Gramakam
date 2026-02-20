@@ -249,6 +249,80 @@ const ESCPOS = {
 };
 
 /**
+ * Load an image URL and convert it to ESC/POS GS v 0 raster bytes.
+ * The image is resized to fit within `targetWidthDots` (default 240 for 58mm).
+ * Pixels are thresholded to 1-bit: dark → printed, light → blank.
+ */
+async function loadImageAsEscposRaster(
+  url: string,
+  targetWidthDots: number = 240,
+): Promise<Uint8Array[] | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.crossOrigin = 'anonymous';
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+
+    // Scale image proportionally to fit target width
+    const scale = targetWidthDots / img.naturalWidth;
+    const w = targetWidthDots;
+    const h = Math.round(img.naturalHeight * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+    // White background so transparent PNGs print cleanly
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const pixels = imageData.data; // RGBA flat array
+
+    // Build 1-bit bitmap: ESC/POS packs 8 horizontal dots per byte, MSB = leftmost dot
+    // widthBytes must be a multiple of 1 (any value); round up to whole bytes
+    const widthBytes = Math.ceil(w / 8);
+    const bitmapBytes = widthBytes * h;
+    const bitmap = new Uint8Array(bitmapBytes);
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4;
+        const r = pixels[idx], g = pixels[idx + 1], b = pixels[idx + 2];
+        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (luminance < 128) {
+          // Dark pixel → set bit (printed dot)
+          const byteIdx = y * widthBytes + Math.floor(x / 8);
+          const bitPos = 7 - (x % 8); // MSB first
+          bitmap[byteIdx] |= (1 << bitPos);
+        }
+      }
+    }
+
+    // GS v 0 command: print raster bitmap
+    // GS v 0 m xL xH yL yH [data]
+    //   m = 0 (normal density, 8 dots/mm)
+    //   xL xH = widthBytes (low, high byte)
+    //   yL yH = height in dots (low, high byte)
+    const header = new Uint8Array([
+      GS, 0x76, 0x30, 0x00,            // GS v 0, mode = normal
+      widthBytes & 0xff, (widthBytes >> 8) & 0xff,
+      h & 0xff, (h >> 8) & 0xff,
+    ]);
+
+    return [header, bitmap];
+  } catch (e) {
+    console.warn('Logo load for thermal print failed:', e);
+    return null;
+  }
+}
+
+/**
  * Build ESC/POS GS ( k commands to print a QR code natively on the thermal printer.
  * The printer generates the QR from the raw data string — no image needed.
  *   Model 2, module size 4 (good for 58mm), error correction Level M.
@@ -275,7 +349,7 @@ function escposQR(data: string): Uint8Array[] {
 
 // ==================== BILL FORMATTING (ESC/POS) ====================
 
-function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
+function formatBillForPrinter(bill: Bill, width: number = 32, logoChunks?: Uint8Array[]): Uint8Array[] {
   const chunks: Uint8Array[] = [];
 
   const push = (...parts: Uint8Array[]) => chunks.push(...parts);
@@ -287,6 +361,13 @@ function formatBillForPrinter(bill: Bill, width: number = 32): Uint8Array[] {
 
   // Initialize
   push(ESCPOS.init());
+
+  // Logo
+  push(ESCPOS.alignCenter());
+  if (logoChunks && logoChunks.length > 0) {
+    push(...logoChunks);
+    push(ESCPOS.feed(1));
+  }
 
   // Header
   push(ESCPOS.alignCenter());
@@ -563,7 +644,9 @@ export async function printBill(bill: Bill): Promise<PrintResult> {
   // Try Bluetooth first if connected
   if (isPrinterConnected()) {
     try {
-      const data = formatBillForPrinter(bill);
+      // Pre-load logo as ESC/POS raster bytes (58mm printer = 240 dots wide)
+      const logoChunks = await loadImageAsEscposRaster('/images/gramakam-logo.png', 240);
+      const data = formatBillForPrinter(bill, 32, logoChunks ?? undefined);
       await sendToPrinter(data);
       return { success: true, method: 'bluetooth' };
     } catch (e: any) {
