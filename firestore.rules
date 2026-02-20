@@ -1,29 +1,18 @@
 rules_version = '2';
-// Gramakam Book Festival 2026 — Firestore Security Rules
-// This is an internal admin tool — all collections are open for read/write.
-// If you want to restrict access later, you can add auth checks here.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Core book festival collections
-    match /bookfest_books/{docId} {
-      allow read, write: if true;
-    }
-    match /bookfest_bills/{docId} {
-      allow read, write: if true;
-    }
-    match /bookfest_publishers/{docId} {
-      allow read, write: if true;
-    }
-    match /bookfest_requests/{docId} {
-      allow read, write: if true;
-    }
-    // Meta document (bill counter etc.)
-    match /bookfest/{docId} {
-      allow read, write: if true;
-    }
-    // Website content (gallery, feed, etc.)
-    match /{document=**} {
-      allow read, write: if true;
-    }
+    // Book festival collections (public read/write for POS)
+    match /bookfest/{document=**} { allow read, write: if true; }
+    match /bookfest_books/{document=**} { allow read, write: if true; }
+    match /bookfest_bills/{document=**} { allow read, write: if true; }
+    match /bookfest_publishers/{document=**} { allow read, write: if true; }
+    match /bookfest_requests/{document=**} { allow read, write: if true; }
+    
+    // Website collections (public read, authenticated write)
+    match /posts/{document=**} { allow read: if true; allow write: if true; }
+    match /gallery/{document=**} { allow read: if true; allow write: if true; }
+    match /contacts/{document=**} { allow read, write: if true; }
+    match /prebooks/{document=**} { allow read, write: if true; }
+    match /config/{document=**} { allow read: if true; allow write: if true; }
   }
 }
