@@ -520,7 +520,9 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
     const book = cache.books.find((b) => b.id === item.bookId);
     if (!book) continue;
     const available = book.quantity - book.sold;
-    if (item.quantity > available) continue;
+    // Cap to available instead of skipping — consistent with editBill behaviour
+    const qty = Math.min(item.quantity, available);
+    if (qty <= 0) continue;
 
     billItems.push({
       bookId: book.id,
@@ -528,24 +530,27 @@ export function createBill(items: { bookId: string; quantity: number }[], discou
       ...(book.localTitle && { localTitle: book.localTitle }),
       publisher: book.publisher,
       price: book.price,
-      quantity: item.quantity,
+      quantity: qty,
     });
-    total += book.price * item.quantity;
+    total += book.price * qty;
 
     // Update sold count
-    book.sold += item.quantity;
+    book.sold += qty;
     fsSetBook(book).catch(() => {});
   }
 
   if (billItems.length === 0) return null;
+
+  // Cap discount against the actual bill total (not the cart subtotal) to prevent negative grandTotal
+  const cappedDiscount = Math.min(discount, total);
 
   const bill: Bill = {
     id: generateId(),
     billNumber: cache.nextBillNumber,
     items: billItems,
     total,
-    discount,
-    grandTotal: total - discount,
+    discount: cappedDiscount,
+    grandTotal: total - cappedDiscount,
     status,
     ...(paymentMethod && { paymentMethod }),
     ...(customerName?.trim() && { customerName: customerName.trim() }),

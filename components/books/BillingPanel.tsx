@@ -282,7 +282,7 @@ function EditBillModal({
         <div className="p-5 border-t border-gray-100 shrink-0 space-y-3">
           {(() => {
             const editSubtotal = editItems.reduce((s, i) => s + i.price * i.quantity, 0);
-            const editGrandTotal = editSubtotal - editDiscount;
+            const editGrandTotal = Math.max(0, editSubtotal - editDiscount);
             return (
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-500">
