@@ -4,13 +4,14 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, Image as ImageIcon, X, Copy, Check,
-  Sliders, RefreshCw, QrCode, ChevronDown,
+  Sliders, RefreshCw, QrCode, ChevronDown, Type,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ErrorLevel = 'L' | 'M' | 'Q' | 'H';
 type DotStyle = 'square' | 'rounded' | 'dots';
+type LabelFont = 'sans' | 'serif' | 'mono';
 
 interface QROptions {
   text: string;
@@ -24,6 +25,16 @@ interface QROptions {
   logoBgColor: string;
   logoPadding: number;
   logoRounded: boolean;
+  // Center text
+  centerText: string;
+  centerTextColor: string;
+  centerTextBgColor: string;
+  centerTextFontSize: number; // % of size
+  // Bottom label
+  bottomLabel: string;
+  bottomLabelColor: string;
+  bottomLabelFont: LabelFont;
+  bottomLabelSize: number; // % of size
 }
 
 const DEFAULTS: QROptions = {
@@ -38,6 +49,14 @@ const DEFAULTS: QROptions = {
   logoBgColor: '#ffffff',
   logoPadding: 6,
   logoRounded: true,
+  centerText: '',
+  centerTextColor: '#ffffff',
+  centerTextBgColor: '#800020',
+  centerTextFontSize: 5,
+  bottomLabel: '',
+  bottomLabelColor: '#1a1a1a',
+  bottomLabelFont: 'sans',
+  bottomLabelSize: 8,
 };
 
 const ERROR_LEVELS: { value: ErrorLevel; label: string; desc: string }[] = [
@@ -67,6 +86,7 @@ async function renderQRToCanvas(
   const QRCode = await import('qrcode');
 
   const { size, fgColor, bgColor, errorLevel, logoUrl, logoSize, logoBgColor, logoPadding, logoRounded } = opts;
+  const labelHeight = opts.bottomLabel ? Math.round(size * 0.14) : 0;
 
   // Step 1: generate raw QR matrix via toCanvas
   const tempCanvas = document.createElement('canvas');
@@ -79,7 +99,7 @@ async function renderQRToCanvas(
 
   // Step 2: draw onto main canvas (apply dot style if needed)
   canvas.width = size;
-  canvas.height = size;
+  canvas.height = size + labelHeight;
   const ctx = canvas.getContext('2d')!;
   ctx.clearRect(0, 0, size, size);
 
@@ -173,6 +193,43 @@ async function renderQRToCanvas(
       img.src = logoUrl;
     });
   }
+
+  // Step 4: center text badge (drawn on top of logo if both set)
+  if (opts.centerText.trim()) {
+    const fontSize = Math.round(size * opts.centerTextFontSize / 100);
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    const metrics = ctx.measureText(opts.centerText);
+    const textW = metrics.width;
+    const padH = fontSize * 0.55;
+    const padV = fontSize * 0.3;
+    const badgeW = textW + padH * 2;
+    const badgeH = fontSize + padV * 2;
+    const cx = size / 2;
+    const cy = size / 2;
+    ctx.fillStyle = opts.centerTextBgColor;
+    ctx.beginPath();
+    ctx.roundRect(cx - badgeW / 2, cy - badgeH / 2, badgeW, badgeH, badgeH * 0.45);
+    ctx.fill();
+    ctx.fillStyle = opts.centerTextColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(opts.centerText, cx, cy);
+  }
+
+  // Step 5: bottom label
+  if (opts.bottomLabel && labelHeight > 0) {
+    const fontFamilyMap: Record<LabelFont, string> = { sans: 'sans-serif', serif: 'Georgia, serif', mono: 'monospace' };
+    const fontSize = Math.round(size * opts.bottomLabelSize / 100);
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, size, size, labelHeight);
+    ctx.font = `bold ${fontSize}px ${fontFamilyMap[opts.bottomLabelFont]}`;
+    ctx.fillStyle = opts.bottomLabelColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.letterSpacing = `${fontSize * 0.12}px`;
+    ctx.fillText(opts.bottomLabel.toUpperCase(), size / 2, size + labelHeight / 2);
+    ctx.letterSpacing = '0px';
+  }
 }
 
 // ─── Download helper ────────────────────────────────────────────────────────
@@ -223,7 +280,8 @@ export default function QRGenPage() {
   const [opts, setOpts] = useState<QROptions>(DEFAULTS);
   const [copied, setCopied] = useState(false);
   const [rendering, setRendering] = useState(false);
-  const [activeSection, setActiveSection] = useState<'colors' | 'style' | 'logo' | null>('colors');
+  const [activeSection, setActiveSection] = useState<'colors' | 'style' | 'logo' | 'text' | null>('colors');
+  const [previewH, setPreviewH] = useState(280);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const renderTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -239,6 +297,9 @@ export default function QRGenPage() {
       setRendering(true);
       try {
         await renderQRToCanvas(canvasRef.current, o);
+        // Update preview height to match canvas aspect ratio
+        const c = canvasRef.current;
+        setPreviewH(Math.round(280 * c.height / c.width));
       } catch (e) {
         console.warn('QR render error:', e);
       } finally {
@@ -270,7 +331,7 @@ export default function QRGenPage() {
 
   const slug = (opts.text.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 40) || 'gramakam-qr');
 
-  const Section = ({ id, title, icon }: { id: typeof activeSection; title: string; icon: React.ReactNode }) => (
+  const Section = ({ id, title, icon }: { id: 'colors' | 'style' | 'logo' | 'text' | null; title: string; icon: React.ReactNode }) => (
     <button
       onClick={() => setActiveSection(activeSection === id ? null : id)}
       className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-semibold text-gray-700"
@@ -309,7 +370,7 @@ export default function QRGenPage() {
                 <canvas
                   ref={canvasRef}
                   className="rounded-2xl shadow-lg"
-                  style={{ width: 280, height: 280, imageRendering: 'pixelated' }}
+                  style={{ width: 280, height: previewH, imageRendering: 'pixelated' }}
                 />
                 <AnimatePresence>
                   {rendering && (
@@ -528,6 +589,93 @@ export default function QRGenPage() {
                           </div>
                         </div>
                       )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Text Accordion */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="p-3">
+                <Section id="text" title="Text Overlays" icon={<Type size={14} />} />
+              </div>
+              <AnimatePresence initial={false}>
+                {activeSection === 'text' && (
+                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }}
+                    className="overflow-hidden">
+                    <div className="px-5 pb-5 border-t border-gray-50 space-y-5">
+
+                      {/* Center text */}
+                      <div className="pt-4">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Center Badge Text</p>
+                        <input
+                          type="text" maxLength={12}
+                          value={opts.centerText}
+                          onChange={(e) => set('centerText', e.target.value)}
+                          placeholder="e.g. SCAN ME, gramakam…"
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                        />
+                        {opts.centerText && (
+                          <div className="mt-3 space-y-3">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-gray-500">Font size</span>
+                              <span className="text-xs text-violet-700 font-semibold">{opts.centerTextFontSize}% of QR</span>
+                            </div>
+                            <input type="range" min={3} max={9} step={0.5} value={opts.centerTextFontSize}
+                              onChange={(e) => set('centerTextFontSize', parseFloat(e.target.value))}
+                              className="w-full accent-violet-600" />
+                            <ColorInput label="Text color" value={opts.centerTextColor} onChange={(v) => set('centerTextColor', v)} />
+                            <ColorInput label="Badge color" value={opts.centerTextBgColor} onChange={(v) => set('centerTextBgColor', v)} />
+                          </div>
+                        )}
+                      </div>
+
+                      <hr className="border-gray-100" />
+
+                      {/* Bottom label */}
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Bottom Label</p>
+                        <input
+                          type="text" maxLength={24}
+                          value={opts.bottomLabel}
+                          onChange={(e) => set('bottomLabel', e.target.value)}
+                          placeholder="e.g. SCAN ME, gramakam.org…"
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                        />
+                        {opts.bottomLabel && (
+                          <div className="mt-3 space-y-3">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-gray-500">Font size</span>
+                              <span className="text-xs text-violet-700 font-semibold">{opts.bottomLabelSize}% of QR</span>
+                            </div>
+                            <input type="range" min={4} max={12} step={0.5} value={opts.bottomLabelSize}
+                              onChange={(e) => set('bottomLabelSize', parseFloat(e.target.value))}
+                              className="w-full accent-violet-600" />
+                            <ColorInput label="Text color" value={opts.bottomLabelColor} onChange={(v) => set('bottomLabelColor', v)} />
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 mb-2">Font style</p>
+                              <div className="flex gap-2">
+                                {(['sans', 'serif', 'mono'] as LabelFont[]).map((f) => (
+                                  <button key={f} onClick={() => set('bottomLabelFont', f)}
+                                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-colors ${
+                                      opts.bottomLabelFont === f ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                                    }`}
+                                    style={{ fontFamily: f === 'sans' ? 'sans-serif' : f === 'serif' ? 'Georgia, serif' : 'monospace' }}>
+                                    Aa
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="flex gap-2 mt-1">
+                                {(['sans', 'serif', 'mono'] as LabelFont[]).map((f) => (
+                                  <span key={f} className="flex-1 text-center text-[10px] text-gray-400">{f}</span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                     </div>
                   </motion.div>
                 )}
