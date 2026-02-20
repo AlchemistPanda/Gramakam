@@ -29,10 +29,12 @@ function PasscodeLock({
   tabLabel,
   onUnlock,
   onAdminUnlock,
+  onClose,
 }: {
   tabLabel: string;
   onUnlock: () => void;
   onAdminUnlock: () => void;
+  onClose: () => void;
 }) {
   const [value, setValue] = useState('');
   const [shake, setShake]  = useState(false);
@@ -59,8 +61,15 @@ function PasscodeLock({
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm mx-4"
+        className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm mx-4 relative"
       >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          aria-label="Close"
+        >
+          <X size={18} />
+        </button>
         <div className="flex flex-col items-center mb-6">
           <div className="w-14 h-14 rounded-2xl bg-maroon/10 flex items-center justify-center mb-3">
             <Lock size={26} className="text-maroon" />
@@ -379,6 +388,7 @@ export default function BooksDashboard({ onLogout }: Props) {
                 tabLabel={tabs.find((t) => t.id === pendingTab)?.label ?? ''}
                 onUnlock={handleUnlock}
                 onAdminUnlock={handleAdminUnlock}
+                onClose={() => setPendingTab(null)}
               />
             )}
           </AnimatePresence>
