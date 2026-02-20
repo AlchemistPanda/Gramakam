@@ -804,15 +804,40 @@ export function getPublisherStats() {
 async function loadRequestsFromFirestore(): Promise<boolean> {
   if (!db) return false;
   try {
-    const { collection, getDocs } = await firestoreLib();
+    const { collection, getDocs, getCountFromServer } = await firestoreLib();
+
+    // Use getCountFromServer to check if Firestore SERVER actually has requests.
+    // With offline persistence, getDocs may return stale IndexedDB data.
+    let serverCount = -1;
+    try {
+      const countSnap = await getCountFromServer(collection(db, COL_REQUESTS));
+      serverCount = countSnap.data().count;
+    } catch {
+      // getCountFromServer may not be available or may fail — that's OK
+    }
+
+    const localRequests = loadRequestsFromLocalStorage();
+
+    // If server has 0 docs but we have local requests, push them to Firestore
+    if (serverCount === 0 && localRequests.length > 0) {
+      console.log(`Migrating ${localRequests.length} requests from localStorage → Firestore (server has 0)`);
+      for (const req of localRequests) {
+        await fsSetRequest(req);
+      }
+      requestsCache = localRequests;
+      requestsFirestoreError = null;
+      notifyListeners();
+      return true;
+    }
+
+    // Otherwise, do a normal getDocs load
     const snap = await getDocs(collection(db, COL_REQUESTS));
     const all: BookRequest[] = [];
     snap.forEach((d) => all.push({ ...d.data(), id: d.id } as BookRequest));
 
-    // One-time migration: if Firestore has 0 requests but localStorage has some, push them up
-    const localRequests = loadRequestsFromLocalStorage();
+    // Fallback migration: if getDocs also returned 0 and we have local data
     if (all.length === 0 && localRequests.length > 0) {
-      console.log(`Migrating ${localRequests.length} requests from localStorage → Firestore`);
+      console.log(`Migrating ${localRequests.length} requests from localStorage → Firestore (getDocs returned 0)`);
       for (const req of localRequests) {
         await fsSetRequest(req);
       }
@@ -872,7 +897,13 @@ export function addRequest(req: Omit<BookRequest, 'id' | 'createdAt' | 'status'>
   };
   requestsCache = [newReq, ...requestsCache];
   saveRequestsToLocalStorage();
-  fsSetRequest(newReq).catch(() => {});
+  fsSetRequest(newReq).then(() => {
+    console.log('Request saved to Firestore:', newReq.id);
+  }).catch((e) => {
+    console.error('Request Firestore write FAILED:', e);
+    requestsFirestoreError = `Write failed: ${e?.message || e}`;
+    notifyListeners();
+  });
   notifyListeners();
   return newReq;
 }
@@ -882,14 +913,26 @@ export function updateRequestStatus(id: string, status: BookRequest['status']): 
   if (!req) return;
   req.status = status;
   saveRequestsToLocalStorage();
-  fsSetRequest(req).catch(() => {});
+  fsSetRequest(req).then(() => {
+    console.log('Request status updated in Firestore:', id, status);
+  }).catch((e) => {
+    console.error('Request status Firestore write FAILED:', e);
+    requestsFirestoreError = `Write failed: ${e?.message || e}`;
+    notifyListeners();
+  });
   notifyListeners();
 }
 
 export function deleteRequest(id: string): void {
   requestsCache = requestsCache.filter((r) => r.id !== id);
   saveRequestsToLocalStorage();
-  fsDeleteRequest(id).catch(() => {});
+  fsDeleteRequest(id).then(() => {
+    console.log('Request deleted from Firestore:', id);
+  }).catch((e) => {
+    console.error('Request Firestore delete FAILED:', e);
+    requestsFirestoreError = `Delete failed: ${e?.message || e}`;
+    notifyListeners();
+  });
   notifyListeners();
 }
 
