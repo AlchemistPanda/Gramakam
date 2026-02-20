@@ -644,8 +644,8 @@ export async function printBill(bill: Bill): Promise<PrintResult> {
   // Try Bluetooth first if connected
   if (isPrinterConnected()) {
     try {
-      // Pre-load logo as ESC/POS raster bytes (160 dots — faster BLE transfer, less heat)
-      const logoChunks = await loadImageAsEscposRaster('/images/gramakam-logo.png', 160);
+      // Pre-load logo as ESC/POS raster bytes (240 dots wide — 58mm paper)
+      const logoChunks = await loadImageAsEscposRaster('/images/gramakam-logo.png', 240);
       const data = formatBillForPrinter(bill, 32, logoChunks ?? undefined);
       await sendToPrinter(data);
       return { success: true, method: 'bluetooth' };
