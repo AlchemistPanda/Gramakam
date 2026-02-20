@@ -21,18 +21,18 @@ import type { Bill, Book } from '@/types/books';
 // ========== Chart data helpers ==========
 
 function getDailySalesData(bills: Bill[]) {
-  // Use ISO date string (YYYY-MM-DD) as map key for reliable sorting
   const map: Record<string, { sold: number; revenue: number; label: string }> = {};
   for (const bill of bills) {
     const d = new Date(bill.createdAt);
-    const isoDay = d.toISOString().slice(0, 10); // e.g. "2026-02-20"
+    // Build key from LOCAL date so IST midnight-to-5:30am bills aren't split across two UTC days
+    const localKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const label = d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }); // e.g. "Fri, 20 Feb"
     const qty = bill.items.reduce((s, i) => s + i.quantity, 0);
-    if (!map[isoDay]) map[isoDay] = { sold: 0, revenue: 0, label };
-    map[isoDay].sold += qty;
-    map[isoDay].revenue += bill.grandTotal;
+    if (!map[localKey]) map[localKey] = { sold: 0, revenue: 0, label };
+    map[localKey].sold += qty;
+    map[localKey].revenue += bill.grandTotal;
   }
-  // Sort chronologically by ISO date key
+  // Sort chronologically by local YYYY-MM-DD key
   return Object.entries(map)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, v]) => ({ day: v.label, sold: v.sold, revenue: v.revenue }));
