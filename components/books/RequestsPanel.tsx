@@ -6,6 +6,14 @@ import {
   Plus, Trash2, CheckCircle, Clock, Phone, MapPin, BookOpen,
   Search, X, MessageCircle, User, StickyNote, ChevronDown, AlertTriangle,
 } from 'lucide-react';
+
+/* ── Indian mobile number validator ────────────────────────── */
+function normaliseIndianMobile(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  const ten = digits.startsWith('91') && digits.length === 12 ? digits.slice(2) : digits;
+  if (ten.length === 10 && /^[6-9]/.test(ten)) return ten;
+  return null;
+}
 import {
   getBooks,
   getRequests,
@@ -257,6 +265,7 @@ function AddRequestForm({
 
     if (!trimName) { setError('Customer name is required.'); return; }
     if (!trimPhone) { setError('Phone number is required.'); return; }
+    if (!normaliseIndianMobile(trimPhone)) { setError('Enter a valid 10-digit Indian mobile number (starts with 6–9).'); return; }
     if (!trimBook) { setError('Book title is required.'); return; }
 
     addRequest({
@@ -300,16 +309,34 @@ function AddRequestForm({
               Phone Number <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" />
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. 9400186188"
                 type="tel"
                 inputMode="numeric"
-                className="w-full pl-8 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-maroon/60 bg-gray-50 focus:bg-white transition-colors"
+                className={`w-full pl-8 pr-8 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-1 bg-gray-50 focus:bg-white transition-colors ${
+                  phone && !normaliseIndianMobile(phone)
+                    ? 'border-red-300 focus:border-red-400 focus:ring-red-200'
+                    : phone && normaliseIndianMobile(phone)
+                    ? 'border-green-400 focus:border-green-400 focus:ring-green-200 bg-green-50'
+                    : 'border-gray-200 focus:border-maroon/60'
+                }`}
               />
+              {phone && normaliseIndianMobile(phone) && (
+                <CheckCircle size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500 pointer-events-none" />
+              )}
+              {phone && !normaliseIndianMobile(phone) && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-red-400 text-xs font-bold pointer-events-none">!</span>
+              )}
             </div>
+            {phone && !normaliseIndianMobile(phone) && (
+              <p className="text-[11px] text-red-500 font-medium mt-1 ml-0.5">Valid 10-digit number starting with 6–9</p>
+            )}
+            {phone && normaliseIndianMobile(phone) && (
+              <p className="text-[11px] text-green-600 font-medium mt-1 ml-0.5">Valid Indian mobile number</p>
+            )}
           </div>
         </div>
 
