@@ -26,6 +26,7 @@ let changeListeners: Array<() => void> = [];
 let booksWritesInFlight = 0;
 let billsWritesInFlight = 0;
 let publishersWritesInFlight = 0;
+let requestsWritesInFlight = 0;
 
 function notifyListeners() {
   for (const fn of changeListeners) {
@@ -54,10 +55,26 @@ function loadFromLocalStorage(): BookStoreData {
   return { books: [], bills: [], publishers: [], nextBillNumber: 1 };
 }
 
+function loadRequestsFromLocalStorage(): BookRequest[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORE_KEY + '_requests');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
 function saveToLocalStorage(): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+
+function saveRequestsToLocalStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORE_KEY + '_requests', JSON.stringify(requestsCache));
   } catch {}
 }
 
@@ -103,18 +120,20 @@ async function fsDeleteBook(id: string): Promise<void> {
 
 async function fsSetRequest(req: BookRequest): Promise<void> {
   if (!db) return;
+  requestsWritesInFlight++;
   try {
     const { doc, setDoc } = await firestoreLib();
     await setDoc(doc(db, COL_REQUESTS, req.id), cleanData({ ...req }));
-  } catch (e) { console.warn('Firestore write request failed:', e); }
+  } catch (e) { console.warn('Firestore write request failed:', e); } finally { requestsWritesInFlight--; }
 }
 
 async function fsDeleteRequest(id: string): Promise<void> {
   if (!db) return;
+  requestsWritesInFlight++;
   try {
     const { doc, deleteDoc } = await firestoreLib();
     await deleteDoc(doc(db, COL_REQUESTS, id));
-  } catch (e) { console.warn('Firestore delete request failed:', e); }
+  } catch (e) { console.warn('Firestore delete request failed:', e); } finally { requestsWritesInFlight--; }
 }
 
 async function fsSetBill(bill: Bill): Promise<void> {
@@ -239,6 +258,8 @@ export async function initBookStore(): Promise<void> {
   // Load from localStorage immediately so UI isn't empty while Firestore connects
   const localData = loadFromLocalStorage();
   cache = localData;
+  // Also pre-load requests from localStorage so they show instantly on the same device
+  requestsCache = loadRequestsFromLocalStorage();
 
   initialized = true;
 
@@ -775,13 +796,32 @@ export function getPublisherStats() {
 
 function setupRequestsListener(): void {
   if (!db) return;
-  import('firebase/firestore').then(({ collection, onSnapshot }) => {
+  let requestsMigrationChecked = false;
+  firestoreLib().then(({ collection, onSnapshot }) => {
     onSnapshot(collection(db!, COL_REQUESTS), (snap) => {
+      if (requestsWritesInFlight > 0) return; // don't overwrite during local write
       const all: BookRequest[] = [];
       snap.forEach((d) => all.push({ ...d.data(), id: d.id } as BookRequest));
+
+      // One-time migration: if Firestore has no requests but localStorage does, push them up
+      if (!requestsMigrationChecked) {
+        requestsMigrationChecked = true;
+        const localRequests = loadRequestsFromLocalStorage();
+        if (all.length === 0 && localRequests.length > 0) {
+          // Push each local request to Firestore
+          for (const req of localRequests) {
+            fsSetRequest(req).catch(() => {});
+          }
+          requestsCache = localRequests;
+          notifyListeners();
+          return;
+        }
+      }
+
       requestsCache = all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      saveRequestsToLocalStorage();
       notifyListeners();
-    });
+    }, (err) => console.warn('Requests listener error:', err));
   }).catch(() => {});
 }
 
@@ -797,6 +837,7 @@ export function addRequest(req: Omit<BookRequest, 'id' | 'createdAt' | 'status'>
     createdAt: new Date().toISOString(),
   };
   requestsCache = [newReq, ...requestsCache];
+  saveRequestsToLocalStorage();
   fsSetRequest(newReq).catch(() => {});
   notifyListeners();
   return newReq;
@@ -806,12 +847,14 @@ export function updateRequestStatus(id: string, status: BookRequest['status']): 
   const req = requestsCache.find((r) => r.id === id);
   if (!req) return;
   req.status = status;
+  saveRequestsToLocalStorage();
   fsSetRequest(req).catch(() => {});
   notifyListeners();
 }
 
 export function deleteRequest(id: string): void {
   requestsCache = requestsCache.filter((r) => r.id !== id);
+  saveRequestsToLocalStorage();
   fsDeleteRequest(id).catch(() => {});
   notifyListeners();
 }
