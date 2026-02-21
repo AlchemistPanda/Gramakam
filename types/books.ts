@@ -40,6 +40,8 @@ export interface Bill {
   customerPhone?: string;   // optional phone number
   status?: 'paid' | 'unpaid'; // payment status (legacy bills default to 'paid')
   paymentMethod?: 'cash' | 'upi'; // how the customer paid (optional)
+  upiTxnId?: string;        // last 5 digits of UPI transaction ID (optional)
+  upiStatus?: 'completed' | 'pending'; // UPI payment status — only when paymentMethod is 'upi'
   paidAt?: string;          // ISO date when unpaid bill was later marked paid
   editedAt?: string;        // ISO date when bill was last edited
   createdAt: string;        // ISO date

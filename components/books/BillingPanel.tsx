@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
-import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid } from '@/lib/bookStore';
+import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid, updateBillUpi } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -324,6 +324,7 @@ export default function BillingPanel() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | undefined>(undefined);
   const [paymentMethodError, setPaymentMethodError] = useState(false);
+  const [upiTxnId, setUpiTxnId] = useState('');
   const [lastBill, setLastBill] = useState<Bill | null>(null);
   const [showBill, setShowBill] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -331,7 +332,7 @@ export default function BillingPanel() {
   const [viewingBill, setViewingBill] = useState<Bill | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [historyFilter, setHistoryFilter] = useState<'all' | 'unpaid'>('all');
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'unpaid' | 'upi_pending'>('all');
   const [historySearch, setHistorySearch] = useState('');
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [editItems, setEditItems] = useState<{ bookId: string; title: string; localTitle?: string; publisher: string; price: number; quantity: number; maxQty: number }[]>([]);
@@ -345,6 +346,8 @@ export default function BillingPanel() {
   const [btConnecting, setBtConnecting] = useState(false);
   const [btName, setBtName] = useState<string | null>(null);
   const [pendingBillAction, setPendingBillAction] = useState<{ type: 'edit' | 'delete' | 'mark_paid'; bill: Bill } | null>(null);
+  const [upiResolveModal, setUpiResolveModal] = useState<Bill | null>(null);
+  const [upiResolveTxnId, setUpiResolveTxnId] = useState('');
   const [printStatus, setPrintStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [billQr, setBillQr] = useState('');
   const [viewingQr, setViewingQr] = useState('');
@@ -455,7 +458,7 @@ export default function BillingPanel() {
   const grandTotal = Math.max(0, subtotal - discount);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleCheckout = (status: 'paid' | 'unpaid' = 'paid') => {
+  const handleCheckout = (status: 'paid' | 'unpaid' = 'paid', forceUpiPending = false) => {
     if (cart.length === 0) return;
     if (status === 'unpaid' && !customerName.trim()) {
       alert('Please enter the customer name for credit/pay-later bills.');
@@ -469,13 +472,18 @@ export default function BillingPanel() {
     }
     setPaymentMethodError(false);
     const cappedDiscount = Math.min(discount, subtotal);
+    const upiStatus = paymentMethod === 'upi'
+      ? (forceUpiPending ? 'pending' as const : 'completed' as const)
+      : undefined;
     const bill = createBill(
       cart.map((c) => ({ bookId: c.bookId, quantity: c.quantity })),
       cappedDiscount,
       customerName || undefined,
       customerPhone || undefined,
       status,
-      paymentMethod
+      paymentMethod,
+      paymentMethod === 'upi' ? upiTxnId || undefined : undefined,
+      upiStatus
     );
     if (bill) {
       setLastBill(bill);
@@ -486,6 +494,7 @@ export default function BillingPanel() {
       setCustomerPhone('');
       setPaymentMethod(undefined);
       setPaymentMethodError(false);
+      setUpiTxnId('');
       reload();
       // Generate UPI QR with amount (skip for cash payments)
       if (status !== 'unpaid' && paymentMethod !== 'cash') {
@@ -700,7 +709,11 @@ export default function BillingPanel() {
 
   // If viewing bill history — filtered by tab and optional search query
   const filteredBills = allBills
-    .filter((b) => (historyFilter === 'unpaid' ? b.status === 'unpaid' : true))
+    .filter((b) => {
+      if (historyFilter === 'unpaid') return b.status === 'unpaid';
+      if (historyFilter === 'upi_pending') return b.paymentMethod === 'upi' && b.upiStatus === 'pending';
+      return true;
+    })
     .filter((b) => {
       if (!historySearch.trim()) return true;
       const q = historySearch.toLowerCase();
@@ -758,7 +771,7 @@ export default function BillingPanel() {
 
         {/* Filter Tabs */}
         {!viewingBill && (
-          <div className="flex gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => setHistoryFilter('all')}
               className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-colors ${
@@ -783,9 +796,30 @@ export default function BillingPanel() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setHistoryFilter('upi_pending')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+                historyFilter === 'upi_pending' ? 'bg-orange-500 text-white' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'
+              }`}
+            >
+              <Clock size={14} />
+              UPI Pending
+              {allBills.filter(b => b.paymentMethod === 'upi' && b.upiStatus === 'pending').length > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                  historyFilter === 'upi_pending' ? 'bg-white/30 text-white' : 'bg-orange-200 text-orange-800'
+                }`}>
+                  {allBills.filter(b => b.paymentMethod === 'upi' && b.upiStatus === 'pending').length}
+                </span>
+              )}
+            </button>
             {historyFilter === 'unpaid' && allBills.filter(b => b.status === 'unpaid').length > 0 && (
               <div className="ml-auto flex items-center text-sm text-amber-700 font-semibold">
                 Pending: ₹{allBills.filter(b => b.status === 'unpaid').reduce((s, b) => s + b.grandTotal, 0).toFixed(2)}
+              </div>
+            )}
+            {historyFilter === 'upi_pending' && allBills.filter(b => b.paymentMethod === 'upi' && b.upiStatus === 'pending').length > 0 && (
+              <div className="ml-auto flex items-center text-sm text-orange-700 font-semibold">
+                Pending: ₹{allBills.filter(b => b.paymentMethod === 'upi' && b.upiStatus === 'pending').reduce((s, b) => s + b.grandTotal, 0).toFixed(2)}
               </div>
             )}
           </div>
@@ -860,6 +894,23 @@ export default function BillingPanel() {
                 }`}>
                   {viewingBill.paymentMethod === 'cash' ? '💵 Cash' : '📱 UPI'}
                 </span>
+              )}
+              {viewingBill.paymentMethod === 'upi' && viewingBill.upiStatus === 'pending' && (
+                <span className="inline-block mt-1.5 ml-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">⏳ UPI PENDING</span>
+              )}
+              {viewingBill.paymentMethod === 'upi' && viewingBill.upiStatus === 'completed' && (
+                <span className="inline-block mt-1.5 ml-1 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">✓ UPI Done</span>
+              )}
+              {viewingBill.paymentMethod === 'upi' && viewingBill.upiTxnId && (
+                <p className="text-xs text-gray-500 mt-1 font-mono">TXN: •••{viewingBill.upiTxnId}</p>
+              )}
+              {viewingBill.paymentMethod === 'upi' && viewingBill.upiStatus === 'pending' && (
+                <button
+                  onClick={() => { setUpiResolveTxnId(viewingBill.upiTxnId || ''); setUpiResolveModal(viewingBill); }}
+                  className="inline-flex items-center gap-1.5 mt-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-full transition-colors"
+                >
+                  <CheckCircle size={13} /> Resolve UPI Payment
+                </button>
               )}
               {viewingQr && viewingBill.paymentMethod !== 'cash' && (
                 <div className="mt-3">
@@ -938,9 +989,19 @@ export default function BillingPanel() {
               </div>
             ) : filteredBills.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
-                <BadgeCheck size={56} className="mx-auto mb-4 text-green-200" />
-                <p className="text-xl font-medium">No unpaid bills</p>
-                <p className="text-sm mt-1">All bills have been settled</p>
+                {historyFilter === 'upi_pending' ? (
+                  <>
+                    <CheckCircle size={56} className="mx-auto mb-4 text-green-200" />
+                    <p className="text-xl font-medium">No pending UPI payments</p>
+                    <p className="text-sm mt-1">All UPI transactions are resolved</p>
+                  </>
+                ) : (
+                  <>
+                    <BadgeCheck size={56} className="mx-auto mb-4 text-green-200" />
+                    <p className="text-xl font-medium">No unpaid bills</p>
+                    <p className="text-sm mt-1">All bills have been settled</p>
+                  </>
+                )}
               </div>
             ) : (
               filteredBills.map((bill, idx) => (
@@ -981,12 +1042,26 @@ export default function BillingPanel() {
                         bill.paymentMethod === 'cash' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-600'
                       }`}>{bill.paymentMethod === 'cash' ? 'Cash' : 'UPI'}</span>
                     )}
+                    {bill.paymentMethod === 'upi' && bill.upiStatus === 'pending' && (
+                      <span className="inline-block mt-1 ml-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded-full">⏳ Pending</span>
+                    )}
+                    {bill.paymentMethod === 'upi' && bill.upiTxnId && (
+                      <span className="inline-block mt-1 ml-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-mono rounded-full">•••{bill.upiTxnId}</span>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-charcoal text-lg">₹{bill.grandTotal.toFixed(2)}</p>
                     {bill.discount > 0 && <p className="text-xs text-red-400">-₹{bill.discount.toFixed(2)} disc</p>}
                   </div>
                   <div className="shrink-0 flex gap-1">
+                    {bill.paymentMethod === 'upi' && bill.upiStatus === 'pending' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setUpiResolveTxnId(bill.upiTxnId || ''); setUpiResolveModal(bill); }}
+                        className="p-2 text-orange-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Resolve UPI"
+                      >
+                        <Clock size={16} />
+                      </button>
+                    )}
                     {bill.status === 'unpaid' && (
                       <button
                       onClick={(e) => { e.stopPropagation(); requestMarkPaid(bill); }}
@@ -1373,6 +1448,24 @@ export default function BillingPanel() {
                 <Smartphone size={15} /> UPI
               </button>
             </div>
+
+            {/* UPI Txn ID — shown only when UPI is selected */}
+            {paymentMethod === 'upi' && (
+              <div className="mt-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-semibold text-gray-500">UPI Transaction ID (last 5 digits)</p>
+                  <span className="text-[10px] text-gray-400">optional</span>
+                </div>
+                <input
+                  type="text"
+                  maxLength={5}
+                  value={upiTxnId}
+                  onChange={(e) => setUpiTxnId(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                  placeholder="e.g. 84392"
+                  className="w-full px-4 py-2.5 border-2 border-blue-200 bg-blue-50/50 rounded-xl text-sm font-mono focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100/50 placeholder-blue-300"
+                />
+              </div>
+            )}
           </div>
 
           <div className="border-t border-gray-100 pt-4 mb-6">
@@ -1391,6 +1484,17 @@ export default function BillingPanel() {
           >
             <CheckCircle size={20} /> Complete Sale
           </button>
+
+          {/* UPI Pending button — only visible when UPI is selected */}
+          {paymentMethod === 'upi' && (
+            <button
+              onClick={() => handleCheckout('paid', true)}
+              disabled={cart.length === 0}
+              className="w-full mt-2 bg-orange-50 border-2 border-orange-300 hover:bg-orange-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-orange-700 py-3 rounded-2xl font-semibold text-sm transition-colors flex items-center justify-center gap-2 active:scale-[0.98]"
+            >
+              <Clock size={16} /> UPI Pending (will track later)
+            </button>
+          )}
 
           <button
             onClick={() => handleCheckout('unpaid')}
@@ -1490,11 +1594,19 @@ export default function BillingPanel() {
                     {lastBill.paymentMethod && (
                       <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-50">
                         <span className="text-gray-400 text-xs">Payment</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${
-                          lastBill.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {lastBill.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${
+                            lastBill.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {lastBill.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
+                          </span>
+                          {lastBill.paymentMethod === 'upi' && lastBill.upiStatus === 'pending' && (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-100 text-orange-700">⏳ Pending</span>
+                          )}
+                          {lastBill.paymentMethod === 'upi' && lastBill.upiTxnId && (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-gray-100 text-gray-500">•••{lastBill.upiTxnId}</span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1564,6 +1676,69 @@ export default function BillingPanel() {
              printStatus.type === 'info' ? <Loader2 size={18} className="animate-spin" /> :
              <X size={18} />}
             {printStatus.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* UPI Resolve Modal */}
+      <AnimatePresence>
+        {upiResolveModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+            onClick={() => setUpiResolveModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              <div className="p-6 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle size={26} className="text-green-600" />
+                </div>
+                <h3 className="text-lg font-bold text-charcoal mb-1">Resolve UPI Payment</h3>
+                <p className="text-sm text-gray-500 mb-4">Bill #{upiResolveModal.billNumber} · ₹{upiResolveModal.grandTotal.toFixed(2)}</p>
+
+                <div className="mb-4 text-left">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <p className="text-xs font-semibold text-gray-500">UPI Transaction ID (last 5 digits)</p>
+                    <span className="text-[10px] text-gray-400">optional</span>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={5}
+                    value={upiResolveTxnId}
+                    onChange={(e) => setUpiResolveTxnId(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                    placeholder="e.g. 84392"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100/50 placeholder-gray-300"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setUpiResolveModal(null)}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!upiResolveModal) return;
+                      const updated = updateBillUpi(upiResolveModal.id, upiResolveTxnId || undefined, 'completed');
+                      if (updated && viewingBill?.id === updated.id) setViewingBill(updated);
+                      setUpiResolveModal(null);
+                      setUpiResolveTxnId('');
+                      reload();
+                    }}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-green-600 hover:bg-green-700 text-white transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle size={15} /> Mark Completed
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
