@@ -1759,17 +1759,6 @@ export default function BillingPanel() {
             <CheckCircle size={20} /> Complete Sale
           </button>
 
-          {/* UPI Pending button — only visible when UPI is selected */}
-          {paymentMethod === 'upi' && (
-            <button
-              onClick={() => handleCheckout('paid', true)}
-              disabled={cart.length === 0}
-              className="w-full mt-2 bg-orange-50 border-2 border-orange-300 hover:bg-orange-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-orange-700 py-3 rounded-2xl font-semibold text-sm transition-colors flex items-center justify-center gap-2 active:scale-[0.98]"
-            >
-              <Clock size={16} /> UPI Pending (will track later)
-            </button>
-          )}
-
           <button
             onClick={() => handleCheckout('unpaid')}
             disabled={cart.length === 0}
