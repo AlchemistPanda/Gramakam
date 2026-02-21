@@ -325,6 +325,7 @@ export default function BillingPanel() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | undefined>(undefined);
   const [paymentMethodError, setPaymentMethodError] = useState(false);
   const [upiTxnId, setUpiTxnId] = useState('');
+  const [cashReceived, setCashReceived] = useState('');
   const [lastBill, setLastBill] = useState<Bill | null>(null);
   const [showBill, setShowBill] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -495,6 +496,7 @@ export default function BillingPanel() {
       setPaymentMethod(undefined);
       setPaymentMethodError(false);
       setUpiTxnId('');
+      setCashReceived('');
       reload();
       // Generate UPI QR with amount (skip for cash payments)
       if (status !== 'unpaid' && paymentMethod !== 'cash') {
@@ -1488,6 +1490,43 @@ export default function BillingPanel() {
                   placeholder="e.g. 84392"
                   className="w-full px-4 py-2.5 border-2 border-blue-200 bg-blue-50/50 rounded-xl text-sm font-mono focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100/50 placeholder-blue-300"
                 />
+              </div>
+            )}
+
+            {/* Cash Change Calculator — shown only when Cash is selected */}
+            {paymentMethod === 'cash' && cart.length > 0 && (
+              <div className="mt-3 bg-green-50/60 border-2 border-green-200 rounded-xl p-3">
+                <p className="text-xs font-semibold text-green-700 mb-2">Cash Calculator</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-green-600 font-medium">₹</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={cashReceived}
+                    onChange={(e) => setCashReceived(e.target.value)}
+                    placeholder="Amount received"
+                    className="flex-1 px-3 py-2 border-2 border-green-200 bg-white rounded-lg text-sm font-mono focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100/50 placeholder-green-300"
+                  />
+                </div>
+                {cashReceived && (() => {
+                  const received = parseFloat(cashReceived);
+                  const change = received - grandTotal;
+                  if (isNaN(received)) return null;
+                  if (change >= 0) {
+                    return (
+                      <div className="mt-2 flex justify-between items-baseline">
+                        <span className="text-xs text-green-600 font-medium">Change to return</span>
+                        <span className="text-lg font-bold text-green-700">₹{change.toFixed(2)}</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="mt-2 flex justify-between items-baseline">
+                      <span className="text-xs text-red-500 font-medium">Short by</span>
+                      <span className="text-lg font-bold text-red-600">₹{Math.abs(change).toFixed(2)}</span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
