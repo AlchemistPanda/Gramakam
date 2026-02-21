@@ -633,6 +633,186 @@ function windowPrintFallback(bill: Bill, html: string): void {
   printWindow.document.close();
 }
 
+// ==================== OUT-OF-STOCK LIST PRINTING ====================
+
+function formatOutOfStockForPrinter(
+  books: import('@/types/books').Book[],
+  width: number = 32,
+  logoChunks?: Uint8Array[],
+): Uint8Array[] {
+  const chunks: Uint8Array[] = [];
+  const push = (...parts: Uint8Array[]) => chunks.push(...parts);
+  const text = (s: string) => push(ESCPOS.text(s + '\n'));
+  const padRight = (left: string, right: string, w: number = width) => {
+    const space = w - left.length - right.length;
+    return left + ' '.repeat(Math.max(1, space)) + right;
+  };
+
+  // Group by publisher
+  const byPublisher = new Map<string, import('@/types/books').Book[]>();
+  for (const b of books) {
+    const key = b.publisher || 'Unknown';
+    if (!byPublisher.has(key)) byPublisher.set(key, []);
+    byPublisher.get(key)!.push(b);
+  }
+  const sorted = [...byPublisher.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+  push(ESCPOS.init());
+  push(ESCPOS.alignCenter());
+  if (logoChunks && logoChunks.length > 0) {
+    push(...logoChunks);
+    push(ESCPOS.feed(1));
+  }
+  push(ESCPOS.doubleSize(true));
+  text('GRAMAKAM');
+  push(ESCPOS.doubleSize(false));
+  text('Book Festival 2026');
+  text('Velur, Thrissur, Kerala');
+  push(ESCPOS.feed(1));
+
+  push(ESCPOS.alignLeft());
+  push(ESCPOS.line('=', width));
+  push(ESCPOS.bold(true));
+  text('Out-of-Stock Books');
+  push(ESCPOS.bold(false));
+  text(new Date().toLocaleString('en-IN'));
+  push(ESCPOS.line('=', width));
+
+  if (books.length === 0) {
+    push(ESCPOS.alignCenter());
+    text('No out-of-stock books');
+    push(ESCPOS.alignLeft());
+  } else {
+    for (const [pub, list] of sorted) {
+      push(ESCPOS.bold(true));
+      const pubTrunc = pub.length > width - 2 ? pub.slice(0, width - 3) + '\u2026' : pub;
+      text(pubTrunc);
+      push(ESCPOS.bold(false));
+      push(ESCPOS.line('-', width));
+      for (const b of list) {
+        const priceStr = `Rs.${b.price.toFixed(0)}`;
+        const maxLen = width - priceStr.length - 2;
+        const title = b.title.length > maxLen ? b.title.slice(0, maxLen - 1) + '\u2026' : b.title;
+        text(padRight(title, priceStr));
+        if (b.localTitle) {
+          // indent local title on next line
+          const lt = b.localTitle.length > width - 2 ? b.localTitle.slice(0, width - 3) + '\u2026' : b.localTitle;
+          push(ESCPOS.text('  ' + lt + '\n'));
+        }
+      }
+      push(ESCPOS.feed(1));
+    }
+    push(ESCPOS.line('=', width));
+    push(ESCPOS.bold(true));
+    text(padRight(`${books.length} books`, `${sorted.length} pub`));
+    push(ESCPOS.bold(false));
+  }
+
+  push(ESCPOS.feed(3));
+  push(ESCPOS.cut());
+  return chunks;
+}
+
+function buildOutOfStockHtml(books: import('@/types/books').Book[]): string {
+  const date = new Date().toLocaleString('en-IN');
+
+  // Group by publisher
+  const byPublisher = new Map<string, import('@/types/books').Book[]>();
+  for (const b of books) {
+    const key = b.publisher || 'Unknown';
+    if (!byPublisher.has(key)) byPublisher.set(key, []);
+    byPublisher.get(key)!.push(b);
+  }
+  const sorted = [...byPublisher.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+  const rows = sorted.map(([pub, list]) => `
+    <tr><td colspan="2" class="pub-header">${pub}</td></tr>
+    ${list.map((b, i) => `<tr class="${i % 2 === 1 ? 'alt' : ''}"><td><span class="num">${i + 1}.</span>${b.localTitle ? `<span class="local">${b.localTitle}</span><br/>` : ''}<span class="eng">${b.title}</span></td><td>&#8377;${b.price.toFixed(0)}</td></tr>`).join('')}
+    <tr><td colspan="2" style="padding:2px 0 6px"></td></tr>
+  `).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html><head><title>Out-of-Stock Books &#8212; Gramakam 2026</title>
+    <style>
+      @page { margin: 6mm; size: 80mm auto; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Courier New', monospace; padding: 8px; max-width: 80mm; margin: 0 auto; font-size: 12px; line-height: 1.5; color: #000; }
+      h1 { text-align: center; font-size: 18px; margin: 0 0 2px; }
+      h2 { text-align: center; font-size: 13px; font-weight: normal; margin: 2px 0; }
+      .center { text-align: center; margin: 2px 0; }
+      .line { border-top: 1px dashed #000; margin: 5px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      td { padding: 2px 0; font-size: 11px; vertical-align: top; }
+      td:last-child { text-align: right; white-space: nowrap; font-weight: bold; }
+      .pub-header { font-weight: bold; font-size: 12px; background: #eee; padding: 2px 3px; border-top: 1px solid #000; }
+      .alt { background: #fafafa; }
+      .num { color: #999; font-size: 10px; padding-right: 2px; }
+      .local { font-family: system-ui, sans-serif; font-size: 12px; font-weight: 600; display: block; }
+      .eng { font-size: 10px; color: #555; }
+    </style></head><body>
+      <h1>GRAMAKAM</h1>
+      <h2>Book Festival 2026</h2>
+      <p class="center" style="font-size:11px">Velur, Thrissur, Kerala</p>
+      <div class="line"></div>
+      <p style="font-weight:bold;margin:2px 0">Out-of-Stock Books</p>
+      <p style="font-size:10px;color:#555;margin:0 0 4px">${date}</p>
+      <div class="line"></div>
+      ${books.length === 0
+        ? '<p class="center">No out-of-stock books &#x1F389;</p>'
+        : `<table><tbody>${rows}</tbody></table>
+           <div class="line"></div>
+           <p style="font-weight:bold;font-size:12px">${books.length} book${books.length !== 1 ? 's' : ''} &nbsp;&middot;&nbsp; ${sorted.length} publisher${sorted.length !== 1 ? 's' : ''}</p>`}
+      <div class="line"></div>
+      <p class="center" style="font-size:11px;margin-top:6px">Gramakam 2026 &mdash; IF Creations</p>
+    </body></html>
+  `;
+}
+
+/**
+ * Print the out-of-stock book list — tries BT thermal first, falls back to browser.
+ */
+export async function printOutOfStockList(
+  allBooks: import('@/types/books').Book[],
+): Promise<PrintResult> {
+  const oos = allBooks.filter((b) => b.quantity - b.sold <= 0)
+    .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.title.localeCompare(b.title));
+
+  if (isPrinterConnected()) {
+    try {
+      const logoChunks = await loadImageAsEscposRaster('/images/gramakam-logo.png', 240);
+      const data = formatOutOfStockForPrinter(oos, 32, logoChunks ?? undefined);
+      await sendToPrinter(data);
+      return { success: true, method: 'bluetooth' };
+    } catch (e) {
+      console.warn('BT print failed, falling back to browser:', e);
+    }
+  }
+
+  try {
+    const html = buildOutOfStockHtml(oos);
+    const existing = document.getElementById('gramakam-print-frame');
+    if (existing) existing.remove();
+    const iframe = document.createElement('iframe');
+    iframe.id = 'gramakam-print-frame';
+    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:80mm;height:auto;border:none;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+      setTimeout(() => {
+        try { iframe.contentWindow?.print(); } catch { /* non-fatal */ }
+        setTimeout(() => iframe.remove(), 2000);
+      }, 300);
+    }
+    return { success: true, method: 'browser' };
+  } catch (e) {
+    return { success: false, method: 'browser', error: (e as Error).message };
+  }
+}
+
 // ==================== REQUEST LIST PRINTING ====================
 
 export interface RequestBookEntry {

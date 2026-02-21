@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download, ScanBarcode, Loader2, PackagePlus, Languages } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download, ScanBarcode, Loader2, PackagePlus, Languages, Printer } from 'lucide-react';
 import type { Book, OCRLine } from '@/types/books';
 import { transliterateDebounced } from '@/lib/transliterate';
 import {
@@ -17,6 +17,7 @@ import {
   findBookByIsbn,
   onDataChange,
 } from '@/lib/bookStore';
+import { printOutOfStockList, isPrinterConnected } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
 export default function InventoryPanel() {
@@ -31,6 +32,23 @@ export default function InventoryPanel() {
   const [fetchingISBN, setFetchingISBN] = useState(false);
   const [restockingId, setRestockingId] = useState<string | null>(null);
   const [restockQty, setRestockQty] = useState('');
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printMsg, setPrintMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function handlePrintOos() {
+    setIsPrinting(true);
+    setPrintMsg(null);
+    const result = await printOutOfStockList(getBooks());
+    setIsPrinting(false);
+    const via = result.method === 'bluetooth' ? '(via Bluetooth)' : '(via browser)';
+    if (result.success) {
+      const oosCount = getBooks().filter((b) => b.quantity - b.sold <= 0).length;
+      setPrintMsg({ ok: true, text: `Printed ${oosCount} out-of-stock book${oosCount !== 1 ? 's' : ''} ${via}` });
+    } else {
+      setPrintMsg({ ok: false, text: result.error ?? 'Print failed' });
+    }
+    setTimeout(() => setPrintMsg(null), 4000);
+  }
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -244,8 +262,43 @@ export default function InventoryPanel() {
           <button onClick={() => { setShowOCR(!showOCR); setShowForm(false); setShowImport(false); setShowBarcode(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
             <Camera size={16} /> Scan List
           </button>
+          <button
+            onClick={handlePrintOos}
+            disabled={isPrinting}
+            title={isPrinterConnected() ? 'Print out-of-stock list via Bluetooth' : 'Print out-of-stock list via browser'}
+            className={`px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors border ${
+              isPrinting
+                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                : isPrinterConnected()
+                ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100'
+                : 'border-gray-200 text-gray-600 bg-white hover:bg-gray-50'
+            }`}
+          >
+            <Printer size={16} className={isPrinting ? 'animate-pulse' : ''} />
+            {isPrinting ? 'Printing…' : 'Out of Stock'}
+          </button>
         </div>
       </div>
+
+      {/* Print status toast */}
+      <AnimatePresence>
+        {printMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+            className={`mb-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold ${
+              printMsg.ok
+                ? 'bg-green-50 text-green-700 border border-green-200'
+                : 'bg-red-50 text-red-700 border border-red-200'
+            }`}
+          >
+            <Printer size={14} />
+            {printMsg.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Search */}
       <div className="relative mb-6">
