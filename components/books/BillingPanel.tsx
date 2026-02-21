@@ -423,15 +423,28 @@ export default function BillingPanel() {
     return unsub;
   }, [reload]);
 
-  // Live search — also matches ISBN (includes out-of-stock books)
+  // Live search — smart multi-term: split by spaces, each term must match at least one field
+  // Supports: name, price, publisher, ISBN, and combos like "150 DC" or "novel penguin"
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
       return;
     }
-    const q = query.toLowerCase();
+    const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
     const matched = books
-      .filter((b) => b.title.toLowerCase().includes(q) || b.localTitle?.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q) || b.isbn?.toLowerCase().includes(q))
+      .filter((b) => {
+        const fields = [
+          b.title.toLowerCase(),
+          b.localTitle?.toLowerCase() || '',
+          b.publisher.toLowerCase(),
+          b.isbn?.toLowerCase() || '',
+          b.price.toString(),
+          b.category?.toLowerCase() || '',
+        ];
+        return terms.every((term) =>
+          fields.some((f) => f.includes(term))
+        );
+      })
       // Sort: in-stock first, then out-of-stock
       .sort((a, b) => {
         const aStock = a.quantity - a.sold > 0 ? 0 : 1;
@@ -1288,7 +1301,7 @@ export default function BillingPanel() {
           <input
             ref={searchRef}
             type="text"
-            placeholder="Search book title, publisher, or ISBN..."
+            placeholder="Search by name, price, publisher, ISBN..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full pl-12 pr-4 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-maroon focus:border-maroon outline-none bg-white shadow-sm"
