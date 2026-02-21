@@ -529,7 +529,7 @@ export default function BillingPanel() {
       customerPhone || undefined,
       status,
       paymentMethod,
-      paymentMethod === 'upi' ? upiTxnId || undefined : undefined,
+      undefined, // UPI txn ID entered after payment via bill receipt
       upiStatus
     );
     if (bill) {
@@ -1704,24 +1704,6 @@ export default function BillingPanel() {
               </button>
             </div>
 
-            {/* UPI Txn ID — shown only when UPI is selected */}
-            {paymentMethod === 'upi' && (
-              <div className="mt-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <p className="text-xs font-semibold text-gray-500">UPI Transaction ID (last 5 digits)</p>
-                  <span className="text-[10px] text-gray-400">optional</span>
-                </div>
-                <input
-                  type="text"
-                  maxLength={5}
-                  value={upiTxnId}
-                  onChange={(e) => setUpiTxnId(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                  placeholder="e.g. 84392"
-                  className="w-full px-4 py-2.5 border-2 border-blue-200 bg-blue-50/50 rounded-xl text-sm font-mono focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100/50 placeholder-blue-300"
-                />
-              </div>
-            )}
-
             {/* Cash Change Calculator — shown only when Cash is selected */}
             {paymentMethod === 'cash' && cart.length > 0 && (
               <div className="mt-3 bg-green-50/60 border-2 border-green-200 rounded-xl p-3">
@@ -1914,6 +1896,61 @@ export default function BillingPanel() {
                   <img src={billQr} alt="UPI QR" className="w-36 h-36 mx-auto" />
                   <p className="text-xs text-gray-400 mt-1">9400186188@cnrb</p>
                   <p className="text-sm font-bold text-charcoal">₹{lastBill.grandTotal.toFixed(2)}</p>
+                </div>
+              )}
+
+              {/* UPI Txn ID & Pending — shown after QR on bill receipt for UPI payments */}
+              {lastBill.paymentMethod === 'upi' && (
+                <div className="px-6 py-4 border-t border-gray-100">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-semibold text-blue-600">UPI Transaction ID (last 5 digits)</p>
+                    <span className="text-[10px] text-gray-400">optional</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={5}
+                      value={upiTxnId}
+                      onChange={(e) => setUpiTxnId(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                      placeholder="e.g. 84392"
+                      className="flex-1 px-3 py-2 border-2 border-blue-200 bg-blue-50/50 rounded-xl text-sm font-mono focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100/50 placeholder-blue-300"
+                    />
+                    <button
+                      onClick={() => {
+                        if (upiTxnId) {
+                          const updated = updateBillUpi(lastBill.id, upiTxnId, 'completed');
+                          if (updated) setLastBill(updated);
+                          reload();
+                        }
+                      }}
+                      disabled={!upiTxnId}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                    >
+                      <Save size={13} /> Save
+                    </button>
+                  </div>
+                  {lastBill.upiTxnId && (
+                    <p className="text-[11px] text-green-600 font-medium mt-1.5 flex items-center gap-1">
+                      <CheckCircle size={10} /> Saved: •••{lastBill.upiTxnId}
+                    </p>
+                  )}
+                  {/* Mark UPI Pending / Completed toggle */}
+                  <button
+                    onClick={() => {
+                      const newStatus = lastBill.upiStatus === 'pending' ? 'completed' : 'pending';
+                      const updated = updateBillUpi(lastBill.id, lastBill.upiTxnId || upiTxnId || undefined, newStatus);
+                      if (updated) setLastBill(updated);
+                      reload();
+                    }}
+                    className={`w-full mt-3 py-2.5 rounded-xl text-xs font-semibold border-2 transition-colors flex items-center justify-center gap-1.5 ${
+                      lastBill.upiStatus === 'pending'
+                        ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                        : 'bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100'
+                    }`}
+                  >
+                    <Clock size={14} />
+                    {lastBill.upiStatus === 'pending' ? 'Mark as Completed' : 'Mark as UPI Pending'}
+                  </button>
                 </div>
               )}
 
