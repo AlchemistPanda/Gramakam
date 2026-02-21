@@ -12,6 +12,7 @@ import {
   deleteBook,
   searchBooks,
   getPublishers,
+  addPublisher,
   findBookByIsbn,
   onDataChange,
 } from '@/lib/bookStore';
@@ -34,6 +35,10 @@ export default function InventoryPanel() {
   const [title, setTitle] = useState('');
   const [localTitle, setLocalTitle] = useState('');
   const [publisher, setPublisher] = useState('');
+  const [publisherQuery, setPublisherQuery] = useState('');
+  const [showPublisherDropdown, setShowPublisherDropdown] = useState(false);
+  const pubInputRef = useRef<HTMLInputElement>(null);
+  const pubDropdownRef = useRef<HTMLDivElement>(null);
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [category, setCategory] = useState('');
@@ -53,7 +58,7 @@ export default function InventoryPanel() {
   }, [query]);
 
   const resetForm = () => {
-    setTitle(''); setLocalTitle(''); setPublisher(''); setPrice(''); setQuantity(''); setCategory(''); setIsbn('');
+    setTitle(''); setLocalTitle(''); setPublisher(''); setPublisherQuery(''); setPrice(''); setQuantity(''); setCategory(''); setIsbn('');
     setEditingId(null); setShowForm(false);
   };
 
@@ -83,6 +88,7 @@ export default function InventoryPanel() {
     setTitle(book.title);
     setLocalTitle(book.localTitle || '');
     setPublisher(book.publisher);
+    setPublisherQuery(book.publisher);
     setPrice(book.price.toString());
     setQuantity(book.quantity.toString());
     setCategory(book.category || '');
@@ -112,6 +118,7 @@ export default function InventoryPanel() {
         console.log('✅ Found in local database:', localBook.title);
         setTitle(localBook.title);
         setPublisher(localBook.publisher);
+        setPublisherQuery(localBook.publisher);
         setCategory(localBook.category || '');
         setPrice(localBook.price.toString());
         setFetchingISBN(false);
@@ -129,7 +136,7 @@ export default function InventoryPanel() {
         if (info.categories?.length && !category) setCategory(info.categories[0]);
         if (info.publisher) {
           const match = publishers.find((p) => p.toLowerCase() === info.publisher.toLowerCase());
-          if (match && !publisher) setPublisher(match);
+          if (match && !publisher) { setPublisher(match); setPublisherQuery(match); }
         }
         setFetchingISBN(false);
         return;
@@ -150,7 +157,7 @@ export default function InventoryPanel() {
         if (book.publishers && book.publishers.length > 0) {
           const pubName = book.publishers[0].name;
           const match = publishers.find((p) => p.toLowerCase() === pubName.toLowerCase());
-          if (match && !publisher) setPublisher(match);
+          if (match && !publisher) { setPublisher(match); setPublisherQuery(match); }
         }
         setFetchingISBN(false);
         return;
@@ -256,15 +263,93 @@ export default function InventoryPanel() {
                   <input type="text" placeholder="പുസ്തകത്തിന്റെ പേര് — Local Language Title (optional)" value={localTitle} onChange={(e) => setLocalTitle(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" style={{ fontFamily: 'system-ui, sans-serif' }} />
                 </div>
-                <div className="relative">
-                  <select value={publisher} onChange={(e) => setPublisher(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none appearance-none bg-white" required>
-                    <option value="">Select Publisher *</option>
-                    {publishers.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                    <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </div>
+                <div className="relative" ref={pubDropdownRef}>
+                  <input
+                    ref={pubInputRef}
+                    type="text"
+                    placeholder="Publisher * (type to search or create)"
+                    value={publisherQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPublisherQuery(val);
+                      setShowPublisherDropdown(true);
+                      // Auto-select if exact match exists
+                      const exact = publishers.find((p) => p.toLowerCase() === val.toLowerCase());
+                      setPublisher(exact || '');
+                    }}
+                    onFocus={() => setShowPublisherDropdown(true)}
+                    onBlur={() => {
+                      // Delay to allow click on dropdown items
+                      setTimeout(() => setShowPublisherDropdown(false), 200);
+                    }}
+                    className={`w-full px-4 py-3 border rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none ${
+                      publisher ? 'border-green-300 bg-green-50/30' : publisherQuery ? 'border-orange-300 bg-orange-50/30' : 'border-gray-200'
+                    }`}
+                    required
+                    autoComplete="off"
+                  />
+                  {publisher && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                      <CheckCircle size={16} />
+                    </span>
+                  )}
+                  {publisherQuery && !publisher && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = publisherQuery.trim();
+                        if (!trimmed) return;
+                        // Guard: don't overwrite if already exists (case-insensitive)
+                        const exists = publishers.find((p) => p.toLowerCase() === trimmed.toLowerCase());
+                        if (exists) {
+                          setPublisher(exists);
+                          setPublisherQuery(exists);
+                          return;
+                        }
+                        addPublisher(trimmed, 0);
+                        setPublisher(trimmed);
+                        setPublisherQuery(trimmed);
+                        setShowPublisherDropdown(false);
+                        reload();
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-orange-500 hover:bg-orange-600 text-white text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <Plus size={12} /> Create
+                    </button>
+                  )}
+                  <AnimatePresence>
+                    {showPublisherDropdown && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                        className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto"
+                      >
+                        {publishers
+                          .filter((p) => !publisherQuery || p.toLowerCase().includes(publisherQuery.toLowerCase()))
+                          .map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setPublisher(p);
+                                setPublisherQuery(p);
+                                setShowPublisherDropdown(false);
+                              }}
+                              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-maroon/5 transition-colors ${
+                                publisher === p ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        {publishers.filter((p) => !publisherQuery || p.toLowerCase().includes(publisherQuery.toLowerCase())).length === 0 && publisherQuery.trim() && (
+                          <div className="px-4 py-3 text-sm text-gray-400">
+                            No match — click <strong className="text-orange-600">Create</strong> to add &ldquo;{publisherQuery.trim()}&rdquo;
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <input type="text" placeholder="Category (optional)" value={category} onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" />
