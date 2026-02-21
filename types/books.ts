@@ -69,6 +69,7 @@ export interface BookRequest {
   phone: string;
   bookTitle: string;        // English title (may be free-text if not in inventory)
   bookId?: string;          // Inventory Book.id if matched from inventory
+  additionalBooks?: { bookTitle: string; bookId?: string }[]; // extra books requested by same customer
   address?: string;         // optional delivery / contact address
   notes?: string;           // any other notes
   status: 'pending' | 'fulfilled';

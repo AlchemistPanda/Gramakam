@@ -29,8 +29,17 @@ import type { BookRequest } from '@/types/books';
 function buildWhatsAppUrl(req: BookRequest): string {
   const clean = req.phone.replace(/\D/g, '');
   const number = clean.startsWith('91') ? clean : `91${clean}`;
+  const allTitles = [
+    req.bookTitle,
+    ...(req.additionalBooks?.map((b) => b.bookTitle) ?? []),
+  ];
+  const bookList =
+    allTitles.length === 1
+      ? `the book *${allTitles[0]}*`
+      : `the following books:\n${allTitles.map((t) => `• *${t}*`).join('\n')}`;
+  const verb = allTitles.length === 1 ? 'is' : 'are';
   const msg = encodeURIComponent(
-    `Hi ${req.customerName}! 📚 Great news — the book *${req.bookTitle}* is now back in stock at Gramakam 2026!\n\nCome pick it up or reply here to arrange delivery.\n\n— Gramakam Team`
+    `Hi ${req.customerName}! 📚 Great news — ${bookList} ${verb} now back in stock at Gramakam 2026!\n\nCome pick it up or reply here to arrange delivery.\n\n— Gramakam Team`
   );
   return `https://wa.me/${number}?text=${msg}`;
 }
@@ -231,17 +240,17 @@ function AddRequestForm({
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
-  const [bookInput, setBookInput] = useState('');
-  const [selectedBookId, setSelectedBookId] = useState<string | undefined>();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  type BookEntry = { input: string; id?: string };
+  const [bookEntries, setBookEntries] = useState<BookEntry[]>([{ input: '' }]);
+  const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
   const [error, setError] = useState('');
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Close dropdown on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
+      if (dropdownRefs.current.every((ref) => !ref || !ref.contains(e.target as Node))) {
+        setActiveDropdown(null);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -249,23 +258,23 @@ function AddRequestForm({
   }, []);
 
   const allBooks = getBooks();
-  const suggestions = bookInput.trim().length >= 1
-    ? allBooks.filter((b) =>
-        b.title.toLowerCase().includes(bookInput.toLowerCase()) ||
-        (b.localTitle && b.localTitle.includes(bookInput))
-      ).slice(0, 8)
-    : [];
 
-  function handleBookSelect(title: string, id: string) {
-    setBookInput(title);
-    setSelectedBookId(id);
-    setDropdownOpen(false);
+  function handleBookSelect(idx: number, title: string, id: string) {
+    setBookEntries((prev) => prev.map((e, i) => (i === idx ? { input: title, id } : e)));
+    setActiveDropdown(null);
   }
 
-  function handleBookTyping(val: string) {
-    setBookInput(val);
-    setSelectedBookId(undefined); // clear match if user edits
-    setDropdownOpen(true);
+  function handleBookTyping(idx: number, val: string) {
+    setBookEntries((prev) => prev.map((e, i) => (i === idx ? { input: val, id: undefined } : e)));
+    setActiveDropdown(idx);
+  }
+
+  function addBookEntry() {
+    setBookEntries((prev) => [...prev, { input: '' }]);
+  }
+
+  function removeBookEntry(idx: number) {
+    setBookEntries((prev) => prev.filter((_, i) => i !== idx));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -274,18 +283,23 @@ function AddRequestForm({
 
     const trimName = name.trim();
     const trimPhone = phone.trim();
-    const trimBook = bookInput.trim();
 
     if (!trimName) { setError('Customer name is required.'); return; }
     if (!trimPhone) { setError('Phone number is required.'); return; }
     if (!normaliseIndianMobile(trimPhone)) { setError('Enter a valid 10-digit Indian mobile number (starts with 6–9).'); return; }
-    if (!trimBook) { setError('Book title is required.'); return; }
 
+    const validEntries = bookEntries.filter((e) => e.input.trim());
+    if (validEntries.length === 0) { setError('At least one book title is required.'); return; }
+
+    const [firstBook, ...restBooks] = validEntries;
     addRequest({
       customerName: trimName,
       phone: trimPhone,
-      bookTitle: trimBook,
-      bookId: selectedBookId,
+      bookTitle: firstBook.input.trim(),
+      bookId: firstBook.id,
+      additionalBooks: restBooks.length > 0
+        ? restBooks.map((e) => ({ bookTitle: e.input.trim(), bookId: e.id }))
+        : undefined,
       address: address.trim() || undefined,
       notes: notes.trim() || undefined,
     });
@@ -353,85 +367,123 @@ function AddRequestForm({
           </div>
         </div>
 
-        {/* Book name — combobox */}
-        <div ref={dropdownRef} className="relative">
-          <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-            Book Title <span className="text-red-500">*</span>
-            <span className="ml-1.5 font-normal text-gray-400">(type to search inventory or enter manually)</span>
+        {/* Book entries — one per book, one person can request multiple */}
+        <div className="space-y-3">
+          <label className="block text-xs font-semibold text-gray-600">
+            Book(s) Requested <span className="text-red-500">*</span>
+            <span className="ml-1.5 font-normal text-gray-400">(search inventory or type manually)</span>
           </label>
-          <div className="relative">
-            <BookOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              value={bookInput}
-              onChange={(e) => handleBookTyping(e.target.value)}
-              onFocus={() => bookInput.trim() && setDropdownOpen(true)}
-              placeholder="Search inventory or type book name…"
-              className="w-full pl-8 pr-9 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-maroon/60 bg-gray-50 focus:bg-white transition-colors"
-            />
-            {bookInput && (
-              <button
-                type="button"
-                onClick={() => { setBookInput(''); setSelectedBookId(undefined); setDropdownOpen(false); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
 
-          {/* Matched from inventory badge */}
-          {selectedBookId && (
-            <p className="mt-1 text-[11px] text-green-700 font-semibold flex items-center gap-1">
-              <CheckCircle size={11} />
-              Matched from inventory
-            </p>
-          )}
-          {bookInput && !selectedBookId && (
-            <p className="mt-1 text-[11px] text-amber-600 font-medium">
-              Not in inventory — will be saved as free text
-            </p>
-          )}
+          {bookEntries.map((entry, idx) => {
+            const suggestions = entry.input.trim().length >= 1
+              ? allBooks.filter((b) =>
+                  b.title.toLowerCase().includes(entry.input.toLowerCase()) ||
+                  (b.localTitle && b.localTitle.includes(entry.input))
+                ).slice(0, 8)
+              : [];
 
-          {/* Dropdown suggestions */}
-          <AnimatePresence>
-            {dropdownOpen && suggestions.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.1 }}
-                className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto"
-              >
-                {suggestions.map((b) => {
-                  const remaining = b.quantity - b.sold;
-                  return (
+            return (
+              <div key={idx} ref={(el) => { dropdownRefs.current[idx] = el; }} className="relative">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <BookOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input
+                      value={entry.input}
+                      onChange={(e) => handleBookTyping(idx, e.target.value)}
+                      onFocus={() => entry.input.trim() && setActiveDropdown(idx)}
+                      placeholder={bookEntries.length > 1 ? `Book #${idx + 1}…` : 'Search inventory or type book name…'}
+                      className="w-full pl-8 pr-9 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-maroon/60 bg-gray-50 focus:bg-white transition-colors"
+                    />
+                    {entry.input && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookEntries((prev) => prev.map((e, i) => (i === idx ? { input: '', id: undefined } : e)));
+                          setActiveDropdown(null);
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  {bookEntries.length > 1 && (
                     <button
                       type="button"
-                      key={b.id}
-                      onClick={() => handleBookSelect(b.title, b.id)}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0"
+                      onClick={() => removeBookEntry(idx)}
+                      title="Remove this book"
+                      className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-charcoal">{b.title}</p>
-                          {b.localTitle && (
-                            <p className="text-xs text-gray-500 mt-0.5">{b.localTitle}</p>
-                          )}
-                        </div>
-                        <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          remaining === 0 ? 'bg-red-100 text-red-700' :
-                          remaining <= 3  ? 'bg-amber-100 text-amber-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {remaining === 0 ? 'Out of stock' : `${remaining} left`}
-                        </span>
-                      </div>
+                      <Trash2 size={14} />
                     </button>
-                  );
-                })}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  )}
+                </div>
+
+                {/* Status hints */}
+                {entry.id && (
+                  <p className="mt-1 text-[11px] text-green-700 font-semibold flex items-center gap-1">
+                    <CheckCircle size={11} /> Matched from inventory
+                  </p>
+                )}
+                {entry.input && !entry.id && (
+                  <p className="mt-1 text-[11px] text-amber-600 font-medium">
+                    Not in inventory — will be saved as free text
+                  </p>
+                )}
+
+                {/* Dropdown suggestions */}
+                <AnimatePresence>
+                  {activeDropdown === idx && suggestions.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.1 }}
+                      className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto"
+                    >
+                      {suggestions.map((b) => {
+                        const remaining = b.quantity - b.sold;
+                        return (
+                          <button
+                            type="button"
+                            key={b.id}
+                            onClick={() => handleBookSelect(idx, b.title, b.id)}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-charcoal">{b.title}</p>
+                                {b.localTitle && (
+                                  <p className="text-xs text-gray-500 mt-0.5">{b.localTitle}</p>
+                                )}
+                              </div>
+                              <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                remaining === 0 ? 'bg-red-100 text-red-700' :
+                                remaining <= 3  ? 'bg-amber-100 text-amber-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {remaining === 0 ? 'Out of stock' : `${remaining} left`}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+
+          {/* Add another book */}
+          <button
+            type="button"
+            onClick={addBookEntry}
+            className="flex items-center gap-1.5 text-xs font-semibold text-maroon hover:text-maroon/80 transition-colors"
+          >
+            <Plus size={13} />
+            Add another book
+          </button>
         </div>
 
         {/* Address */}
@@ -663,13 +715,33 @@ function RequestCard({
 
         {/* Details */}
         <div className="mt-3 space-y-1.5">
-          <div className="flex items-center gap-2 text-sm">
-            <BookOpen size={13} className="text-maroon shrink-0" />
-            <span className="font-semibold text-charcoal">{req.bookTitle}</span>
-            {req.bookId && (
-              <span className="text-[10px] text-green-600 font-semibold bg-green-50 px-1.5 py-0.5 rounded-full">inventory</span>
-            )}
-          </div>
+          {(() => {
+            const allReqBooks = [
+              { bookTitle: req.bookTitle, bookId: req.bookId },
+              ...(req.additionalBooks ?? []),
+            ];
+            return allReqBooks.length === 1 ? (
+              <div className="flex items-center gap-2 text-sm">
+                <BookOpen size={13} className="text-maroon shrink-0" />
+                <span className="font-semibold text-charcoal">{req.bookTitle}</span>
+                {req.bookId && (
+                  <span className="text-[10px] text-green-600 font-semibold bg-green-50 px-1.5 py-0.5 rounded-full">inventory</span>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {allReqBooks.map((b, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <BookOpen size={13} className={`shrink-0 ${i === 0 ? 'text-maroon' : 'text-gray-300'}`} />
+                    <span className="font-semibold text-charcoal">{b.bookTitle}</span>
+                    {b.bookId && (
+                      <span className="text-[10px] text-green-600 font-semibold bg-green-50 px-1.5 py-0.5 rounded-full">inventory</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Phone size={13} className="text-gray-400 shrink-0" />
