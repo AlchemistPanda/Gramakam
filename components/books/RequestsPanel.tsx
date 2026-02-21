@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, CheckCircle, Phone, MapPin, BookOpen,
-  Search, X, MessageCircle, User, StickyNote, AlertTriangle,
+  Search, X, MessageCircle, User, StickyNote, AlertTriangle, Printer,
 } from 'lucide-react';
 
 /* ── Indian mobile number validator ────────────────────────── */
@@ -23,6 +23,7 @@ import {
   updateRequestStatus,
   onDataChange,
 } from '@/lib/bookStore';
+import { printRequestList, isPrinterConnected } from '@/lib/billPrinter';
 import type { BookRequest } from '@/types/books';
 
 /* ── WhatsApp helper ─────────────────────────────────── */
@@ -52,6 +53,23 @@ export default function RequestsPanel() {
   const [showForm, setShowForm] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [pendingAction, setPendingAction] = useState<{ type: 'delete' | 'fulfill'; id: string } | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printMsg, setPrintMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function handlePrint() {
+    setIsPrinting(true);
+    setPrintMsg(null);
+    const label = filter === 'all' ? 'All' : filter === 'pending' ? 'Pending' : 'Fulfilled';
+    const result = await printRequestList(filtered, label);
+    setIsPrinting(false);
+    const via = result.method === 'bluetooth' ? '(via Bluetooth)' : '(via browser)';
+    if (result.success) {
+      setPrintMsg({ ok: true, text: `Printed ${via}` });
+    } else {
+      setPrintMsg({ ok: false, text: result.error ?? 'Print failed' });
+    }
+    setTimeout(() => setPrintMsg(null), 3000);
+  }
 
   // Refresh whenever store changes
   useEffect(() => {
@@ -105,14 +123,53 @@ export default function RequestsPanel() {
             Collect customer details when a book is out of stock — notify via WhatsApp when restocked.
           </p>
         </div>
-        <button
-          onClick={() => setShowForm((p) => !p)}
-          className="flex items-center gap-2 bg-maroon text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:bg-maroon/90 transition-colors"
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Cancel' : 'New Request'}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Print button */}
+          <button
+            onClick={handlePrint}
+            disabled={isPrinting || filtered.length === 0}
+            title={isPrinterConnected() ? 'Print via Bluetooth' : 'Print via browser'}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+              isPrinting || filtered.length === 0
+                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                : isPrinterConnected()
+                ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100'
+                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Printer size={15} className={isPrinting ? 'animate-pulse' : ''} />
+            <span className="hidden sm:inline">{isPrinting ? 'Printing…' : 'Print List'}</span>
+          </button>
+
+          <button
+            onClick={() => setShowForm((p) => !p)}
+            className="flex items-center gap-2 bg-maroon text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:bg-maroon/90 transition-colors"
+          >
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? 'Cancel' : 'New Request'}
+          </button>
+        </div>
       </div>
+
+      {/* Print status toast */}
+      <AnimatePresence>
+        {printMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold ${
+              printMsg.ok
+                ? 'bg-green-50 text-green-700 border border-green-200'
+                : 'bg-red-50 text-red-700 border border-red-200'
+            }`}
+          >
+            <Printer size={14} />
+            {printMsg.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add Request form */}
       <AnimatePresence>

@@ -633,6 +633,145 @@ function windowPrintFallback(bill: Bill, html: string): void {
   printWindow.document.close();
 }
 
+// ==================== REQUEST LIST PRINTING ====================
+
+export interface RequestBookEntry {
+  title: string;
+  count: number; // how many customers requested it
+}
+
+/** Flatten all book titles from a list of requests, group by title, sort by count desc */
+export function aggregateRequestedBooks(
+  requests: import('@/types/books').BookRequest[],
+): RequestBookEntry[] {
+  const map = new Map<string, number>();
+  for (const req of requests) {
+    const titles = [req.bookTitle, ...(req.additionalBooks?.map((b) => b.bookTitle) ?? [])];
+    for (const t of titles) {
+      const key = t.trim();
+      if (key) map.set(key, (map.get(key) ?? 0) + 1);
+    }
+  }
+  return [...map.entries()]
+    .map(([title, count]) => ({ title, count }))
+    .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+}
+
+function formatRequestListForPrinter(
+  entries: RequestBookEntry[],
+  label: string,
+  width: number = 32,
+  logoChunks?: Uint8Array[],
+): Uint8Array[] {
+  const chunks: Uint8Array[] = [];
+  const push = (...parts: Uint8Array[]) => chunks.push(...parts);
+  const text = (s: string) => push(ESCPOS.text(s + '\n'));
+  const padRight = (left: string, right: string, w: number = width) => {
+    const space = w - left.length - right.length;
+    return left + ' '.repeat(Math.max(1, space)) + right;
+  };
+
+  push(ESCPOS.init());
+
+  // Logo
+  push(ESCPOS.alignCenter());
+  if (logoChunks && logoChunks.length > 0) {
+    push(...logoChunks);
+    push(ESCPOS.feed(1));
+  }
+
+  // Header
+  push(ESCPOS.doubleSize(true));
+  text('GRAMAKAM');
+  push(ESCPOS.doubleSize(false));
+  text('Book Festival 2026');
+  text('Velur, Thrissur, Kerala');
+  push(ESCPOS.feed(1));
+
+  push(ESCPOS.alignLeft());
+  push(ESCPOS.line('=', width));
+  push(ESCPOS.bold(true));
+  text(`${label} Request List`);
+  push(ESCPOS.bold(false));
+  text(new Date().toLocaleString('en-IN'));
+  push(ESCPOS.line('=', width));
+
+  if (entries.length === 0) {
+    push(ESCPOS.alignCenter());
+    text('No requests found');
+    push(ESCPOS.alignLeft());
+  } else {
+    push(ESCPOS.bold(true));
+    text(padRight('Book Title', 'Req'));
+    push(ESCPOS.bold(false));
+    push(ESCPOS.line('-', width));
+
+    for (const entry of entries) {
+      const countStr = `x${entry.count}`;
+      const maxLen = width - countStr.length - 2;
+      const title =
+        entry.title.length > maxLen ? entry.title.slice(0, maxLen - 1) + '\u2026' : entry.title;
+      text(padRight(title, countStr));
+    }
+
+    push(ESCPOS.line('-', width));
+    push(ESCPOS.bold(true));
+    const totalReq = entries.reduce((s, e) => s + e.count, 0);
+    text(padRight(`${entries.length} books`, `${totalReq} req`));
+    push(ESCPOS.bold(false));
+  }
+
+  push(ESCPOS.feed(3));
+  push(ESCPOS.cut());
+
+  return chunks;
+}
+
+function buildRequestListHtml(entries: RequestBookEntry[], label: string): string {
+  const date = new Date().toLocaleString('en-IN');
+  const totalBooks = entries.length;
+  const totalReq = entries.reduce((s, e) => s + e.count, 0);
+  return `
+    <!DOCTYPE html>
+    <html><head><title>Requested Books \u2014 Gramakam 2026</title>
+    <style>
+      @page { margin: 6mm; size: 80mm auto; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Courier New', monospace; padding: 8px; max-width: 80mm; margin: 0 auto; font-size: 12px; line-height: 1.5; color: #000; }
+      h1 { text-align: center; font-size: 18px; margin: 0 0 2px; }
+      h2 { text-align: center; font-size: 13px; margin: 2px 0 0; font-weight: normal; }
+      .center { text-align: center; margin: 2px 0; }
+      .line { border-top: 1px dashed #000; margin: 6px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      th { font-size: 11px; border-bottom: 1px solid #000; padding: 2px 0; text-align: left; }
+      th:last-child { text-align: right; }
+      td { padding: 2px 0; font-size: 11px; vertical-align: top; }
+      td:last-child { text-align: right; white-space: nowrap; font-weight: bold; }
+      .num { color: #888; font-size: 10px; padding-right: 3px; }
+    </style></head><body>
+      <h1>GRAMAKAM</h1>
+      <h2>Book Festival 2026</h2>
+      <p class="center" style="font-size:11px">Velur, Thrissur, Kerala</p>
+      <div class="line"></div>
+      <p style="font-weight:bold;margin:2px 0">${label} Request List</p>
+      <p style="font-size:10px;color:#555;margin:0 0 4px">${date}</p>
+      <div class="line"></div>
+      ${entries.length === 0
+        ? '<p class="center">No requests found</p>'
+        : `<table>
+        <thead><tr><th>Book Title</th><th>Req</th></tr></thead>
+        <tbody>
+          ${entries.map((e, i) => `<tr><td><span class="num">${i + 1}.</span>${e.title}</td><td>\xd7${e.count}</td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="line"></div>
+      <p style="font-weight:bold;font-size:12px">${totalBooks} book${totalBooks !== 1 ? 's' : ''} &nbsp;&middot;&nbsp; ${totalReq} request${totalReq !== 1 ? 's' : ''}</p>`}
+      <div class="line"></div>
+      <p class="center" style="font-size:11px;margin-top:6px">Gramakam 2026 &mdash; IF Creations</p>
+    </body></html>
+  `;
+}
+
 // ==================== PUBLIC API ====================
 
 export type PrintResult = { success: boolean; method: 'bluetooth' | 'browser'; error?: string };
@@ -658,6 +797,50 @@ export async function printBill(bill: Bill): Promise<PrintResult> {
   // Fallback to browser print
   try {
     await printViaBrowser(bill);
+    return { success: true, method: 'browser' };
+  } catch (e) {
+    return { success: false, method: 'browser', error: (e as Error).message };
+  }
+}
+
+/**
+ * Print a list of requested books — tries Bluetooth first, falls back to browser.
+ */
+export async function printRequestList(
+  requests: import('@/types/books').BookRequest[],
+  label: string = 'Pending',
+): Promise<PrintResult> {
+  const entries = aggregateRequestedBooks(requests);
+
+  if (isPrinterConnected()) {
+    try {
+      const logoChunks = await loadImageAsEscposRaster('/images/gramakam-logo.png', 240);
+      const data = formatRequestListForPrinter(entries, label, 32, logoChunks ?? undefined);
+      await sendToPrinter(data);
+      return { success: true, method: 'bluetooth' };
+    } catch (e) {
+      console.warn('BT print failed, falling back to browser:', e);
+    }
+  }
+
+  try {
+    const html = buildRequestListHtml(entries, label);
+    const existing = document.getElementById('gramakam-print-frame');
+    if (existing) existing.remove();
+    const iframe = document.createElement('iframe');
+    iframe.id = 'gramakam-print-frame';
+    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:80mm;height:auto;border:none;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+      setTimeout(() => {
+        try { iframe.contentWindow?.print(); } catch { /* non-fatal */ }
+        setTimeout(() => iframe.remove(), 2000);
+      }, 300);
+    }
     return { success: true, method: 'browser' };
   } catch (e) {
     return { success: false, method: 'browser', error: (e as Error).message };
