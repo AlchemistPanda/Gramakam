@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, X, Loader2, AlertCircle, SwitchCamera, Zap } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Camera, X, Loader2, AlertCircle, Zap } from 'lucide-react';
 
 interface BarcodeScannerProps {
   onScan: (isbn: string) => void;
@@ -15,6 +15,7 @@ export default function BarcodeScanner({ onScan, onClose, title = 'Scan Barcode'
   const [scanning, setScanning] = useState(false);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const scannerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const html5QrcodeRef = useRef<any>(null);
   const mountedRef = useRef(true);
 
@@ -29,7 +30,7 @@ export default function BarcodeScanner({ onScan, onClose, title = 'Scan Barcode'
         html5QrcodeRef.current.clear();
         html5QrcodeRef.current = null;
       }
-    } catch (e) {
+    } catch {
       // Ignore cleanup errors
     }
   }, []);
@@ -90,16 +91,16 @@ export default function BarcodeScanner({ onScan, onClose, title = 'Scan Barcode'
           // Scan failure (expected — fires every frame without a barcode)
         }
       );
-    } catch (err: any) {
+    } catch (err) {
       if (!mountedRef.current) return;
       setScanning(false);
       
-      if (err?.name === 'NotAllowedError' || err?.message?.includes('Permission')) {
+      if ((err as Error & { name?: string })?.name === 'NotAllowedError' || (err as Error)?.message?.includes('Permission')) {
         setError('Camera permission denied. Please allow camera access and try again.');
-      } else if (err?.name === 'NotFoundError' || err?.message?.includes('No camera')) {
+      } else if ((err as Error & { name?: string })?.name === 'NotFoundError' || (err as Error)?.message?.includes('No camera')) {
         setError('No camera found. Make sure your device has a camera.');
       } else {
-        setError(err?.message || 'Failed to start camera. Try again.');
+        setError((err as Error)?.message || 'Failed to start camera. Try again.');
       }
     }
   }, [onScan]);

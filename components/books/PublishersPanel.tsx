@@ -37,13 +37,13 @@ export default function PublishersPanel() {
     setPubStats(getPublisherStats());
   };
 
-  useEffect(() => { reload(); }, [query]);
+  useEffect(() => { reload(); }, [query]); // eslint-disable-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
 
   // Real-time sync
   useEffect(() => {
     const unsub = onDataChange(() => reload());
     return unsub;
-  }, [query]);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetForm = () => {
     setName('');

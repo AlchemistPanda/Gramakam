@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Trash2, CheckCircle, Clock, Phone, MapPin, BookOpen,
-  Search, X, MessageCircle, User, StickyNote, ChevronDown, AlertTriangle, Lock,
+  Plus, Trash2, CheckCircle, Phone, MapPin, BookOpen,
+  Search, X, MessageCircle, User, StickyNote, AlertTriangle,
 } from 'lucide-react';
 
 /* ── Indian mobile number validator ────────────────────────── */
@@ -46,6 +46,7 @@ export default function RequestsPanel() {
 
   // Refresh whenever store changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRequests(getRequests());
     setFirestoreError(getRequestsFirestoreError());
     const unsub = onDataChange(() => {

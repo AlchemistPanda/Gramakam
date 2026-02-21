@@ -61,7 +61,7 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Helper: connect GATT with retries (handles "GATT Server is disconnected" race condition)
 async function connectGATTWithRetry(device: BluetoothDevice, maxRetries: number = 3): Promise<BluetoothRemoteGATTServer> {
-  let lastError: any;
+  let lastError: unknown;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`GATT connect attempt ${attempt}/${maxRetries}...`);
@@ -73,9 +73,9 @@ async function connectGATTWithRetry(device: BluetoothDevice, maxRetries: number 
         throw new Error('GATT Server disconnected immediately after connect');
       }
       return server;
-    } catch (e: any) {
+    } catch (e) {
       lastError = e;
-      console.warn(`GATT connect attempt ${attempt} failed:`, e.message);
+      console.warn(`GATT connect attempt ${attempt} failed:`, (e as Error).message);
       if (attempt < maxRetries) {
         // Disconnect cleanly before retry
         try { device.gatt?.disconnect(); } catch {}
@@ -113,10 +113,10 @@ async function discoverCharacteristic(device: BluetoothDevice, server: Bluetooth
         continue;
       }
     }
-  } catch (e: any) {
-    console.warn('getPrimaryServices failed:', e.message);
+  } catch (e) {
+    console.warn('getPrimaryServices failed:', (e as Error).message);
     // If GATT disconnected during discovery, reconnect and retry
-    if (e.message?.includes('GATT') || e.message?.includes('disconnected')) {
+    if ((e as Error).message?.includes('GATT') || (e as Error).message?.includes('disconnected')) {
       console.log('Reconnecting GATT for service discovery...');
       try { device.gatt?.disconnect(); } catch {}
       await delay(1000);
@@ -193,17 +193,17 @@ export async function connectPrinter(): Promise<{ success: boolean; name?: strin
     }
 
     return { success: true, name };
-  } catch (e: any) {
-    if (e.name === 'NotFoundError') {
+  } catch (e) {
+    if ((e as Error & { name?: string }).name === 'NotFoundError') {
       return {
         success: false,
         error: 'No device selected. Note: Web Bluetooth only detects BLE printers. Most cheap thermal printers use Classic Bluetooth and won\'t appear in the list. Use the browser print option instead — it works with any printer connected to your phone/PC.'
       };
     }
-    if (e.name === 'SecurityError') {
+    if ((e as Error & { name?: string }).name === 'SecurityError') {
       return { success: false, error: 'Bluetooth permission denied. Please allow Bluetooth access in your browser settings.' };
     }
-    return { success: false, error: e.message || 'Failed to connect' };
+    return { success: false, error: (e as Error).message || 'Failed to connect' };
   }
 }
 
@@ -488,7 +488,7 @@ async function sendToPrinter(data: Uint8Array[]): Promise<void> {
       if (!char) throw new Error('Could not rediscover printer characteristic');
       printerCharacteristic = char;
       printerConnected = true;
-    } catch (e) {
+    } catch {
       printerConnected = false;
       printerCharacteristic = null;
       throw new Error('Printer disconnected and reconnection failed. Please reconnect manually.');
@@ -649,7 +649,7 @@ export async function printBill(bill: Bill): Promise<PrintResult> {
       const data = formatBillForPrinter(bill, 32, logoChunks ?? undefined);
       await sendToPrinter(data);
       return { success: true, method: 'bluetooth' };
-    } catch (e: any) {
+    } catch (e) {
       console.warn('Bluetooth print failed, falling back to browser:', e);
       // Fall through to browser print
     }
@@ -659,8 +659,8 @@ export async function printBill(bill: Bill): Promise<PrintResult> {
   try {
     await printViaBrowser(bill);
     return { success: true, method: 'browser' };
-  } catch (e: any) {
-    return { success: false, method: 'browser', error: e.message };
+  } catch (e) {
+    return { success: false, method: 'browser', error: (e as Error).message };
   }
 }
 

@@ -12,7 +12,7 @@ import BillingPanel from './BillingPanel';
 import ReportsPanel from './ReportsPanel';
 import PublishersPanel from './PublishersPanel';
 import RequestsPanel from './RequestsPanel';
-import { getStats, getPublisherStats, getBooks, initBookStore, isStoreReady, onDataChange } from '@/lib/bookStore';
+import { getStats, getPublisherStats, getBooks, initBookStore, onDataChange } from '@/lib/bookStore';
 
 type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports' | 'requests';
 
@@ -125,8 +125,6 @@ export default function BooksDashboard({ onLogout }: Props) {
   // that network has no internet (common at festival venues). So we probe a real URL
   // every 8 seconds. If the fetch fails → truly offline.
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-
     const checkConnectivity = async () => {
       try {
         const controller = new AbortController();
@@ -142,7 +140,7 @@ export default function BooksDashboard({ onLogout }: Props) {
 
     // Immediate check then every 8 seconds
     checkConnectivity();
-    interval = setInterval(checkConnectivity, 8000);
+    const intv = setInterval(checkConnectivity, 8000);
 
     // Also use browser events for instant response when network interface drops
     const onOnline  = () => checkConnectivity();
@@ -151,7 +149,7 @@ export default function BooksDashboard({ onLogout }: Props) {
     window.addEventListener('offline', onOffline);
 
     return () => {
-      clearInterval(interval);
+      clearInterval(intv);
       window.removeEventListener('online',  onOnline);
       window.removeEventListener('offline', onOffline);
     };
@@ -175,6 +173,7 @@ export default function BooksDashboard({ onLogout }: Props) {
 
   useEffect(() => {
     if (!loading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStats(getStats());
       const ps = getPublisherStats();
       setTotalProfit(ps.reduce((s, p) => s + p.profit, 0));

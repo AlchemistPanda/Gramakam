@@ -21,7 +21,7 @@ export default function BooksPage() {
   // Restore login state from sessionStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && sessionStorage.getItem('gramakam_books_auth') === 'true') {
-      setIsLoggedIn(true);
+      setIsLoggedIn(true); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, []);
 

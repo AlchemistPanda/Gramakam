@@ -49,7 +49,7 @@ export default function Countdown({ targetDate }: CountdownProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(true); // eslint-disable-line react-hooks/set-state-in-effect
     setTimeLeft(calculateTimeLeft(targetDate));
 
     const timer = setInterval(() => {

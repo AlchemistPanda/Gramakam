@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -355,7 +356,7 @@ export default function QRGenPage() {
               <span className="ml-2 text-xs text-gray-400 font-medium hidden sm:inline">gramakam.org/qrgen</span>
             </div>
           </div>
-          <a href="/" className="text-sm text-gray-400 hover:text-gray-700 transition-colors font-medium">← gramakam.org</a>
+          <Link href="/" className="text-sm text-gray-400 hover:text-gray-700 transition-colors font-medium">← gramakam.org</Link>
         </div>
       </div>
 
@@ -544,6 +545,7 @@ export default function QRGenPage() {
                     <div className="px-5 pb-5 border-t border-gray-50">
                       {opts.logoUrl ? (
                         <div className="mt-4 flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={opts.logoUrl} alt="logo" className="w-12 h-12 rounded-lg object-contain border border-gray-200 bg-white" />
                           <div className="flex-1 text-xs text-gray-600 font-medium">Logo loaded</div>
                           <button onClick={() => set('logoUrl', null)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">

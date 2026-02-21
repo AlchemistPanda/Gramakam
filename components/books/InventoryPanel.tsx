@@ -51,13 +51,13 @@ export default function InventoryPanel() {
     setPublishers(getPublishers().map((p) => p.name));
   };
 
-  useEffect(() => { reload(); }, [query]);
+  useEffect(() => { reload(); }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-time sync: refresh when data changes from another device
   useEffect(() => {
     const unsub = onDataChange(() => reload());
     return unsub;
-  }, [query]);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetForm = () => {
     setTitle(''); setLocalTitle(''); setPublisher(''); setPublisherQuery(''); setPrice(''); setQuantity(''); setCategory(''); setIsbn('');

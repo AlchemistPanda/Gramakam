@@ -17,8 +17,6 @@ import {
   Edit,
   Eye,
   Save,
-  Upload,
-  ExternalLink,
 } from 'lucide-react';
 import {
   getGalleryItems,
@@ -216,7 +214,7 @@ function GalleryPanel() {
     setLoading(false);
   };
 
-  useEffect(() => { loadItems(); }, []);
+  useEffect(() => { loadItems(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
   const handleUpload = async (e: FormEvent) => {
     e.preventDefault();
@@ -230,7 +228,7 @@ function GalleryPanel() {
       setShowForm(false);
       setTitle(''); setCategory(''); setImageFile(null);
       await loadItems();
-    } catch (err) {
+    } catch {
       alert('Upload failed. Make sure Firebase Storage is configured.');
     }
     setUploading(false);
@@ -284,6 +282,7 @@ function GalleryPanel() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-4">
             {items.map((item) => (
               <div key={item.id} className="relative group rounded-lg overflow-hidden aspect-square">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs gap-1">
                   <span className="font-medium">{item.title}</span>
@@ -319,7 +318,7 @@ function FeedPanel() {
     setLoading(false);
   };
 
-  useEffect(() => { loadPosts(); }, []);
+  useEffect(() => { loadPosts(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
   const resetForm = () => {
     setTitle(''); setDescription(''); setEmbedUrl(''); setImageFile(null);
@@ -418,6 +417,7 @@ function FeedPanel() {
         ) : (
           posts.map((post) => (
             <div key={post.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-start gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               {post.imageUrl && <img src={post.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />}
               <div className="flex-1 min-w-0">
                 <h4 className="font-semibold text-charcoal text-sm">{post.title}</h4>
@@ -446,7 +446,7 @@ function ContactsPanel() {
     setLoading(false);
   };
 
-  useEffect(() => { loadContacts(); }, []);
+  useEffect(() => { loadContacts(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
   const handleMarkRead = async (id: string) => {
     try { await markContactRead(id); await loadContacts(); } catch {}
@@ -568,7 +568,7 @@ function MerchPanel() {
     setLoading(false);
   };
 
-  useEffect(() => { loadEntries(); }, []);
+  useEffect(() => { loadEntries(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this pre-booking?')) return;

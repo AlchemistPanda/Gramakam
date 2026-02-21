@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
-import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
-import { ShoppingBag, CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { submitPrebook } from '@/lib/services';
 
 interface MerchProduct {
@@ -127,6 +126,7 @@ export default function MerchandisePage() {
                 <div className="card bg-white h-full flex flex-col">
                   {/* Product Image */}
                   <div className="relative aspect-square bg-gray-100 overflow-hidden group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={product.images[currentImg]}
                       alt={product.name}

@@ -18,7 +18,7 @@ import {
   deleteObject,
 } from 'firebase/storage';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { db, auth, storage, isFirebaseConfigured } from './firebase';
+import { db, auth, storage } from './firebase';
 import type {
   GalleryItem,
   FeedPost,

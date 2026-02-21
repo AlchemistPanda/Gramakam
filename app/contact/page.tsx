@@ -3,7 +3,7 @@
 import { useState, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
-import { MapPin, Mail, Phone, Instagram, Facebook, Send, CheckCircle } from 'lucide-react';
+import { MapPin, Mail, Instagram, Facebook, Send, CheckCircle } from 'lucide-react';
 import { submitContact } from '@/lib/services';
 
 export default function ContactPage() {

@@ -85,7 +85,6 @@ export default function ReportsPanel() {
   const [pubStats, setPubStats] = useState<ReturnType<typeof getPublisherStats>>([]);
   const [bills, setBills] = useState<Bill[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
-  const [view, setView] = useState<'overview' | 'publisher' | 'books' | 'bills'>('overview');
 
   const reload = () => {
     setStats(getStats());

@@ -94,8 +94,8 @@ async function firestoreLib() {
 
 // Firestore rejects `undefined` values — strip them before writing.
 // This prevents silent write failures when optional fields (e.g. contact) are undefined.
-function cleanData(obj: Record<string, any>): Record<string, any> {
-  const cleaned: Record<string, any> = {};
+function cleanData(obj: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
     if (val !== undefined) cleaned[key] = val;
   }
@@ -175,6 +175,7 @@ async function fsSetMeta(): Promise<void> {
 }
 
 // Commit an array of batch operations in chunks of 500 (Firestore limit)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function commitInBatches(ops: Array<{ type: 'set' | 'delete'; ref: any; data?: any }>): Promise<void> {
   if (!db || ops.length === 0) return;
   const { writeBatch } = await firestoreLib();
@@ -201,6 +202,7 @@ async function fsBulkWrite(data: BookStoreData): Promise<void> {
       getDocs(collection(db, COL_BILLS)),
       getDocs(collection(db, COL_PUBLISHERS)),
     ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deleteOps: Array<{ type: 'set' | 'delete'; ref: any }> = [];
     oldBooks.forEach((d) => deleteOps.push({ type: 'delete', ref: d.ref }));
     oldBills.forEach((d) => deleteOps.push({ type: 'delete', ref: d.ref }));
@@ -208,6 +210,7 @@ async function fsBulkWrite(data: BookStoreData): Promise<void> {
     await commitInBatches(deleteOps);
 
     // Write new data in batches
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writeOps: Array<{ type: 'set' | 'delete'; ref: any; data?: any }> = [];
     for (const book of data.books) {
       writeOps.push({ type: 'set', ref: doc(db, COL_BOOKS, book.id), data: cleanData({ ...book }) });
@@ -449,6 +452,7 @@ export function addBooksInBulk(books: Omit<Book, 'id' | 'sold' | 'addedAt'>[]): 
     booksWritesInFlight++;
     if (newPubs.length > 0) publishersWritesInFlight++;
     firestoreLib().then(({ doc }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ops: Array<{ type: 'set' | 'delete'; ref: any; data?: any }> = [];
       for (const b of newBooks) {
         ops.push({ type: 'set', ref: doc(db!, COL_BOOKS, b.id), data: cleanData({ ...b }) });
@@ -875,8 +879,8 @@ async function loadRequestsFromFirestore(): Promise<boolean> {
     requestsFirestoreError = null;
     notifyListeners();
     return true;
-  } catch (e: any) {
-    const msg = e?.message || String(e);
+  } catch (e) {
+    const msg = (e as Error)?.message || String(e);
     console.error('Requests Firestore load failed:', msg);
     requestsFirestoreError = msg;
     notifyListeners();

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Building2, Languages } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Languages } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
 import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid, updateBillUpi, addBook, addPublisher, getPublishers } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
@@ -415,6 +415,7 @@ export default function BillingPanel() {
 
   // Check Bluetooth availability
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBtAvailable(isBluetoothAvailable());
     setBtConnected(isPrinterConnected());
     setBtName(getConnectedPrinterName() || getSavedPrinterName());
@@ -438,7 +439,7 @@ export default function BillingPanel() {
   // Supports: name, price, publisher, ISBN, and combos like "150 DC" or "novel penguin"
   useEffect(() => {
     if (!query.trim()) {
-      setResults([]);
+      setResults([]); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
     const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -696,7 +697,7 @@ export default function BillingPanel() {
   // Live search for add-item-to-edit
   useEffect(() => {
     if (!editingBill || !editSearch.trim()) {
-      setEditSearchResults([]);
+      setEditSearchResults([]); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
     const q = editSearch.toLowerCase();
@@ -767,7 +768,7 @@ export default function BillingPanel() {
   // Generate UPI QR when viewing a bill detail
   useEffect(() => {
     if (!viewingBill || viewingBill.paymentMethod === 'cash') {
-      setViewingQr('');
+      setViewingQr(''); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
     generateUpiQR(viewingBill.grandTotal, `Bill #${viewingBill.billNumber}`)
@@ -1015,6 +1016,7 @@ export default function BillingPanel() {
                   <p className="text-xs text-gray-400 mb-1">
                     {viewingBill.status === 'unpaid' ? 'Scan to Pay' : 'Paid via UPI'}
                   </p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={viewingQr} alt="UPI QR" className="w-32 h-32 mx-auto" />
                   <p className="text-xs text-gray-400 mt-1">9400186188@cnrb &middot; ₹{viewingBill.grandTotal.toFixed(2)}</p>
                 </div>
@@ -1928,6 +1930,7 @@ export default function BillingPanel() {
                   <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
                     {lastBill.status === 'unpaid' ? 'Scan to Pay' : 'Pay / Verify via UPI'}
                   </p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={billQr} alt="UPI QR" className="w-36 h-36 mx-auto" />
                   <p className="text-xs text-gray-400 mt-1">9400186188@cnrb</p>
                   <p className="text-sm font-bold text-charcoal">₹{lastBill.grandTotal.toFixed(2)}</p>
