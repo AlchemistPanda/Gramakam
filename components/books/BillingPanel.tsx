@@ -514,7 +514,7 @@ export default function BillingPanel() {
     }
   };
 
-  const handlePrint = async (bill: Bill) => {
+  const handlePrint = async (bill: Bill, skipCopyPrompt = false) => {
     setPrintStatus({ type: 'info', text: 'Printing...' });
     const result = await hybridPrint(bill);
     if (result.success) {
@@ -522,6 +522,14 @@ export default function BillingPanel() {
         type: 'success',
         text: result.method === 'bluetooth' ? `Printed via ${btName || 'Bluetooth'}` : 'Sent to browser print',
       });
+      // After successful thermal print, ask if they want a copy for record-keeping
+      if (result.method === 'bluetooth' && !skipCopyPrompt) {
+        setTimeout(() => {
+          if (confirm('Print a copy for your records?')) {
+            handlePrint(bill, true);
+          }
+        }, 400);
+      }
     } else {
       setPrintStatus({ type: 'error', text: result.error || 'Print failed' });
     }
