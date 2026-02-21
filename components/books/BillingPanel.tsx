@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Building2 } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
-import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid, updateBillUpi } from '@/lib/bookStore';
+import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid, updateBillUpi, addBook, addPublisher, getPublishers } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
 import BarcodeScanner from './BarcodeScanner';
 
@@ -354,9 +354,50 @@ export default function BillingPanel() {
   const [viewingQr, setViewingQr] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // Quick Add Book form state
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [qaTitle, setQaTitle] = useState('');
+  const [qaLocalTitle, setQaLocalTitle] = useState('');
+  const [qaPublisher, setQaPublisher] = useState('');
+  const [qaPublisherQuery, setQaPublisherQuery] = useState('');
+  const [qaShowPubDropdown, setQaShowPubDropdown] = useState(false);
+  const [qaPrice, setQaPrice] = useState('');
+  const [qaQuantity, setQaQuantity] = useState('');
+  const [qaCategory, setQaCategory] = useState('');
+  const [qaIsbn, setQaIsbn] = useState('');
+  const [qaPublishers, setQaPublishers] = useState<string[]>([]);
+  const qaPubRef = useRef<HTMLInputElement>(null);
+  const qaPubDropRef = useRef<HTMLDivElement>(null);
+
+  const resetQuickAdd = () => {
+    setQaTitle(''); setQaLocalTitle(''); setQaPublisher(''); setQaPublisherQuery('');
+    setQaPrice(''); setQaQuantity(''); setQaCategory(''); setQaIsbn('');
+    setShowQuickAdd(false);
+  };
+
+  const handleQuickAddBook = () => {
+    if (!qaTitle.trim() || !qaPublisher || !qaPrice || !qaQuantity) return;
+    const newBook = addBook({
+      title: qaTitle.trim(),
+      localTitle: qaLocalTitle.trim() || undefined,
+      publisher: qaPublisher,
+      price: parseFloat(qaPrice),
+      quantity: parseInt(qaQuantity),
+      category: qaCategory.trim() || undefined,
+      isbn: qaIsbn.trim() || undefined,
+    });
+    resetQuickAdd();
+    reload();
+    // Auto-add the new book to cart
+    if (newBook) {
+      addToCart(newBook);
+    }
+  };
+
   const reload = useCallback(() => {
     setBooks(getBooks());
     setAllBills(getBills().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    setQaPublishers(getPublishers().map((p) => p.name));
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -382,7 +423,7 @@ export default function BillingPanel() {
     return unsub;
   }, [reload]);
 
-  // Live search — also matches ISBN
+  // Live search — also matches ISBN (includes out-of-stock books)
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
@@ -390,9 +431,14 @@ export default function BillingPanel() {
     }
     const q = query.toLowerCase();
     const matched = books
-      .filter((b) => (b.quantity - b.sold) > 0)
       .filter((b) => b.title.toLowerCase().includes(q) || b.localTitle?.toLowerCase().includes(q) || b.publisher.toLowerCase().includes(q) || b.isbn?.toLowerCase().includes(q))
-      .slice(0, 8);
+      // Sort: in-stock first, then out-of-stock
+      .sort((a, b) => {
+        const aStock = a.quantity - a.sold > 0 ? 0 : 1;
+        const bStock = b.quantity - b.sold > 0 ? 0 : 1;
+        return aStock - bStock;
+      })
+      .slice(0, 10);
     setResults(matched);
   }, [query, books]);
 
@@ -1251,48 +1297,223 @@ export default function BillingPanel() {
 
           {/* Search Results Dropdown */}
           <AnimatePresence>
-            {results.length > 0 && (
+            {(results.length > 0 || (query.trim().length >= 2 && results.length === 0)) && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 z-20 overflow-hidden max-h-[400px] overflow-y-auto"
+                className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 z-20 overflow-hidden max-h-[420px] overflow-y-auto"
               >
                 {results.map((book) => {
                   const avail = book.quantity - book.sold;
+                  const outOfStock = avail <= 0;
                   return (
                     <button
                       key={book.id}
-                      onClick={() => addToCart(book)}
-                      className="w-full flex items-center justify-between px-5 py-5 hover:bg-maroon/5 active:bg-maroon/10 transition-colors text-left border-b border-gray-50 last:border-0"
+                      onClick={() => !outOfStock && addToCart(book)}
+                      disabled={outOfStock}
+                      className={`w-full flex items-center justify-between px-5 py-5 transition-colors text-left border-b border-gray-50 last:border-0 ${
+                        outOfStock
+                          ? 'opacity-60 cursor-not-allowed bg-red-50/40'
+                          : 'hover:bg-maroon/5 active:bg-maroon/10'
+                      }`}
                     >
                       <div className="min-w-0 flex-1">
                         {book.localTitle ? (
                           <>
-                            <p className="font-bold text-charcoal text-base truncate" style={{ fontFamily: 'system-ui, sans-serif' }}>{book.localTitle}</p>
-                            <p className="text-gray-500 text-xs truncate">{book.title}</p>
+                            <p className={`font-bold text-base truncate ${outOfStock ? 'text-red-400' : 'text-charcoal'}`} style={{ fontFamily: 'system-ui, sans-serif' }}>{book.localTitle}</p>
+                            <p className={`text-xs truncate ${outOfStock ? 'text-red-300' : 'text-gray-500'}`}>{book.title}</p>
                           </>
                         ) : (
-                          <p className="font-semibold text-charcoal text-base truncate">{book.title}</p>
+                          <p className={`font-semibold text-base truncate ${outOfStock ? 'text-red-400' : 'text-charcoal'}`}>{book.title}</p>
                         )}
-                        <p className="text-gray-500 text-sm">{book.publisher}</p>
+                        <p className={`text-sm ${outOfStock ? 'text-red-300' : 'text-gray-500'}`}>{book.publisher}</p>
                       </div>
                       <div className="text-right shrink-0 ml-4">
-                        <p className="font-bold text-maroon text-lg">₹{book.price}</p>
-                        <p className="text-xs text-gray-400">{avail} left</p>
+                        <p className={`font-bold text-lg ${outOfStock ? 'text-red-400' : 'text-maroon'}`}>₹{book.price}</p>
+                        {outOfStock ? (
+                          <p className="text-xs font-semibold text-red-500">Out of Stock</p>
+                        ) : (
+                          <p className="text-xs text-gray-400">{avail} left</p>
+                        )}
                       </div>
                       <div className="ml-3 shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-maroon/10 flex items-center justify-center">
-                          <Plus size={22} className="text-maroon" />
-                        </div>
+                        {outOfStock ? (
+                          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                            <X size={20} className="text-red-400" />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-maroon/10 flex items-center justify-center">
+                            <Plus size={22} className="text-maroon" />
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
                 })}
+
+                {/* Add New Book button — show when no exact in-stock match */}
+                {query.trim().length >= 2 && !results.some((b) => (b.quantity - b.sold) > 0 && (b.title.toLowerCase() === query.trim().toLowerCase() || b.localTitle?.toLowerCase() === query.trim().toLowerCase())) && (
+                  <button
+                    onClick={() => {
+                      setShowQuickAdd(true);
+                      setQaTitle(query.trim());
+                      setQaPublishers(getPublishers().map((p) => p.name));
+                      setQuery('');
+                      setResults([]);
+                    }}
+                    className="w-full flex items-center gap-3 px-5 py-4 bg-blue-50/60 hover:bg-blue-100/80 transition-colors text-left border-t border-blue-100"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <BookPlus size={18} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-blue-700 text-sm">Add &ldquo;{query.trim()}&rdquo; as new book</p>
+                      <p className="text-xs text-blue-500">Create a new book in inventory</p>
+                    </div>
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
+
+        {/* Quick Add Book Form */}
+        <AnimatePresence>
+          {showQuickAdd && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden mb-4"
+            >
+              <div className="bg-blue-50/60 border-2 border-blue-200 rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-blue-800 flex items-center gap-2 text-sm">
+                    <BookPlus size={18} /> Quick Add New Book
+                  </h3>
+                  <button onClick={resetQuickAdd} className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-400 hover:text-blue-600">
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <input type="text" placeholder="Book Title (English) *" value={qaTitle} onChange={(e) => setQaTitle(e.target.value)}
+                      className="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <input type="text" placeholder="Local Language Title (optional)" value={qaLocalTitle} onChange={(e) => setQaLocalTitle(e.target.value)}
+                      className="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white" style={{ fontFamily: 'system-ui, sans-serif' }} />
+                  </div>
+                  <div className="relative" ref={qaPubDropRef}>
+                    <input
+                      ref={qaPubRef}
+                      type="text"
+                      placeholder="Publisher * (type to search or create)"
+                      value={qaPublisherQuery}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setQaPublisherQuery(val);
+                        setQaShowPubDropdown(true);
+                        const exact = qaPublishers.find((p) => p.toLowerCase() === val.toLowerCase());
+                        setQaPublisher(exact || '');
+                      }}
+                      onFocus={() => setQaShowPubDropdown(true)}
+                      onBlur={() => setTimeout(() => setQaShowPubDropdown(false), 200)}
+                      className={`w-full px-4 py-3 border rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white ${
+                        qaPublisher ? 'border-green-300 bg-green-50/30' : qaPublisherQuery ? 'border-orange-300 bg-orange-50/30' : 'border-blue-200'
+                      }`}
+                      autoComplete="off"
+                    />
+                    {qaPublisher && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                        <CheckCircle size={16} />
+                      </span>
+                    )}
+                    {qaPublisherQuery && !qaPublisher && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const trimmed = qaPublisherQuery.trim();
+                          if (!trimmed) return;
+                          const exists = qaPublishers.find((p) => p.toLowerCase() === trimmed.toLowerCase());
+                          if (exists) {
+                            setQaPublisher(exists);
+                            setQaPublisherQuery(exists);
+                            return;
+                          }
+                          addPublisher(trimmed, 0);
+                          setQaPublisher(trimmed);
+                          setQaPublisherQuery(trimmed);
+                          setQaShowPubDropdown(false);
+                          setQaPublishers((prev) => [...prev, trimmed]);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-orange-500 hover:bg-orange-600 text-white text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        <Plus size={12} /> Create
+                      </button>
+                    )}
+                    <AnimatePresence>
+                      {qaShowPubDropdown && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                          className="absolute z-30 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-40 overflow-y-auto"
+                        >
+                          {qaPublishers
+                            .filter((p) => !qaPublisherQuery || p.toLowerCase().includes(qaPublisherQuery.toLowerCase()))
+                            .map((p) => (
+                              <button
+                                key={p}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setQaPublisher(p);
+                                  setQaPublisherQuery(p);
+                                  setQaShowPubDropdown(false);
+                                }}
+                                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors ${
+                                  qaPublisher === p ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700'
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            ))}
+                          {qaPublishers.filter((p) => !qaPublisherQuery || p.toLowerCase().includes(qaPublisherQuery.toLowerCase())).length === 0 && qaPublisherQuery.trim() && (
+                            <div className="px-4 py-3 text-sm text-gray-400">
+                              No match — click <strong className="text-orange-600">Create</strong> to add
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  <input type="text" placeholder="Category (optional)" value={qaCategory} onChange={(e) => setQaCategory(e.target.value)}
+                    className="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white" />
+                  <input type="number" step="0.01" min="0" placeholder="Price (₹) *" value={qaPrice} onChange={(e) => setQaPrice(e.target.value)}
+                    className="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white" />
+                  <input type="number" min="1" placeholder="Quantity *" value={qaQuantity} onChange={(e) => setQaQuantity(e.target.value)}
+                    className="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white" />
+                  <div className="sm:col-span-2">
+                    <input type="text" placeholder="ISBN / Barcode (optional)" value={qaIsbn} onChange={(e) => setQaIsbn(e.target.value)}
+                      className="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-blue-400 outline-none bg-white" />
+                  </div>
+                  <div className="sm:col-span-2 flex gap-3">
+                    <button
+                      onClick={handleQuickAddBook}
+                      disabled={!qaTitle.trim() || !qaPublisher || !qaPrice || !qaQuantity}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus size={15} /> Add Book & Bill
+                    </button>
+                    <button onClick={resetQuickAdd} className="px-4 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl text-sm transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Scan Message */}
         <AnimatePresence>
