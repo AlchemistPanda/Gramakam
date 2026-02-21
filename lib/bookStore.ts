@@ -786,15 +786,16 @@ export function getStats() {
 }
 
 export function getPublisherStats() {
-  const pubMap: Record<string, { publisher: string; totalBooks: number; totalSold: number; totalRemaining: number; revenue: number; profitPercent: number; profit: number }> = {};
+  const pubMap: Record<string, { publisher: string; titleCount: number; totalBooks: number; totalSold: number; totalRemaining: number; revenue: number; profitPercent: number; profit: number }> = {};
 
   // Stock counts (totalSold = physically given out, regardless of payment status)
   for (const book of cache.books) {
     if (!pubMap[book.publisher]) {
       const pub = cache.publishers.find((p) => p.name.toLowerCase() === book.publisher.toLowerCase());
       const profitPct = pub?.profitPercent ?? 0;
-      pubMap[book.publisher] = { publisher: book.publisher, totalBooks: 0, totalSold: 0, totalRemaining: 0, revenue: 0, profitPercent: profitPct, profit: 0 };
+      pubMap[book.publisher] = { publisher: book.publisher, titleCount: 0, totalBooks: 0, totalSold: 0, totalRemaining: 0, revenue: 0, profitPercent: profitPct, profit: 0 };
     }
+    pubMap[book.publisher].titleCount += 1;
     pubMap[book.publisher].totalBooks += book.quantity;
     pubMap[book.publisher].totalSold += book.sold;
     pubMap[book.publisher].totalRemaining += book.quantity - book.sold;

@@ -260,10 +260,14 @@ export default function PublishersPanel() {
 
                 {/* Stats */}
                 {stats ? (
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="bg-gray-50 rounded-xl p-2.5">
+                      <p className="text-lg font-bold text-indigo-600">{stats.titleCount}</p>
+                      <p className="text-[10px] text-gray-500">Titles</p>
+                    </div>
                     <div className="bg-gray-50 rounded-xl p-2.5">
                       <p className="text-lg font-bold text-charcoal">{stats.totalBooks}</p>
-                      <p className="text-[10px] text-gray-500">Books</p>
+                      <p className="text-[10px] text-gray-500">Stock</p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-2.5">
                       <p className="text-lg font-bold text-green-600">{stats.totalSold}</p>
