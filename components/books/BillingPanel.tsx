@@ -444,17 +444,23 @@ export default function BillingPanel() {
     const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
     const matched = books
       .filter((b) => {
-        const fields = [
+        const textFields = [
           b.title.toLowerCase(),
           b.localTitle?.toLowerCase() || '',
           b.publisher.toLowerCase(),
           b.isbn?.toLowerCase() || '',
-          b.price.toString(),
           b.category?.toLowerCase() || '',
         ];
-        return terms.every((term) =>
-          fields.some((f) => f.includes(term))
-        );
+        const priceStr = b.price.toString();
+        return terms.every((term) => {
+          const isNumeric = /^\d+(\.\d+)?$/.test(term);
+          // For numeric terms: exact price match OR partial text match
+          // For text terms: partial text match only
+          if (isNumeric) {
+            return priceStr === term || textFields.some((f) => f.includes(term));
+          }
+          return textFields.some((f) => f.includes(term));
+        });
       })
       // Sort: in-stock first, then out-of-stock
       .sort((a, b) => {
@@ -462,7 +468,7 @@ export default function BillingPanel() {
         const bStock = b.quantity - b.sold > 0 ? 0 : 1;
         return aStock - bStock;
       })
-      .slice(0, 10);
+      .slice(0, 20);
     setResults(matched);
   }, [query, books]);
 
