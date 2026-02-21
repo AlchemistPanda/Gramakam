@@ -912,6 +912,18 @@ export default function BillingPanel() {
                   <CheckCircle size={13} /> Resolve UPI Payment
                 </button>
               )}
+              {viewingBill.paymentMethod === 'upi' && viewingBill.upiStatus !== 'pending' && (
+                <button
+                  onClick={() => {
+                    const updated = updateBillUpi(viewingBill.id, viewingBill.upiTxnId, 'pending');
+                    if (updated) setViewingBill(updated);
+                    reload();
+                  }}
+                  className="inline-flex items-center gap-1.5 mt-2 px-4 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-semibold rounded-full transition-colors"
+                >
+                  <Clock size={13} /> Mark UPI Pending
+                </button>
+              )}
               {viewingQr && viewingBill.paymentMethod !== 'cash' && (
                 <div className="mt-3">
                   <p className="text-xs text-gray-400 mb-1">
@@ -1058,6 +1070,18 @@ export default function BillingPanel() {
                       <button
                         onClick={(e) => { e.stopPropagation(); setUpiResolveTxnId(bill.upiTxnId || ''); setUpiResolveModal(bill); }}
                         className="p-2 text-orange-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Resolve UPI"
+                      >
+                        <Clock size={16} />
+                      </button>
+                    )}
+                    {bill.paymentMethod === 'upi' && bill.upiStatus !== 'pending' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateBillUpi(bill.id, bill.upiTxnId, 'pending');
+                          reload();
+                        }}
+                        className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors" title="Mark UPI Pending"
                       >
                         <Clock size={16} />
                       </button>
