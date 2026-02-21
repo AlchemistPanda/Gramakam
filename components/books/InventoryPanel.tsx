@@ -2,8 +2,9 @@
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download, ScanBarcode, Loader2, PackagePlus } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Upload, Camera, CheckCircle, X, Package, AlertCircle, FileSpreadsheet, Download, ScanBarcode, Loader2, PackagePlus, Languages } from 'lucide-react';
 import type { Book, OCRLine } from '@/types/books';
+import { transliterateDebounced } from '@/lib/transliterate';
 import {
   getBooks,
   addBook,
@@ -43,6 +44,7 @@ export default function InventoryPanel() {
   const [quantity, setQuantity] = useState('');
   const [category, setCategory] = useState('');
   const [isbn, setIsbn] = useState('');
+  const [autoTransliterate, setAutoTransliterate] = useState(true);
 
   const reload = () => {
     setBooks(query ? searchBooks(query) : getBooks());
@@ -61,6 +63,15 @@ export default function InventoryPanel() {
     setTitle(''); setLocalTitle(''); setPublisher(''); setPublisherQuery(''); setPrice(''); setQuantity(''); setCategory(''); setIsbn('');
     setEditingId(null); setShowForm(false);
   };
+
+  // Auto-transliterate title to Malayalam local title
+  useEffect(() => {
+    if (!autoTransliterate || !title.trim()) return;
+    // Only auto-fill if user hasn't manually typed a local title
+    transliterateDebounced(title, (result) => {
+      setLocalTitle(result);
+    });
+  }, [title, autoTransliterate]);
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
@@ -256,11 +267,27 @@ export default function InventoryPanel() {
               <h3 className="font-semibold text-charcoal mb-4">{editingId ? 'Edit Book' : 'Add New Book'}</h3>
               <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <input type="text" placeholder="Book Title (English) *" value={title} onChange={(e) => setTitle(e.target.value)}
+                  <input type="text" placeholder="Book Title (English / Manglish) *" value={title} onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" required />
                 </div>
                 <div className="md:col-span-2">
-                  <input type="text" placeholder="പുസ്തകത്തിന്റെ പേര് — Local Language Title (optional)" value={localTitle} onChange={(e) => setLocalTitle(e.target.value)}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoTransliterate}
+                        onChange={(e) => {
+                          setAutoTransliterate(e.target.checked);
+                          if (!e.target.checked) setLocalTitle('');
+                        }}
+                        className="w-3.5 h-3.5 rounded accent-maroon cursor-pointer"
+                      />
+                      <span className="text-[11px] font-medium text-gray-500 flex items-center gap-1">
+                        <Languages size={12} /> Auto-translate to Malayalam
+                      </span>
+                    </label>
+                  </div>
+                  <input type="text" placeholder="പുസ്തകത്തിന്റെ പേര് — Local Language Title (optional)" value={localTitle} onChange={(e) => { setLocalTitle(e.target.value); if (autoTransliterate) setAutoTransliterate(false); }}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-maroon outline-none" style={{ fontFamily: 'system-ui, sans-serif' }} />
                 </div>
                 <div className="relative" ref={pubDropdownRef}>

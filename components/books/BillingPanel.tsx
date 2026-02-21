@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Building2 } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, BluetoothOff, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Building2, Languages } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
 import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid, updateBillUpi, addBook, addPublisher, getPublishers } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
+import { transliterateDebounced } from '@/lib/transliterate';
 import BarcodeScanner from './BarcodeScanner';
 
 /* ── Bill action passcode modal ───────────────────────
@@ -366,14 +367,24 @@ export default function BillingPanel() {
   const [qaCategory, setQaCategory] = useState('');
   const [qaIsbn, setQaIsbn] = useState('');
   const [qaPublishers, setQaPublishers] = useState<string[]>([]);
+  const [qaAutoTransliterate, setQaAutoTransliterate] = useState(true);
   const qaPubRef = useRef<HTMLInputElement>(null);
   const qaPubDropRef = useRef<HTMLDivElement>(null);
 
   const resetQuickAdd = () => {
     setQaTitle(''); setQaLocalTitle(''); setQaPublisher(''); setQaPublisherQuery('');
     setQaPrice(''); setQaQuantity(''); setQaCategory(''); setQaIsbn('');
+    setQaAutoTransliterate(true);
     setShowQuickAdd(false);
   };
+
+  // Auto-transliterate quick-add title to Malayalam
+  useEffect(() => {
+    if (!qaAutoTransliterate || !qaTitle.trim()) return;
+    transliterateDebounced(qaTitle, (result) => {
+      setQaLocalTitle(result);
+    });
+  }, [qaTitle, qaAutoTransliterate]);
 
   const handleQuickAddBook = () => {
     if (!qaTitle.trim() || !qaPublisher || !qaPrice || !qaQuantity) return;
@@ -1411,11 +1422,27 @@ export default function BillingPanel() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
-                    <input type="text" placeholder="Book Title (English) *" value={qaTitle} onChange={(e) => setQaTitle(e.target.value)}
+                    <input type="text" placeholder="Book Title (English / Manglish) *" value={qaTitle} onChange={(e) => setQaTitle(e.target.value)}
                       className="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white" />
                   </div>
                   <div className="sm:col-span-2">
-                    <input type="text" placeholder="Local Language Title (optional)" value={qaLocalTitle} onChange={(e) => setQaLocalTitle(e.target.value)}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={qaAutoTransliterate}
+                          onChange={(e) => {
+                            setQaAutoTransliterate(e.target.checked);
+                            if (!e.target.checked) setQaLocalTitle('');
+                          }}
+                          className="w-3.5 h-3.5 rounded accent-blue-600 cursor-pointer"
+                        />
+                        <span className="text-[11px] font-medium text-gray-500 flex items-center gap-1">
+                          <Languages size={12} /> Auto-translate to Malayalam
+                        </span>
+                      </label>
+                    </div>
+                    <input type="text" placeholder="Local Language Title (optional)" value={qaLocalTitle} onChange={(e) => { setQaLocalTitle(e.target.value); if (qaAutoTransliterate) setQaAutoTransliterate(false); }}
                       className="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white" style={{ fontFamily: 'system-ui, sans-serif' }} />
                   </div>
                   <div className="relative" ref={qaPubDropRef}>
