@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Languages } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Languages, PauseCircle, PlayCircle } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
 import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid, updateBillUpi, addBook, addPublisher, getPublishers } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
@@ -315,6 +315,16 @@ function EditBillModal({
   );
 }
 
+/* ── Held cart snapshot —————————————————————————————— */
+interface HeldCart {
+  id: string;
+  cart: (BillItem & { available: number })[];
+  discount: number;
+  customerName: string;
+  customerPhone: string;
+  heldAt: string; // ISO timestamp
+}
+
 export default function BillingPanel() {
   const [books, setBooks] = useState<Book[]>([]);
   const [query, setQuery] = useState('');
@@ -353,6 +363,8 @@ export default function BillingPanel() {
   const [printStatus, setPrintStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [billQr, setBillQr] = useState('');
   const [viewingQr, setViewingQr] = useState('');
+  const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
+  const [showHeld, setShowHeld] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Quick Add Book form state
@@ -529,6 +541,64 @@ export default function BillingPanel() {
 
   const removeFromCart = (bookId: string) => {
     setCart((prev) => prev.filter((c) => c.bookId !== bookId));
+  };
+
+  // ── Held Bills ─────────────────────────────────────────
+  const clearActiveCart = () => {
+    setCart([]);
+    setDiscount(0);
+    setCustomerName('');
+    setCustomerPhone('');
+    setPaymentMethod(undefined);
+    setPaymentMethodError(false);
+    setUpiTxnId('');
+    setCashReceived('');
+  };
+
+  const holdCart = () => {
+    if (cart.length === 0) return;
+    setHeldCarts((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        cart,
+        discount,
+        customerName,
+        customerPhone,
+        heldAt: new Date().toISOString(),
+      },
+    ]);
+    clearActiveCart();
+  };
+
+  const resumeCart = (held: HeldCart) => {
+    // If there's already stuff in the active cart, hold it first
+    if (cart.length > 0) {
+      setHeldCarts((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          cart,
+          discount,
+          customerName,
+          customerPhone,
+          heldAt: new Date().toISOString(),
+        },
+      ]);
+    }
+    setCart(held.cart);
+    setDiscount(held.discount);
+    setCustomerName(held.customerName);
+    setCustomerPhone(held.customerPhone);
+    setPaymentMethod(undefined);
+    setUpiTxnId('');
+    setCashReceived('');
+    setHeldCarts((prev) => prev.filter((h) => h.id !== held.id));
+    setShowHeld(false);
+  };
+
+  const discardHeld = (id: string) => {
+    setHeldCarts((prev) => prev.filter((h) => h.id !== id));
   };
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -1640,9 +1710,20 @@ export default function BillingPanel() {
       {/* RIGHT — Bill Summary */}
       <div className="md:w-72 lg:w-80 shrink-0">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6 md:sticky md:top-4">
-          <h3 className="font-bold text-charcoal text-lg mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
-            <ShoppingCart size={20} /> Bill Summary
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-charcoal text-lg flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
+              <ShoppingCart size={20} /> Bill Summary
+            </h3>
+            {heldCarts.length > 0 && (
+              <button
+                onClick={() => setShowHeld(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-xs font-semibold transition-colors"
+              >
+                <PauseCircle size={14} />
+                Held ({heldCarts.length})
+              </button>
+            )}
+          </div>
 
           <div className="space-y-3 mb-4 text-sm">
             <div className="flex justify-between text-gray-600">
@@ -1814,8 +1895,129 @@ export default function BillingPanel() {
           >
             <CreditCard size={18} /> Pay Later (Credit)
           </button>
+
+          {/* Hold Bill — park current cart, start fresh */}
+          <button
+            onClick={holdCart}
+            disabled={cart.length === 0}
+            className="w-full mt-2 bg-orange-50 border-2 border-orange-200 hover:bg-orange-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-orange-600 py-3 rounded-2xl font-semibold text-sm transition-colors flex items-center justify-center gap-2 active:scale-[0.98]"
+          >
+            <PauseCircle size={18} /> Hold Bill
+          </button>
         </div>
       </div>
+
+      {/* Held Bills Panel */}
+      <AnimatePresence>
+        {showHeld && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowHeld(false)}
+              className="fixed inset-0 bg-black/40 z-40"
+            />
+            {/* Slide-in drawer */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-50 flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h2 className="font-bold text-charcoal text-lg flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
+                  <PauseCircle size={20} className="text-orange-500" /> Held Bills
+                  <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">{heldCarts.length}</span>
+                </h2>
+                <button onClick={() => setShowHeld(false)} className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Held cart list */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {heldCarts.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">
+                    <PauseCircle size={48} className="mx-auto mb-3 text-gray-200" />
+                    <p className="text-base font-medium">No held bills</p>
+                  </div>
+                ) : (
+                  heldCarts.map((held) => {
+                    const heldSubtotal = held.cart.reduce((s, i) => s + i.price * i.quantity, 0);
+                    const heldTotal = Math.max(0, heldSubtotal - held.discount);
+                    const heldCount = held.cart.reduce((s, i) => s + i.quantity, 0);
+                    const heldTime = new Date(held.heldAt);
+                    const timeStr = heldTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                    return (
+                      <div key={held.id} className="bg-orange-50 border border-orange-200 rounded-2xl p-4">
+                        {/* Meta row */}
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            {held.customerName ? (
+                              <p className="font-semibold text-charcoal text-sm">{held.customerName}</p>
+                            ) : (
+                              <p className="text-gray-400 text-sm italic">No customer name</p>
+                            )}
+                            {held.customerPhone && (
+                              <p className="text-xs text-gray-500">{held.customerPhone}</p>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400 flex items-center gap-1 shrink-0 mt-0.5">
+                            <Clock size={12} /> {timeStr}
+                          </span>
+                        </div>
+
+                        {/* Book titles */}
+                        <ul className="mb-3 space-y-0.5">
+                          {held.cart.map((item) => (
+                            <li key={item.bookId} className="text-xs text-gray-600 flex justify-between">
+                              <span className="truncate mr-2">{item.localTitle || item.title} ×{item.quantity}</span>
+                              <span className="shrink-0 font-medium">₹{(item.price * item.quantity).toFixed(0)}</span>
+                            </li>
+                          ))}
+                        </ul>
+
+                        {/* Totals row */}
+                        <div className="flex items-baseline justify-between mb-3">
+                          <span className="text-xs text-gray-500">{heldCount} item{heldCount !== 1 ? 's' : ''}{held.discount > 0 ? ` · -₹${held.discount.toFixed(0)} disc` : ''}</span>
+                          <span className="font-bold text-maroon text-base" style={{ fontFamily: 'var(--font-heading)' }}>₹{heldTotal.toFixed(0)}</span>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => resumeCart(held)}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-maroon hover:bg-maroon-dark text-white py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                          >
+                            <PlayCircle size={16} /> Resume
+                          </button>
+                          <button
+                            onClick={() => discardHeld(held.id)}
+                            className="px-4 py-2.5 bg-white border border-red-200 hover:bg-red-50 text-red-500 rounded-xl text-sm font-medium transition-colors"
+                          >
+                            Discard
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Footer hint */}
+              {heldCarts.length > 0 && (
+                <div className="px-5 py-3 border-t border-gray-100 text-xs text-gray-400 text-center">
+                  Resuming a bill will hold the current active cart
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Bill Edit Modal */}
       <AnimatePresence>
