@@ -695,11 +695,6 @@ function formatOutOfStockForPrinter(
         const maxLen = width - priceStr.length - 2;
         const title = b.title.length > maxLen ? b.title.slice(0, maxLen - 1) + '\u2026' : b.title;
         text(padRight(title, priceStr));
-        if (b.localTitle) {
-          // indent local title on next line
-          const lt = b.localTitle.length > width - 2 ? b.localTitle.slice(0, width - 3) + '\u2026' : b.localTitle;
-          push(ESCPOS.text('  ' + lt + '\n'));
-        }
       }
       push(ESCPOS.feed(1));
     }
