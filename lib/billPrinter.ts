@@ -417,7 +417,8 @@ function formatBillForPrinter(bill: Bill, width: number = 32, logoChunks?: Uint8
   push(ESCPOS.bold(true));
   push(ESCPOS.doubleSize(true));
   push(ESCPOS.alignCenter());
-  text(`TOTAL: Rs.${bill.grandTotal.toFixed(2)}`);
+  text('TOTAL');
+  text(`Rs.${bill.grandTotal % 1 === 0 ? bill.grandTotal.toFixed(0) : bill.grandTotal.toFixed(2)}`);
   push(ESCPOS.doubleSize(false));
   push(ESCPOS.bold(false));
   push(ESCPOS.alignLeft());
