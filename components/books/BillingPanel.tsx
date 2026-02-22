@@ -1856,8 +1856,10 @@ export default function BillingPanel() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]"
             >
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto">
               <div className="p-6">
                 <div className="text-center mb-4">
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${
@@ -1992,7 +1994,10 @@ export default function BillingPanel() {
                 </div>
               )}
 
-              <div className="flex border-t border-gray-100">
+              </div>{/* end scrollable body */}
+
+              {/* Action buttons — always visible at bottom */}
+              <div className="flex border-t border-gray-100 shrink-0">
                 <button onClick={() => lastBill && handlePrint(lastBill)} className="flex-1 py-4 text-center font-medium text-maroon hover:bg-maroon/5 transition-colors flex items-center justify-center gap-2">
                   <Printer size={18} /> {btConnected ? 'Print via BT' : 'Print Bill'}
                 </button>
