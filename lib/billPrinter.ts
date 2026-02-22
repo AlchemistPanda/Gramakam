@@ -325,7 +325,7 @@ async function loadImageAsEscposRaster(
 /**
  * Build ESC/POS GS ( k commands to print a QR code natively on the thermal printer.
  * The printer generates the QR from the raw data string — no image needed.
- *   Model 2, module size 4 (good for 58mm), error correction Level M.
+ *   Model 2, module size 6 (larger for easier scanning on 58mm), error correction Level M.
  */
 function escposQR(data: string): Uint8Array[] {
   const bytes = new TextEncoder().encode(data);
@@ -335,8 +335,8 @@ function escposQR(data: string): Uint8Array[] {
   return [
     // 1. Select model 2
     cmd(GS, 0x28, 0x6b, 4, 0, 49, 65, 50, 0),
-    // 2. Set module size (4 dots = visible on 58mm)
-    cmd(GS, 0x28, 0x6b, 3, 0, 49, 67, 4),
+    // 2. Set module size (6 dots = larger QR, easier to scan on 58mm)
+    cmd(GS, 0x28, 0x6b, 3, 0, 49, 67, 6),
     // 3. Error correction level M
     cmd(GS, 0x28, 0x6b, 3, 0, 49, 69, 49),
     // 4. Store data
