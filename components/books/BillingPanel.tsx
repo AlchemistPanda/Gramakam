@@ -145,6 +145,8 @@ interface EditBillModalProps {
   setEditDiscount: (n: number) => void;
   setEditCustomerName: (s: string) => void;
   setEditCustomerPhone: (s: string) => void;
+  editUpiTxnId: string;
+  setEditUpiTxnId: (s: string) => void;
   updateEditQty: (bookId: string, delta: number) => void;
   removeEditItem: (bookId: string) => void;
   addEditItem: (book: Book) => void;
@@ -154,7 +156,8 @@ interface EditBillModalProps {
 function EditBillModal({
   editingBill, editItems, editDiscount, editCustomerName, editCustomerPhone,
   editSearch, editSearchResults, setEditingBill, setEditSearch, setEditDiscount,
-  setEditCustomerName, setEditCustomerPhone, updateEditQty, removeEditItem, addEditItem, saveEditBill,
+  setEditCustomerName, setEditCustomerPhone, editUpiTxnId, setEditUpiTxnId,
+  updateEditQty, removeEditItem, addEditItem, saveEditBill,
 }: EditBillModalProps) {
   return (
     <motion.div
@@ -284,6 +287,20 @@ function EditBillModal({
                 placeholder="Optional"
               />
             </div>
+            {editingBill.paymentMethod === 'upi' && (
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
+                  <Smartphone size={12} /> UPI Transaction ID
+                </label>
+                <input
+                  type="text"
+                  value={editUpiTxnId}
+                  onChange={(e) => setEditUpiTxnId(e.target.value)}
+                  className="w-full px-3 py-2 border border-blue-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50/40"
+                  placeholder="e.g. 320123456789"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -359,6 +376,7 @@ export default function BillingPanel() {
   const [editDiscount, setEditDiscount] = useState(0);
   const [editCustomerName, setEditCustomerName] = useState('');
   const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [editUpiTxnId, setEditUpiTxnId] = useState('');
   const [editSearch, setEditSearch] = useState('');
   const [editSearchResults, setEditSearchResults] = useState<Book[]>([]);
   const [btAvailable, setBtAvailable] = useState(false);
@@ -731,6 +749,7 @@ export default function BillingPanel() {
     setEditDiscount(bill.discount);
     setEditCustomerName(bill.customerName || '');
     setEditCustomerPhone(bill.customerPhone || '');
+    setEditUpiTxnId(bill.upiTxnId || '');
     setEditingBill(bill);
     setEditSearch('');
     setEditSearchResults([]);
@@ -801,8 +820,12 @@ export default function BillingPanel() {
       editCustomerPhone || undefined,
     );
     if (result) {
+      // Update UPI txn ID if the bill was paid by UPI
+      if (editingBill.paymentMethod === 'upi') {
+        updateBillUpi(editingBill.id, editUpiTxnId || '', result.upiStatus);
+      }
       setEditingBill(null);
-      setViewingBill(result);
+      setViewingBill(null);
       reload();
     }
   };
@@ -1318,6 +1341,8 @@ export default function BillingPanel() {
             setEditDiscount={setEditDiscount}
             setEditCustomerName={setEditCustomerName}
             setEditCustomerPhone={setEditCustomerPhone}
+            editUpiTxnId={editUpiTxnId}
+            setEditUpiTxnId={setEditUpiTxnId}
             updateEditQty={updateEditQty}
             removeEditItem={removeEditItem}
             addEditItem={addEditItem}
@@ -2060,6 +2085,8 @@ export default function BillingPanel() {
             setEditDiscount={setEditDiscount}
             setEditCustomerName={setEditCustomerName}
             setEditCustomerPhone={setEditCustomerPhone}
+            editUpiTxnId={editUpiTxnId}
+            setEditUpiTxnId={setEditUpiTxnId}
             updateEditQty={updateEditQty}
             removeEditItem={removeEditItem}
             addEditItem={addEditItem}
