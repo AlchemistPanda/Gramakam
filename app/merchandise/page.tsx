@@ -3,7 +3,7 @@
 import { useState, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
-import { CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle, X, ChevronLeft, ChevronRight, Ruler } from 'lucide-react';
 import { submitPrebook } from '@/lib/services';
 
 interface MerchProduct {
@@ -13,6 +13,14 @@ interface MerchProduct {
   images: string[];
   sizes?: string[];
 }
+
+const sizeChartData = {
+  S:   { chest: '86–91 cm', length: '67 cm' },
+  M:   { chest: '92–97 cm', length: '69 cm' },
+  L:   { chest: '98–103 cm', length: '71 cm' },
+  XL:  { chest: '104–109 cm', length: '73 cm' },
+  XXL: { chest: '110–116 cm', length: '75 cm' },
+};
 
 const products: MerchProduct[] = [
   {
@@ -61,6 +69,27 @@ export default function MerchandisePage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [showSizeGuide, setShowSizeGuide] = useState(false);
+  const [sizeGuideTab, setSizeGuideTab] = useState<'chart' | 'finder' | 'measure'>('chart');
+  const [findHeight, setFindHeight] = useState('');
+  const [findWeight, setFindWeight] = useState('');
+  const [suggestedSize, setSuggestedSize] = useState<string | null>(null);
+
+  function computeSuggestedSize() {
+    const h = parseFloat(findHeight);
+    const w = parseFloat(findWeight);
+    if (!h || !w || h < 100 || w < 20) return;
+    let size = 'M';
+    if (w < 55) size = 'S';
+    else if (w < 68) size = 'M';
+    else if (w < 82) size = 'L';
+    else if (w < 96) size = 'XL';
+    else size = 'XXL';
+    // Bump up one size if tall (length matters)
+    if (h >= 183 && size === 'S') size = 'M';
+    if (h >= 188 && size === 'M') size = 'L';
+    setSuggestedSize(size);
+  }
 
   const handlePrebook = (productId: string) => {
     const product = products.find((p) => p.id === productId);
@@ -257,6 +286,181 @@ export default function MerchandisePage() {
           )}
         </AnimatePresence>
 
+        {/* Size Guide Modal */}
+        <AnimatePresence>
+          {showSizeGuide && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4"
+              onClick={() => setShowSizeGuide(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                className="bg-white rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
+                  <h3 className="font-semibold text-charcoal text-base">T-Shirt Size Guide</h3>
+                  <button onClick={() => setShowSizeGuide(false)} className="text-gray-400 hover:text-charcoal">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-gray-100">
+                  {(['chart', 'finder', 'measure'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setSizeGuideTab(tab)}
+                      className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+                        sizeGuideTab === tab
+                          ? 'text-maroon border-b-2 border-maroon'
+                          : 'text-gray-500 hover:text-charcoal'
+                      }`}
+                    >
+                      {tab === 'chart' ? 'Size Chart' : tab === 'finder' ? 'Find My Size' : 'How to Measure'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="p-6">
+                  {/* Tab: Size Chart */}
+                  {sizeGuideTab === 'chart' && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-4">All measurements are in centimetres (cm). When between sizes, size up.</p>
+                      <table className="w-full text-sm text-center border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="py-2 px-3 text-left font-semibold text-charcoal border border-gray-200">Size</th>
+                            <th className="py-2 px-3 font-semibold text-charcoal border border-gray-200">Chest (cm)</th>
+                            <th className="py-2 px-3 font-semibold text-charcoal border border-gray-200">Length (cm)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(sizeChartData).map(([size, m]) => (
+                            <tr
+                              key={size}
+                              className={formData.size === size ? 'bg-maroon/10 font-semibold' : 'hover:bg-gray-50'}
+                            >
+                              <td className="py-2 px-3 text-left border border-gray-200 font-medium">
+                                {size} {formData.size === size && <span className="text-maroon text-xs ml-1">← selected</span>}
+                              </td>
+                              <td className="py-2 px-3 border border-gray-200 text-gray-700">{m.chest}</td>
+                              <td className="py-2 px-3 border border-gray-200 text-gray-700">{m.length}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="text-xs text-gray-400 mt-3">These are garment measurements, not body measurements. Add ~5 cm to your chest size for a comfortable fit.</p>
+                    </div>
+                  )}
+
+                  {/* Tab: Find My Size */}
+                  {sizeGuideTab === 'finder' && (
+                    <div className="space-y-4">
+                      <p className="text-xs text-gray-500">Enter your height and weight for a size recommendation.</p>
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-charcoal mb-1">Height (cm)</label>
+                          <input
+                            type="number"
+                            min={100}
+                            max={220}
+                            placeholder="e.g. 170"
+                            value={findHeight}
+                            onChange={(e) => { setFindHeight(e.target.value); setSuggestedSize(null); }}
+                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-charcoal mb-1">Weight (kg)</label>
+                          <input
+                            type="number"
+                            min={20}
+                            max={200}
+                            placeholder="e.g. 65"
+                            value={findWeight}
+                            onChange={(e) => { setFindWeight(e.target.value); setSuggestedSize(null); }}
+                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={computeSuggestedSize}
+                        disabled={!findHeight || !findWeight}
+                        className="w-full py-2.5 bg-maroon text-white rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-maroon/90 transition-colors"
+                      >
+                        Recommend My Size
+                      </button>
+                      {suggestedSize && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                          <p className="text-xs text-gray-500 mb-1">We recommend</p>
+                          <p className="text-3xl font-bold text-maroon">{suggestedSize}</p>
+                          {sizeChartData[suggestedSize as keyof typeof sizeChartData] && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Chest {sizeChartData[suggestedSize as keyof typeof sizeChartData].chest} &bull; Length {sizeChartData[suggestedSize as keyof typeof sizeChartData].length}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData((f) => ({ ...f, size: suggestedSize! }));
+                              setShowSizeGuide(false);
+                            }}
+                            className="mt-3 text-xs text-maroon underline underline-offset-2"
+                          >
+                            Select {suggestedSize} and close
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400">This is an estimate. When in doubt, size up — festival tees are best worn relaxed.</p>
+                    </div>
+                  )}
+
+                  {/* Tab: How to Measure */}
+                  {sizeGuideTab === 'measure' && (
+                    <div className="space-y-5">
+                      <p className="text-xs text-gray-500">Use a soft measuring tape for best results. Measure directly over light clothing.</p>
+                      <div className="space-y-4">
+                        <div className="flex gap-3 items-start">
+                          <div className="w-8 h-8 rounded-full bg-maroon/10 flex items-center justify-center text-maroon font-bold text-sm shrink-0 mt-0.5">1</div>
+                          <div>
+                            <p className="text-sm font-semibold text-charcoal">Chest</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Wrap the tape around the fullest part of your chest, keeping it horizontal and parallel to the ground. Arms relaxed at your sides.</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-3 items-start">
+                          <div className="w-8 h-8 rounded-full bg-maroon/10 flex items-center justify-center text-maroon font-bold text-sm shrink-0 mt-0.5">2</div>
+                          <div>
+                            <p className="text-sm font-semibold text-charcoal">Length</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Measure from the highest point of your shoulder (where the seam sits) straight down to where you'd like the hem to fall.</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-3 items-start">
+                          <div className="w-8 h-8 rounded-full bg-maroon/10 flex items-center justify-center text-maroon font-bold text-sm shrink-0 mt-0.5">3</div>
+                          <div>
+                            <p className="text-sm font-semibold text-charcoal">Tip: Garment vs. Body</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Our size chart shows garment measurements. For a comfortable regular fit, your chest should be ~5 cm smaller than the garment chest listed.</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                        Still unsure? Try the <button type="button" onClick={() => setSizeGuideTab('finder')} className="underline font-medium">Find My Size</button> tool, or when in doubt — size up.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Pre-book Form Modal */}
         <AnimatePresence>
           {selectedProduct && (
@@ -352,19 +556,44 @@ export default function MerchandisePage() {
                       </div>
                       {selectedProductData?.sizes && selectedProductData.sizes.length > 1 && (
                         <div>
-                          <label htmlFor="prebook-size" className="block text-sm font-medium text-charcoal mb-1">
-                            Size
-                          </label>
-                          <select
-                            id="prebook-size"
-                            value={formData.size}
-                            onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
-                          >
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-charcoal">Size</label>
+                            <button
+                              type="button"
+                              onClick={() => { setShowSizeGuide(true); setSizeGuideTab('chart'); setSuggestedSize(null); }}
+                              className="flex items-center gap-1 text-xs text-maroon underline underline-offset-2 hover:text-maroon/80"
+                            >
+                              <Ruler size={12} /> Size Guide
+                            </button>
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
                             {selectedProductData.sizes.map((size) => (
-                              <option key={size} value={size}>{size}</option>
+                              <button
+                                key={size}
+                                type="button"
+                                onClick={() => setFormData({ ...formData, size })}
+                                className={`px-4 py-2 rounded-lg border text-sm font-semibold transition-all ${
+                                  formData.size === size
+                                    ? 'bg-maroon text-white border-maroon shadow-sm'
+                                    : 'bg-white text-charcoal border-gray-300 hover:border-maroon'
+                                }`}
+                              >
+                                {size}
+                              </button>
                             ))}
-                          </select>
+                          </div>
+                          {formData.size && sizeChartData[formData.size as keyof typeof sizeChartData] && (
+                            <p className="text-xs text-gray-500 mt-1.5">
+                              {formData.size}: Chest {sizeChartData[formData.size as keyof typeof sizeChartData].chest} &bull; Length {sizeChartData[formData.size as keyof typeof sizeChartData].length} &bull;{' '}
+                              <button
+                                type="button"
+                                onClick={() => { setShowSizeGuide(true); setSizeGuideTab('finder'); setSuggestedSize(null); }}
+                                className="text-maroon underline underline-offset-1"
+                              >
+                                Not sure your size?
+                              </button>
+                            </p>
+                          )}
                         </div>
                       )}
                       <div>
