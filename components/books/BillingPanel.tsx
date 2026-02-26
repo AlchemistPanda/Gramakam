@@ -354,6 +354,7 @@ export default function BillingPanel() {
   const [books, setBooks] = useState<Book[]>([]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Book[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [cart, setCart] = useState<(BillItem & { available: number })[]>([]);
   const [discount, setDiscount] = useState(0);
   const [customerName, setCustomerName] = useState('');
@@ -392,6 +393,7 @@ export default function BillingPanel() {
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
   const [showHeld, setShowHeld] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   // Quick Add Book form state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -478,6 +480,7 @@ export default function BillingPanel() {
   useEffect(() => {
     if (!query.trim()) {
       setResults([]); // eslint-disable-line react-hooks/set-state-in-effect
+      setHighlightedIndex(-1); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
     const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -509,7 +512,15 @@ export default function BillingPanel() {
       })
       .slice(0, 20);
     setResults(matched);
+    setHighlightedIndex(-1); // eslint-disable-line react-hooks/set-state-in-effect
   }, [query, books]);
+
+  // Scroll highlighted result into view
+  useEffect(() => {
+    if (highlightedIndex < 0 || !resultsRef.current) return;
+    const items = resultsRef.current.querySelectorAll<HTMLElement>('[data-result-item]');
+    items[highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [highlightedIndex]);
 
   // Handle barcode scan in billing
   const handleBarcodeScan = (isbn: string) => {
@@ -1443,6 +1454,23 @@ export default function BillingPanel() {
             placeholder="Search by name, price, publisher, ISBN..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (results.length > 0) setHighlightedIndex((prev) => Math.min(prev + 1, results.length - 1));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setHighlightedIndex((prev) => Math.max(prev - 1, -1));
+              } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+                e.preventDefault();
+                const book = results[highlightedIndex];
+                if (book && (book.quantity - book.sold) > 0) addToCart(book);
+              } else if (e.key === 'Escape') {
+                setQuery('');
+                setResults([]);
+                setHighlightedIndex(-1);
+              }
+            }}
             className="w-full pl-12 pr-4 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-maroon focus:border-maroon outline-none bg-white shadow-sm"
             autoFocus
           />
@@ -1455,18 +1483,23 @@ export default function BillingPanel() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 z-20 overflow-hidden max-h-[420px] overflow-y-auto"
+                ref={resultsRef}
               >
-                {results.map((book) => {
+                {results.map((book, idx) => {
                   const avail = book.quantity - book.sold;
                   const outOfStock = avail <= 0;
                   return (
                     <button
                       key={book.id}
+                      data-result-item=""
                       onClick={() => !outOfStock && addToCart(book)}
+                      onMouseEnter={() => !outOfStock && setHighlightedIndex(idx)}
                       disabled={outOfStock}
                       className={`w-full flex items-center justify-between px-5 py-5 transition-colors text-left border-b border-gray-50 last:border-0 ${
                         outOfStock
                           ? 'opacity-60 cursor-not-allowed bg-red-50/40'
+                          : idx === highlightedIndex
+                          ? 'bg-maroon/10'
                           : 'hover:bg-maroon/5 active:bg-maroon/10'
                       }`}
                     >
