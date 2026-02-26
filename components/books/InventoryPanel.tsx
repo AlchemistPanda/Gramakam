@@ -821,8 +821,16 @@ function ImportListPanel({
   onComplete: (count: number) => void;
   onClose: () => void;
 }) {
+  type ImportRow = {
+    title: string; localTitle: string; publisher: string;
+    price: number; quantity: number; category: string;
+    valid: boolean;
+    existingBook?: Book;
+    duplicateAction: 'add_new' | 'merge' | 'skip';
+  };
+
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
-  const [rows, setRows] = useState<{ title: string; localTitle: string; publisher: string; price: number; quantity: number; category: string; valid: boolean }[]>([]);
+  const [rows, setRows] = useState<ImportRow[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -882,6 +890,8 @@ function ImportListPanel({
         return;
       }
 
+      const allBooks = getBooks();
+
       const parsed = json.map((row, i) => {
         const title = String(row['Book Title'] || row['Title'] || row['book title'] || row['title'] || '').trim();
         const localTitle = String(row['Local Title'] || row['local title'] || row['Local title'] || row['localTitle'] || row['പേര്'] || '').trim();
@@ -899,7 +909,15 @@ function ImportListPanel({
         if (price <= 0) { errs.push(`Row ${i + 2}: Invalid price for "${title}"`); valid = false; }
         if (quantity <= 0) { errs.push(`Row ${i + 2}: Invalid quantity for "${title}"`); valid = false; }
 
-        return { title, localTitle, publisher: pub, price, quantity, category, valid };
+        const existingBook = (valid && title && pub)
+          ? allBooks.find(
+              (b) =>
+                b.title.toLowerCase() === title.toLowerCase() &&
+                b.publisher.toLowerCase() === pub.toLowerCase()
+            )
+          : undefined;
+
+        return { title, localTitle, publisher: pub, price, quantity, category, valid, existingBook, duplicateAction: 'merge' as const };
       }).filter((r) => r.title || r.publisher); // skip completely empty rows
 
       setRows(parsed);
@@ -912,25 +930,43 @@ function ImportListPanel({
 
   // Import valid rows
   const handleImport = () => {
-    const validRows = rows.filter((r) => r.valid);
+    const validRows = rows.filter((r) => r.valid && r.duplicateAction !== 'skip');
     if (validRows.length === 0) return;
 
-    addBooksInBulk(
-      validRows.map((r) => ({
-        title: r.title,
-        ...(r.localTitle && { localTitle: r.localTitle }),
-        publisher: r.publisher,
-        price: r.price,
-        quantity: r.quantity,
-        category: r.category,
-      }))
-    );
+    // Split into new additions vs qty merges
+    const toAdd = validRows.filter((r) => !r.existingBook || r.duplicateAction === 'add_new');
+    const toMerge = validRows.filter((r) => r.existingBook && r.duplicateAction === 'merge');
+
+    if (toAdd.length > 0) {
+      addBooksInBulk(
+        toAdd.map((r) => ({
+          title: r.title,
+          ...(r.localTitle && { localTitle: r.localTitle }),
+          publisher: r.publisher,
+          price: r.price,
+          quantity: r.quantity,
+          category: r.category,
+        }))
+      );
+    }
+
+    for (const r of toMerge) {
+      if (r.existingBook) {
+        updateBook(r.existingBook.id, { quantity: r.existingBook.quantity + r.quantity });
+      }
+    }
 
     onComplete(validRows.length);
   };
 
   const validCount = rows.filter((r) => r.valid).length;
   const invalidCount = rows.filter((r) => !r.valid).length;
+  const duplicateCount = rows.filter((r) => r.valid && !!r.existingBook).length;
+  const importCount = rows.filter((r) => r.valid && r.duplicateAction !== 'skip').length;
+
+  const setDupAction = (idx: number, action: 'add_new' | 'merge' | 'skip') => {
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, duplicateAction: action } : r)));
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -1024,6 +1060,11 @@ function ImportListPanel({
                 <AlertCircle size={14} /> {invalidCount} with errors
               </div>
             )}
+            {duplicateCount > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-sm font-medium">
+                <AlertCircle size={14} /> {duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''}
+              </div>
+            )}
             <div className="text-sm text-gray-500 self-center">
               {rows.length} total rows found
             </div>
@@ -1056,7 +1097,7 @@ function ImportListPanel({
               </thead>
               <tbody>
                 {rows.map((row, i) => (
-                  <tr key={i} className={`border-b border-gray-50 ${!row.valid ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
+                  <tr key={i} className={`border-b border-gray-50 ${!row.valid ? 'bg-red-50/50' : row.existingBook ? 'bg-amber-50/40 hover:bg-amber-50/60' : 'hover:bg-gray-50/50'}`}>
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2 font-medium text-charcoal">{row.title || <span className="text-red-400 italic">missing</span>}</td>
                     <td className="px-3 py-2 text-gray-600" style={{ fontFamily: 'system-ui, sans-serif' }}>{row.localTitle || <span className="text-gray-300">—</span>}</td>
@@ -1065,9 +1106,30 @@ function ImportListPanel({
                     <td className="px-3 py-2 text-center">{row.quantity > 0 ? row.quantity : <span className="text-red-400">—</span>}</td>
                     <td className="px-3 py-2 text-gray-500">{row.category || '—'}</td>
                     <td className="px-3 py-2 text-center">
-                      {row.valid
-                        ? <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">✓ OK</span>
-                        : <span className="inline-flex px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">✕ Error</span>
+                      {!row.valid
+                        ? <span className="inline-flex px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">✕ Error</span>
+                        : row.existingBook
+                        ? (
+                          <div className="flex flex-col items-center gap-1.5">
+                            <span className="inline-flex px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">⚠ Duplicate</span>
+                            <div className="text-[10px] text-gray-400">Stock: {row.existingBook.quantity} · ₹{row.existingBook.price}</div>
+                            <div className="flex rounded-lg overflow-hidden border border-amber-200 text-[10px] font-medium">
+                              <button
+                                onClick={() => setDupAction(i, 'skip')}
+                                className={`px-2 py-1 transition-colors ${row.duplicateAction === 'skip' ? 'bg-gray-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                              >Skip</button>
+                              <button
+                                onClick={() => setDupAction(i, 'merge')}
+                                className={`px-2 py-1 transition-colors border-x border-amber-200 ${row.duplicateAction === 'merge' ? 'bg-amber-500 text-white' : 'bg-white text-amber-700 hover:bg-amber-50'}`}
+                              >+Qty</button>
+                              <button
+                                onClick={() => setDupAction(i, 'add_new')}
+                                className={`px-2 py-1 transition-colors ${row.duplicateAction === 'add_new' ? 'bg-green-600 text-white' : 'bg-white text-green-700 hover:bg-green-50'}`}
+                              >New</button>
+                            </div>
+                          </div>
+                        )
+                        : <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">✓ OK</span>
                       }
                     </td>
                   </tr>
@@ -1080,10 +1142,10 @@ function ImportListPanel({
           <div className="flex gap-3">
             <button
               onClick={handleImport}
-              disabled={validCount === 0}
+              disabled={importCount === 0}
               className="btn-primary text-sm rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <CheckCircle size={16} /> Import {validCount} Books
+              <CheckCircle size={16} /> Import {importCount} Books
             </button>
             <button onClick={() => { setStep('upload'); setRows([]); setErrors([]); }} className="btn-secondary text-sm rounded-xl">
               Upload Different File
