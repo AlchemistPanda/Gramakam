@@ -303,6 +303,35 @@ export default function ReportsPanel() {
     XLSX.writeFile(wb, `gramakam-customers-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // ========== Book Catalog Export (import-ready template, qty blank) ==========
+  const exportBookCatalog = async () => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const rows = books
+      .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.title.localeCompare(b.title))
+      .map((b) => ({
+        'Book Title': b.title,
+        'Local Title': b.localTitle || '',
+        'Publisher': b.publisher,
+        'Price': b.price,
+        'Quantity': '',          // intentionally blank — fill in next year
+        'Category': b.category || '',
+        'ISBN': b.isbn || '',
+      }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 35 }, // Book Title
+      { wch: 35 }, // Local Title
+      { wch: 22 }, // Publisher
+      { wch: 10 }, // Price
+      { wch: 12 }, // Quantity
+      { wch: 16 }, // Category
+      { wch: 16 }, // ISBN
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Book Catalog');
+    XLSX.writeFile(wb, `gramakam-book-catalog-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   // ========== JSON Backup ==========
   const downloadBackup = () => {
     const json = exportAllData();
@@ -663,6 +692,48 @@ export default function ReportsPanel() {
           </div>
         </div>
       )}
+
+      {/* Book Catalog Export */}
+      <div className="bg-emerald-50 rounded-2xl p-5 border border-emerald-200 mb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h4 className="font-semibold text-emerald-800">Export Book Catalog</h4>
+            <p className="text-sm text-emerald-700 mt-0.5">
+              Downloads all {books.length} books as an Excel file in the bulk-import format —
+              title, local title, publisher, price, category, ISBN.
+              Quantity is left blank so you can fill it in and re-import next festival.
+            </p>
+          </div>
+          <button
+            onClick={exportBookCatalog}
+            disabled={books.length === 0}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FileSpreadsheet size={16} /> Export Catalog
+          </button>
+        </div>
+      </div>
+
+      {/* Book Catalog Export */}
+      <div className="bg-emerald-50 rounded-2xl p-5 border border-emerald-200 mb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h4 className="font-semibold text-emerald-800">Export Book Catalog</h4>
+            <p className="text-sm text-emerald-700 mt-0.5">
+              Downloads all {books.length} books as an Excel file ready to re-import —
+              title, local title, publisher, price, category, ISBN.
+              Quantity is left blank so you can fill in new stock and import next festival.
+            </p>
+          </div>
+          <button
+            onClick={exportBookCatalog}
+            disabled={books.length === 0}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FileSpreadsheet size={16} /> Export Catalog
+          </button>
+        </div>
+      </div>
 
       {/* Backup */}
       <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200 mb-4">
