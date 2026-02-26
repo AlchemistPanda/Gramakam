@@ -913,7 +913,8 @@ function ImportListPanel({
           ? allBooks.find(
               (b) =>
                 b.title.toLowerCase() === title.toLowerCase() &&
-                b.publisher.toLowerCase() === pub.toLowerCase()
+                b.publisher.toLowerCase() === pub.toLowerCase() &&
+                b.price === price
             )
           : undefined;
 
