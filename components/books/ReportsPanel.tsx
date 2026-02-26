@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
-  FileText, FileSpreadsheet, Download, TrendingUp, BarChart3,
+  FileText, FileSpreadsheet, Download, Upload, TrendingUp, BarChart3,
   IndianRupee, Package, BookOpen, Users, Percent, Trash2, Calendar, Award,
   Banknote, Smartphone, Phone,
 } from 'lucide-react';
@@ -14,6 +14,7 @@ import {
   getBills,
   getRequests,
   exportAllData,
+  importData,
   clearAllData,
   onDataChange,
 } from '@/lib/bookStore';
@@ -85,6 +86,8 @@ export default function ReportsPanel() {
   const [pubStats, setPubStats] = useState<ReturnType<typeof getPublisherStats>>([]);
   const [bills, setBills] = useState<Bill[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
+  const [restoreStatus, setRestoreStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const restoreFileRef = useRef<HTMLInputElement>(null);
 
   const reload = () => {
     setStats(getStats());
@@ -310,6 +313,33 @@ export default function ReportsPanel() {
     a.download = `gramakam-bookfest-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // ========== Restore Backup ==========
+  const handleRestoreFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const json = e.target?.result as string;
+      let preview: { books?: unknown[]; bills?: unknown[] };
+      try { preview = JSON.parse(json); } catch { setRestoreStatus({ type: 'error', text: 'Invalid JSON file.' }); return; }
+      if (!preview.books || !preview.bills) { setRestoreStatus({ type: 'error', text: 'File does not look like a Gramakam backup (missing books or bills).' }); return; }
+      const bookCount = Array.isArray(preview.books) ? preview.books.length : 0;
+      const billCount = Array.isArray(preview.bills) ? preview.bills.length : 0;
+      const ok = window.confirm(
+        `Restore backup?\n\nThis will REPLACE all current data with:\n• ${bookCount} books\n• ${billCount} bills\n\nCurrent data will be overwritten. Continue?`
+      );
+      if (!ok) { setRestoreStatus(null); return; }
+      const success = importData(json);
+      if (success) {
+        reload();
+        setRestoreStatus({ type: 'success', text: `Restored ${bookCount} books and ${billCount} bills successfully.` });
+      } else {
+        setRestoreStatus({ type: 'error', text: 'Restore failed — backup file may be corrupt.' });
+      }
+    };
+    reader.readAsText(file);
+    // reset so same file can be re-picked
+    if (restoreFileRef.current) restoreFileRef.current.value = '';
   };
 
   const statCards = [
@@ -645,6 +675,34 @@ export default function ReportsPanel() {
             <Download size={16} /> Download Backup
           </button>
         </div>
+      </div>
+
+      {/* Restore Backup */}
+      <div className="bg-blue-50 rounded-2xl p-5 border border-blue-200 mb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h4 className="font-semibold text-blue-800">Restore Backup</h4>
+            <p className="text-sm text-blue-600 mt-0.5">Load a previously downloaded backup JSON file. <strong>Replaces all current data.</strong></p>
+            {restoreStatus && (
+              <p className={`text-sm mt-2 font-medium ${restoreStatus.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                {restoreStatus.type === 'success' ? '✓ ' : '✕ '}{restoreStatus.text}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => { setRestoreStatus(null); restoreFileRef.current?.click(); }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+          >
+            <Upload size={16} /> Restore Backup
+          </button>
+        </div>
+        <input
+          ref={restoreFileRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleRestoreFile(f); }}
+        />
       </div>
 
       {/* Clear All Data */}
