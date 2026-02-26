@@ -533,6 +533,26 @@ export function updateBillUpi(billId: string, upiTxnId?: string, upiStatus?: 'co
   return bill;
 }
 
+// Change the payment method of an existing bill (cash ↔ UPI)
+export function changePaymentMethod(billId: string, newMethod: 'cash' | 'upi'): Bill | null {
+  const idx = cache.bills.findIndex((b) => b.id === billId);
+  if (idx === -1) return null;
+  const bill = { ...cache.bills[idx] };
+  bill.paymentMethod = newMethod;
+  if (newMethod === 'cash') {
+    delete bill.upiTxnId;
+    delete bill.upiStatus;
+  } else {
+    // Switching to UPI — mark pending until resolved
+    bill.upiStatus = 'pending';
+  }
+  cache.bills[idx] = bill;
+  saveToLocalStorage();
+  fsSetBill(bill).catch(() => {});
+  notifyListeners();
+  return bill;
+}
+
 export function createBill(items: { bookId: string; quantity: number }[], discount: number = 0, customerName?: string, customerPhone?: string, status: 'paid' | 'unpaid' = 'paid', paymentMethod?: 'cash' | 'upi', upiTxnId?: string, upiStatus?: 'completed' | 'pending'): Bill | null {
   const billItems: Bill['items'] = [];
   let total = 0;

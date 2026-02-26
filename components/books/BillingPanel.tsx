@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Languages, PauseCircle, PlayCircle } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, CheckCircle, Percent, History, Eye, ChevronLeft, ScanBarcode, Bluetooth, BluetoothConnected, Loader2, CreditCard, BadgeCheck, Edit3, Save, MessageCircle, Banknote, Smartphone, Lock, AlertTriangle, Clock, BookPlus, Languages, PauseCircle, PlayCircle, ArrowLeftRight } from 'lucide-react';
 import type { Book, BillItem, Bill } from '@/types/books';
-import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid, updateBillUpi, addBook, addPublisher, getPublishers } from '@/lib/bookStore';
+import { getBooks, getBills, createBill, editBill, deleteBill, findBookByIsbn, onDataChange, markBillAsPaid, updateBillUpi, changePaymentMethod, addBook, addPublisher, getPublishers } from '@/lib/bookStore';
 import { printBill as hybridPrint, connectPrinter, disconnectPrinter, isPrinterConnected, isBluetoothAvailable, getConnectedPrinterName, getSavedPrinterName, generateUpiQR } from '@/lib/billPrinter';
 import { transliterateDebounced } from '@/lib/transliterate';
 import BarcodeScanner from './BarcodeScanner';
@@ -17,11 +17,13 @@ const BILL_PASSCODE = '9090';
 function BillActionPasscode({
   type,
   billNumber,
+  newMethod,
   onConfirm,
   onClose,
 }: {
-  type: 'edit' | 'delete' | 'mark_paid';
+  type: 'edit' | 'delete' | 'mark_paid' | 'change_payment';
   billNumber: number;
+  newMethod?: 'cash' | 'upi';
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -44,6 +46,7 @@ function BillActionPasscode({
 
   const isDelete  = type === 'delete';
   const isMarkPaid = type === 'mark_paid';
+  const isChangePayment = type === 'change_payment';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -57,11 +60,11 @@ function BillActionPasscode({
         </button>
 
         <div className="flex flex-col items-center mb-5">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 ${isDelete ? 'bg-red-100' : isMarkPaid ? 'bg-green-100' : 'bg-blue-100'}`}>
-            {isDelete ? <AlertTriangle size={26} className="text-red-600" /> : isMarkPaid ? <BadgeCheck size={26} className="text-green-600" /> : <Lock size={26} className="text-blue-600" />}
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 ${isDelete ? 'bg-red-100' : isMarkPaid ? 'bg-green-100' : isChangePayment ? 'bg-indigo-100' : 'bg-blue-100'}`}>
+            {isDelete ? <AlertTriangle size={26} className="text-red-600" /> : isMarkPaid ? <BadgeCheck size={26} className="text-green-600" /> : isChangePayment ? <ArrowLeftRight size={26} className="text-indigo-600" /> : <Lock size={26} className="text-blue-600" />}
           </div>
           <h2 className="text-lg font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
-            {isDelete ? `Delete Bill #${billNumber}?` : isMarkPaid ? `Mark Bill #${billNumber} as Paid?` : `Edit Bill #${billNumber}`}
+            {isDelete ? `Delete Bill #${billNumber}?` : isMarkPaid ? `Mark Bill #${billNumber} as Paid?` : isChangePayment ? `Switch to ${newMethod === 'cash' ? 'Cash' : 'UPI'}?` : `Edit Bill #${billNumber}`}
           </h2>
           {isDelete && (
             <p className="text-xs text-red-500 font-medium text-center mt-1">
@@ -71,6 +74,11 @@ function BillActionPasscode({
           {isMarkPaid && (
             <p className="text-xs text-green-600 font-medium text-center mt-1">
               Confirm payment has been received from the customer.
+            </p>
+          )}
+          {isChangePayment && (
+            <p className="text-xs text-indigo-600 font-medium text-center mt-1">
+              Bill #{billNumber} payment will be recorded as {newMethod === 'cash' ? 'Cash' : 'UPI'}.
             </p>
           )}
           <p className="text-sm text-gray-500 text-center mt-2">Enter passcode to confirm</p>
@@ -100,10 +108,10 @@ function BillActionPasscode({
           <button
             onClick={attempt}
             className={`flex-1 py-3 rounded-2xl font-semibold text-sm text-white transition-colors ${
-              isDelete ? 'bg-red-600 hover:bg-red-700' : isMarkPaid ? 'bg-green-600 hover:bg-green-700' : 'bg-maroon hover:bg-opacity-90'
+              isDelete ? 'bg-red-600 hover:bg-red-700' : isMarkPaid ? 'bg-green-600 hover:bg-green-700' : isChangePayment ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-maroon hover:bg-opacity-90'
             }`}
           >
-            {isDelete ? 'Delete' : isMarkPaid ? 'Confirm Paid' : 'Unlock'}
+            {isDelete ? 'Delete' : isMarkPaid ? 'Confirm Paid' : isChangePayment ? 'Confirm Switch' : 'Unlock'}
           </button>
         </div>
       </motion.div>
@@ -357,7 +365,7 @@ export default function BillingPanel() {
   const [btConnected, setBtConnected] = useState(false);
   const [btConnecting, setBtConnecting] = useState(false);
   const [btName, setBtName] = useState<string | null>(null);
-  const [pendingBillAction, setPendingBillAction] = useState<{ type: 'edit' | 'delete' | 'mark_paid'; bill: Bill } | null>(null);
+  const [pendingBillAction, setPendingBillAction] = useState<{ type: 'edit' | 'delete' | 'mark_paid' | 'change_payment'; bill: Bill; newMethod?: 'cash' | 'upi' } | null>(null);
   const [upiResolveModal, setUpiResolveModal] = useState<Bill | null>(null);
   const [upiResolveTxnId, setUpiResolveTxnId] = useState('');
   const [printStatus, setPrintStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -829,6 +837,13 @@ export default function BillingPanel() {
       }
       setPendingBillAction(null);
       reload();
+    } else if (pendingBillAction.type === 'change_payment' && pendingBillAction.newMethod) {
+      const updated = changePaymentMethod(pendingBillAction.bill.id, pendingBillAction.newMethod);
+      if (updated && viewingBill?.id === updated.id) {
+        setViewingBill(updated);
+      }
+      setPendingBillAction(null);
+      reload();
     } else {
       startEditBill(pendingBillAction.bill);
       setPendingBillAction(null);
@@ -1011,6 +1026,15 @@ export default function BillingPanel() {
                 >
                   <Edit3 size={16} /> Edit
                 </button>
+                {viewingBill.paymentMethod && (
+                  <button
+                    onClick={() => setPendingBillAction({ type: 'change_payment', bill: viewingBill, newMethod: viewingBill.paymentMethod === 'cash' ? 'upi' : 'cash' })}
+                    className="flex items-center gap-1.5 text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                    title={`Switch to ${viewingBill.paymentMethod === 'cash' ? 'UPI' : 'Cash'}`}
+                  >
+                    <ArrowLeftRight size={16} /> {viewingBill.paymentMethod === 'cash' ? 'To UPI' : 'To Cash'}
+                  </button>
+                )}
                 <button
                   onClick={() => handlePrint(viewingBill)}
                   className="flex items-center gap-1.5 text-maroon hover:bg-maroon/5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
@@ -1308,6 +1332,7 @@ export default function BillingPanel() {
           <BillActionPasscode
             type={pendingBillAction.type}
             billNumber={pendingBillAction.bill.billNumber}
+            newMethod={pendingBillAction.newMethod}
             onConfirm={confirmBillAction}
             onClose={() => setPendingBillAction(null)}
           />
