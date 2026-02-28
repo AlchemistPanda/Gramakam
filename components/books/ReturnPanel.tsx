@@ -42,7 +42,7 @@ export default function ReturnPanel() {
   const [entries, setEntries]                 = useState<Record<string, number>>({});
   const [selectedPublisher, setSelectedPublisher] = useState<string | null>(null);
   const [statusFilter, setStatusFilter]       = useState<StatusFilter>('all');
-  const hideZeroExpected = statusFilter !== 'sold_out';
+  const [hideZeroExpected, setHideZeroExpected] = useState(true);
 
   // Search
   const [query, setQuery]                     = useState('');
@@ -558,6 +558,17 @@ export default function ReturnPanel() {
           </button>
         ))}
       </div>
+
+      {/* Hide sold-out toggle */}
+      <label className="inline-flex items-center gap-2 mb-4 cursor-pointer select-none text-sm text-gray-600">
+        <input
+          type="checkbox"
+          checked={hideZeroExpected}
+          onChange={e => setHideZeroExpected(e.target.checked)}
+          className="w-4 h-4 rounded accent-maroon cursor-pointer"
+        />
+        Hide fully-sold books (expected = 0)
+      </label>
 
       {/* Book table */}
       {sortedBooks.length === 0 ? (
