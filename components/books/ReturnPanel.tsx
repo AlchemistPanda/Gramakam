@@ -222,7 +222,7 @@ export default function ReturnPanel() {
     }
 
     const dateStr = new Date().toISOString().slice(0, 10);
-    const suffix  = selectedPublisher === '__all__' ? 'all' : selectedPublisher;
+    const suffix  = (selectedPublisher === '__all__' || selectedPublisher === null) ? 'all' : selectedPublisher;
     XLSX.writeFile(wb, `gramakam-returns-${suffix}-${dateStr}.xlsx`);
   };
 
@@ -311,7 +311,7 @@ export default function ReturnPanel() {
         ].map(pub => (
           <button
             key={pub.id}
-            onClick={() => setSelectedPublisher(pub.id)}
+            onClick={() => { setSelectedPublisher(pub.id); setStatusFilter('all'); }}
             className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${
               selectedPublisher === pub.id
                 ? 'bg-maroon text-white border-maroon shadow-md'
