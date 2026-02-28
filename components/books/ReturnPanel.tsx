@@ -432,36 +432,36 @@ export default function ReturnPanel() {
               </div>
 
               {/* Stats row */}
-              <div className="flex items-center gap-3 mb-4 flex-wrap">
-                <div className="bg-blue-50 rounded-xl px-4 py-2.5 text-center">
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="bg-blue-50 rounded-xl px-3 py-2 text-center">
                   <p className="text-xs text-blue-500 font-medium">Expected</p>
-                  <p className="text-2xl font-bold text-blue-700">{expected}</p>
+                  <p className="text-xl font-bold text-blue-700">{expected}</p>
                 </div>
-                {entries[selectedBook.id] !== undefined && (
-                  <div className="bg-green-50 rounded-xl px-4 py-2.5 text-center">
-                    <p className="text-xs text-green-500 font-medium">Previously logged</p>
-                    <p className="text-2xl font-bold text-green-700">{current}</p>
-                  </div>
-                )}
-                <div className="flex-1 min-w-[140px] text-center">
-                  <p className="text-xs text-gray-500 font-medium mb-1">After this entry</p>
+                <div className="bg-green-50 rounded-xl px-3 py-2 text-center">
+                  <p className="text-xs text-green-500 font-medium">Logged</p>
+                  <p className="text-xl font-bold text-green-700">
+                    {entries[selectedBook.id] !== undefined ? current : <span className="text-gray-300">—</span>}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-xl px-3 py-2 text-center">
+                  <p className="text-xs text-gray-500 font-medium">Result</p>
                   {inputVal > expected ? (
-                    <p className="text-lg font-bold text-yellow-600">+{inputVal - expected} extra</p>
-                  ) : inputVal === expected ? (
-                    <p className="text-lg font-bold text-green-600">✓ Complete!</p>
+                    <p className="text-sm font-bold text-yellow-600">+{inputVal - expected} extra</p>
+                  ) : inputVal === expected && inputVal > 0 ? (
+                    <p className="text-sm font-bold text-green-600">✓ Done!</p>
                   ) : inputVal > 0 ? (
-                    <p className="text-lg font-bold text-orange-600">{expected - inputVal} still missing</p>
+                    <p className="text-sm font-bold text-orange-600">{expected - inputVal} left</p>
                   ) : (
-                    <p className="text-gray-300 text-lg">—</p>
+                    <p className="text-gray-300 text-sm mt-1">—</p>
                   )}
                 </div>
               </div>
 
-              {/* Input controls */}
-              <div className="flex items-center gap-3">
+              {/* Input controls — row 1: stepper */}
+              <div className="flex items-center gap-2 mb-2">
                 <button
                   onClick={() => setFoundInput(v => String(Math.max(0, (parseInt(v) || 0) - 1)))}
-                  className="w-11 h-11 rounded-xl border-2 border-gray-200 flex items-center justify-center hover:border-maroon hover:text-maroon transition-colors text-xl font-bold text-gray-600"
+                  className="w-11 h-11 shrink-0 rounded-xl border-2 border-gray-200 flex items-center justify-center hover:border-maroon hover:text-maroon transition-colors text-xl font-bold text-gray-600"
                 >
                   −
                 </button>
@@ -473,18 +473,20 @@ export default function ReturnPanel() {
                   onKeyDown={e => e.key === 'Enter' && confirmEntry()}
                   placeholder="0"
                   autoFocus
-                  className="flex-1 text-center text-2xl font-bold py-2.5 border-2 border-gray-200 rounded-xl focus:border-maroon outline-none"
+                  className="flex-1 min-w-0 text-center text-2xl font-bold py-2.5 border-2 border-gray-200 rounded-xl focus:border-maroon outline-none"
                 />
                 <button
                   onClick={() => setFoundInput(v => String((parseInt(v) || 0) + 1))}
-                  className="w-11 h-11 rounded-xl border-2 border-gray-200 flex items-center justify-center hover:border-maroon hover:text-maroon transition-colors text-xl font-bold text-gray-600"
+                  className="w-11 h-11 shrink-0 rounded-xl border-2 border-gray-200 flex items-center justify-center hover:border-maroon hover:text-maroon transition-colors text-xl font-bold text-gray-600"
                 >
                   +
                 </button>
+              </div>
+              {/* Input controls — row 2: shortcuts + confirm */}
+              <div className="flex gap-2">
                 <button
                   onClick={() => setFoundInput(String(expected))}
-                  title="Set to expected count"
-                  className="px-3 py-2 text-xs bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 font-medium whitespace-nowrap"
+                  className="px-3 py-2.5 text-sm bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 font-medium whitespace-nowrap"
                 >
                   All {expected}
                 </button>
