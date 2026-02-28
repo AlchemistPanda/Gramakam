@@ -63,6 +63,15 @@ export interface BookStoreData {
   nextBillNumber: number;
 }
 
+// Book return / pack-down reconciliation entry.
+// Tracks how many physical copies of each book were found when packing
+// to return to publishers. Does NOT modify inventory or sold counts.
+export interface ReturnEntry {
+  bookId: string;
+  found: number;         // physical copies counted
+  updatedAt: string;     // ISO date
+}
+
 export interface BookRequest {
   id: string;
   customerName: string;

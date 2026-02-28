@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git add components/books/BillingPanel.tsx lib/bookStore.ts)",
       "Bash(git commit:*)",
-      "Bash(git push origin main)"
+      "Bash(git push origin main)",
+      "Bash(git add app/merchandise/page.tsx)"
     ]
   }
 }

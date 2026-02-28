@@ -5,16 +5,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3,
   LogOut, BookOpen, Menu, X, ChevronRight, ChevronDown, Users, WifiOff, AlertTriangle, ClipboardList,
-  Lock, ShieldCheck,
+  Lock, ShieldCheck, PackageCheck,
 } from 'lucide-react';
 import InventoryPanel from './InventoryPanel';
 import BillingPanel from './BillingPanel';
 import ReportsPanel from './ReportsPanel';
 import PublishersPanel from './PublishersPanel';
 import RequestsPanel from './RequestsPanel';
+import ReturnPanel from './ReturnPanel';
 import { getStats, getPublisherStats, getBooks, initBookStore, onDataChange } from '@/lib/bookStore';
 
-type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports' | 'requests';
+type Tab = 'dashboard' | 'inventory' | 'publishers' | 'billing' | 'reports' | 'requests' | 'returns';
 
 const FREE_TABS: Tab[] = ['billing', 'requests'];
 const PASSCODE      = '9090';
@@ -209,6 +210,7 @@ export default function BooksDashboard({ onLogout }: Props) {
     { id: 'inventory',  label: 'Inventory',  icon: Package,         desc: 'Manage books' },
     { id: 'publishers', label: 'Publishers', icon: Users,           desc: 'Publisher pool' },
     { id: 'reports',    label: 'Reports',    icon: BarChart3,       desc: 'Export data' },
+    { id: 'returns',    label: 'Returns',    icon: PackageCheck,    desc: 'Pack-down returns' },
   ];
 
   const quickActions = [
@@ -415,6 +417,7 @@ export default function BooksDashboard({ onLogout }: Props) {
               {activeTab === 'billing' && <BillingPanel />}
               {activeTab === 'reports' && <ReportsPanel />}
               {activeTab === 'requests' && <RequestsPanel />}
+              {activeTab === 'returns' && <ReturnPanel />}
             </motion.div>
           </AnimatePresence>
           )}

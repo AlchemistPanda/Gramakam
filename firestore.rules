@@ -7,6 +7,7 @@ service cloud.firestore {
     match /bookfest_bills/{document=**} { allow read, write: if true; }
     match /bookfest_publishers/{document=**} { allow read, write: if true; }
     match /bookfest_requests/{document=**} { allow read, write: if true; }
+    match /bookfest_returns/{document=**} { allow read, write: if true; }
     
     // Website collections (public read, authenticated write)
     match /posts/{document=**} { allow read: if true; allow write: if true; }

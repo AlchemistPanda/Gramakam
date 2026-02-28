@@ -4,7 +4,7 @@
 // IndexedDB cache, NOT from the server, saving read quota.
 // Collections: bookfest_books, bookfest_bills, bookfest_publishers, bookfest/meta
 
-import type { Book, Bill, Publisher, BookStoreData, BookRequest } from '@/types/books';
+import type { Book, Bill, Publisher, BookStoreData, BookRequest, ReturnEntry } from '@/types/books';
 import { db } from './firebase';
 
 const STORE_KEY = 'gramakam_bookfest';
@@ -17,6 +17,7 @@ function generateId(): string {
 
 let cache: BookStoreData = { books: [], bills: [], publishers: [], nextBillNumber: 1 };
 let requestsCache: BookRequest[] = [];
+let returnsCache: Record<string, ReturnEntry> = {}; // keyed by bookId
 let initialized = false;
 let changeListeners: Array<() => void> = [];
 
@@ -81,12 +82,29 @@ function saveRequestsToLocalStorage(): void {
   } catch {}
 }
 
+function loadReturnsFromLocalStorage(): Record<string, ReturnEntry> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORE_KEY + '_returns');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+
+function saveReturnsToLocalStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORE_KEY + '_returns', JSON.stringify(returnsCache));
+  } catch {}
+}
+
 // ==================== FIRESTORE LAYER (collection-based) ====================
 
 const COL_BOOKS = 'bookfest_books';
 const COL_BILLS = 'bookfest_bills';
 const COL_PUBLISHERS = 'bookfest_publishers';
 const COL_REQUESTS = 'bookfest_requests';
+const COL_RETURNS = 'bookfest_returns';
 
 async function firestoreLib() {
   return await import('firebase/firestore');
@@ -128,6 +146,34 @@ async function fsSetRequest(req: BookRequest): Promise<void> {
     const { doc, setDoc } = await firestoreLib();
     await setDoc(doc(db, COL_REQUESTS, req.id), cleanData({ ...req }));
   } catch (e) { console.warn('Firestore write request failed:', e); } finally { requestsWritesInFlight--; }
+}
+
+async function fsSetReturnEntry(entry: ReturnEntry): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, setDoc } = await firestoreLib();
+    await setDoc(doc(db, COL_RETURNS, entry.bookId), cleanData({ ...entry }));
+  } catch (e) { console.warn('Firestore write return entry failed:', e); }
+}
+
+async function fsDeleteReturnEntry(bookId: string): Promise<void> {
+  if (!db) return;
+  try {
+    const { doc, deleteDoc } = await firestoreLib();
+    await deleteDoc(doc(db, COL_RETURNS, bookId));
+  } catch (e) { console.warn('Firestore delete return entry failed:', e); }
+}
+
+async function fsClearReturnEntries(): Promise<void> {
+  if (!db) return;
+  try {
+    const { collection, getDocs, writeBatch } = await firestoreLib();
+    const snap = await getDocs(collection(db, COL_RETURNS));
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    snap.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (e) { console.warn('Firestore clear returns failed:', e); }
 }
 
 async function fsDeleteRequest(id: string): Promise<void> {
@@ -266,6 +312,8 @@ export async function initBookStore(): Promise<void> {
   cache = localData;
   // Also pre-load requests from localStorage so they show instantly on the same device
   requestsCache = loadRequestsFromLocalStorage();
+  // Pre-load return entries from localStorage
+  returnsCache = loadReturnsFromLocalStorage();
 
   initialized = true;
 
@@ -1010,4 +1058,30 @@ export function clearAllData(): void {
   saveToLocalStorage();
   fsBulkWrite(empty).catch(() => {});
   notifyListeners();
+}
+
+// ==================== RETURN ENTRIES API ====================
+
+export function getReturnEntries(): Record<string, ReturnEntry> {
+  return returnsCache;
+}
+
+export function setReturnEntry(bookId: string, found: number): void {
+  const entry: ReturnEntry = { bookId, found, updatedAt: new Date().toISOString() };
+  returnsCache = { ...returnsCache, [bookId]: entry };
+  saveReturnsToLocalStorage();
+  fsSetReturnEntry(entry).catch(() => {});
+}
+
+export function deleteReturnEntry(bookId: string): void {
+  const { [bookId]: _, ...rest } = returnsCache;
+  returnsCache = rest;
+  saveReturnsToLocalStorage();
+  fsDeleteReturnEntry(bookId).catch(() => {});
+}
+
+export function clearReturnEntries(): void {
+  returnsCache = {};
+  saveReturnsToLocalStorage();
+  fsClearReturnEntries().catch(() => {});
 }
