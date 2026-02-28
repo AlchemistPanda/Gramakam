@@ -42,6 +42,7 @@ export default function ReturnPanel() {
   const [entries, setEntries]                 = useState<Record<string, number>>({});
   const [selectedPublisher, setSelectedPublisher] = useState<string>('__all__');
   const [statusFilter, setStatusFilter]       = useState<StatusFilter>('all');
+  const [hideZeroExpected, setHideZeroExpected] = useState(true);
 
   // Search
   const [query, setQuery]                     = useState('');
@@ -134,9 +135,12 @@ export default function ReturnPanel() {
       ? books
       : books.filter(b => b.publisher === selectedPublisher);
 
+  const zeroExpectedCount = publisherBooks.filter(b => Math.max(0, b.quantity - b.sold) === 0).length;
+
   const filteredBooks = publisherBooks.filter(b => {
-    if (statusFilter === 'all') return true;
     const expected = Math.max(0, b.quantity - b.sold);
+    if (hideZeroExpected && expected === 0) return false;
+    if (statusFilter === 'all') return true;
     return getStatus(expected, entries[b.id]) === statusFilter;
   });
 
@@ -514,9 +518,9 @@ export default function ReturnPanel() {
       </AnimatePresence>
 
       {/* Status filter chips */}
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex gap-2 mb-4 flex-wrap items-center">
         {([
-          { id: 'all' as const,       label: `All (${publisherBooks.length})`,    activeClass: 'bg-gray-700 text-white'    },
+          { id: 'all' as const,       label: `All (${publisherBooks.length - (hideZeroExpected ? zeroExpectedCount : 0)})`, activeClass: 'bg-gray-700 text-white' },
           { id: 'not_found' as const, label: `Not Found (${countByStatus('not_found')})`, activeClass: 'bg-red-500 text-white'  },
           { id: 'partial' as const,   label: `Partial (${countByStatus('partial')})`,   activeClass: 'bg-orange-500 text-white'},
           { id: 'complete' as const,  label: `Complete (${countByStatus('complete')})`,  activeClass: 'bg-green-500 text-white' },
@@ -535,6 +539,25 @@ export default function ReturnPanel() {
           </button>
         ))}
       </div>
+
+      {/* Zero-expected toggle */}
+      {zeroExpectedCount > 0 && (
+        <button
+          onClick={() => setHideZeroExpected(v => !v)}
+          className={`mb-4 flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+            hideZeroExpected
+              ? 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+              : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+          }`}
+        >
+          <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+            hideZeroExpected ? 'border-gray-400' : 'border-blue-500 bg-blue-500'
+          }`}>
+            {!hideZeroExpected && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+          </span>
+          Show fully sold books ({zeroExpectedCount}) — expected 0, no returns needed
+        </button>
+      )}
 
       {/* Book table */}
       {sortedBooks.length === 0 ? (
