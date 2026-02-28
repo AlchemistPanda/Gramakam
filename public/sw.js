@@ -8,7 +8,6 @@ const CACHE_NAME = 'gramakam-v1';
 const PRECACHE = [
   '/',
   '/books',
-  '/offline',
 ];
 
 // Install — cache the minimal shell

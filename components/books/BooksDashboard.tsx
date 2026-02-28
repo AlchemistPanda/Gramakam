@@ -133,8 +133,8 @@ export default function BooksDashboard({ onLogout }: Props) {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 4000);
-        // Fetch own favicon — tiny, same origin, no CORS issue
-        await fetch('/favicon.ico?_=' + Date.now(), { cache: 'no-store', signal: controller.signal });
+        // Fetch own icon — tiny, same origin, no CORS issue
+        await fetch('/icons/icon-192.png?_=' + Date.now(), { cache: 'no-store', signal: controller.signal });
         clearTimeout(timeout);
         setIsOnline(true);
       } catch {
@@ -213,6 +213,14 @@ export default function BooksDashboard({ onLogout }: Props) {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     };
   }, []);
+
+  // Periodically update the "synced X ago" text so it stays current
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    if (!lastSyncAt) return;
+    const timer = setInterval(() => forceUpdate((n) => n + 1), 15_000);
+    return () => clearInterval(timer);
+  }, [lastSyncAt]);
 
   // Format last-synced time for display
   const formatSyncTime = useCallback(() => {
