@@ -246,7 +246,7 @@ export default function BooksDashboard({ onLogout }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden">
       {/* Offline banner — shown when internet is lost */}
       <AnimatePresence>
         {!isOnline && (
@@ -262,7 +262,7 @@ export default function BooksDashboard({ onLogout }: Props) {
         )}
       </AnimatePresence>
 
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-w-0 overflow-x-hidden">
       {/* Sidebar overlay for mobile */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -345,7 +345,7 @@ export default function BooksDashboard({ onLogout }: Props) {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 overflow-x-hidden">
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-gray-200">
           <div className="flex items-center justify-between px-4 md:px-6 py-3">
@@ -381,7 +381,7 @@ export default function BooksDashboard({ onLogout }: Props) {
         </header>
 
         {/* Page */}
-        <main className="flex-1 p-4 md:p-6">
+        <main className="flex-1 p-4 md:p-6 min-w-0 overflow-x-hidden">
           {/* Passcode modal */}
           <AnimatePresence>
             {pendingTab && (
@@ -408,6 +408,7 @@ export default function BooksDashboard({ onLogout }: Props) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.15 }}
+              className="min-w-0"
             >
               {activeTab === 'dashboard' && (
                 <DashboardHome stats={stats} totalProfit={totalProfit} onNavigate={switchTab} quickActions={quickActions} lowStockBooks={lowStockBooks} />

@@ -15,6 +15,11 @@
   --font-body: 'Inter', system-ui, sans-serif;
 }
 
+html,
+body {
+  overflow-x: hidden;
+}
+
 @layer base {
   * {
     @apply box-border;
