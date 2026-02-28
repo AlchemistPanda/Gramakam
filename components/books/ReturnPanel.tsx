@@ -40,7 +40,7 @@ export default function ReturnPanel() {
   const [books, setBooks]                     = useState<Book[]>([]);
   const [publishers, setPublishers]           = useState<string[]>([]);
   const [entries, setEntries]                 = useState<Record<string, number>>({});
-  const [selectedPublisher, setSelectedPublisher] = useState<string>('__all__');
+  const [selectedPublisher, setSelectedPublisher] = useState<string | null>(null);
   const [statusFilter, setStatusFilter]       = useState<StatusFilter>('all');
   const hideZeroExpected = statusFilter !== 'sold_out';
 
@@ -64,7 +64,14 @@ export default function ReturnPanel() {
     const found: Record<string, number> = {};
     for (const [id, e] of Object.entries(entryMap)) found[id] = e.found;
     setEntries(found);
-    setPublishers([...new Set(allBooks.map(b => b.publisher))].sort());
+    // Sort publishers ascending by total book title count (fewest first)
+    const pubCountMap = new Map<string, number>();
+    for (const b of allBooks) pubCountMap.set(b.publisher, (pubCountMap.get(b.publisher) ?? 0) + 1);
+    setPublishers(
+      [...new Set(allBooks.map(b => b.publisher))].sort(
+        (a, b) => (pubCountMap.get(a) ?? 0) - (pubCountMap.get(b) ?? 0)
+      )
+    );
   };
 
   useEffect(() => { reload(); }, []);
@@ -131,7 +138,7 @@ export default function ReturnPanel() {
   // ── Derived data ──────────────────────────────────────────────────────────
 
   const publisherBooks =
-    selectedPublisher === '__all__'
+    selectedPublisher === null || selectedPublisher === '__all__'
       ? books
       : books.filter(b => b.publisher === selectedPublisher);
 
@@ -177,7 +184,7 @@ export default function ReturnPanel() {
   const exportReport = async () => {
     const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
-    const pubsToExport = selectedPublisher === '__all__' ? publishers : [selectedPublisher];
+    const pubsToExport = (selectedPublisher === '__all__' || selectedPublisher === null) ? publishers : [selectedPublisher as string];
 
     for (const pub of pubsToExport) {
       const pubBooks = books
@@ -222,9 +229,9 @@ export default function ReturnPanel() {
   // ── Clear ─────────────────────────────────────────────────────────────────
 
   const handleClear = () => {
-    const label = selectedPublisher === '__all__' ? 'ALL publishers' : selectedPublisher;
+    const label = (selectedPublisher === '__all__' || selectedPublisher === null) ? 'ALL publishers' : selectedPublisher;
     if (!window.confirm(`Clear all return entries for ${label}? This cannot be undone.`)) return;
-    if (selectedPublisher === '__all__') {
+    if (selectedPublisher === '__all__' || selectedPublisher === null) {
       clearReturnEntries();
       setEntries({});
     } else {
@@ -291,7 +298,6 @@ export default function ReturnPanel() {
       {/* Publisher tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-4 min-w-0">
         {[
-          { id: '__all__', name: 'All Publishers', pct: -1 },
           ...publishers.map(p => {
             const pb = books.filter(b => b.publisher === p);
             const c  = pb.filter(b => {
@@ -301,6 +307,7 @@ export default function ReturnPanel() {
             }).length;
             return { id: p, name: p, pct: pb.length > 0 ? Math.round((c / pb.length) * 100) : 100 };
           }),
+          { id: '__all__', name: 'All Publishers', pct: -1 },
         ].map(pub => (
           <button
             key={pub.id}
@@ -518,6 +525,16 @@ export default function ReturnPanel() {
         })()}
       </AnimatePresence>
 
+      {/* Status filter chips + table — only shown after a publisher is selected */}
+      {selectedPublisher === null ? (
+        <div className="text-center py-16 text-gray-400">
+          <PackageCheck size={40} className="mx-auto mb-3 opacity-30" />
+          <p className="font-medium">Select a publisher to start counting</p>
+          <p className="text-sm mt-1">Choose a publisher from the tabs above</p>
+        </div>
+      ) : (
+        <>
+
       {/* Status filter chips */}
       <div className="flex gap-2 mb-4 flex-wrap items-center">
         {([
@@ -629,6 +646,9 @@ export default function ReturnPanel() {
             </table>
           </div>
         </div>
+      )}
+
+      </> /* end publisher selected block */
       )}
     </div>
   );

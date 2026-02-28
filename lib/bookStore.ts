@@ -28,6 +28,7 @@ let booksWritesInFlight = 0;
 let billsWritesInFlight = 0;
 let publishersWritesInFlight = 0;
 let requestsWritesInFlight = 0;
+let returnsWritesInFlight = 0;
 let requestsFirestoreError: string | null = null;
 
 export function getRequestsFirestoreError(): string | null { return requestsFirestoreError; }
@@ -150,22 +151,25 @@ async function fsSetRequest(req: BookRequest): Promise<void> {
 
 async function fsSetReturnEntry(entry: ReturnEntry): Promise<void> {
   if (!db) return;
+  returnsWritesInFlight++;
   try {
     const { doc, setDoc } = await firestoreLib();
     await setDoc(doc(db, COL_RETURNS, entry.bookId), cleanData({ ...entry }));
-  } catch (e) { console.warn('Firestore write return entry failed:', e); }
+  } catch (e) { console.warn('Firestore write return entry failed:', e); } finally { returnsWritesInFlight--; }
 }
 
 async function fsDeleteReturnEntry(bookId: string): Promise<void> {
   if (!db) return;
+  returnsWritesInFlight++;
   try {
     const { doc, deleteDoc } = await firestoreLib();
     await deleteDoc(doc(db, COL_RETURNS, bookId));
-  } catch (e) { console.warn('Firestore delete return entry failed:', e); }
+  } catch (e) { console.warn('Firestore delete return entry failed:', e); } finally { returnsWritesInFlight--; }
 }
 
 async function fsClearReturnEntries(): Promise<void> {
   if (!db) return;
+  returnsWritesInFlight++;
   try {
     const { collection, getDocs, writeBatch } = await firestoreLib();
     const snap = await getDocs(collection(db, COL_RETURNS));
@@ -173,7 +177,7 @@ async function fsClearReturnEntries(): Promise<void> {
     const batch = writeBatch(db);
     snap.forEach((d) => batch.delete(d.ref));
     await batch.commit();
-  } catch (e) { console.warn('Firestore clear returns failed:', e); }
+  } catch (e) { console.warn('Firestore clear returns failed:', e); } finally { returnsWritesInFlight--; }
 }
 
 async function fsDeleteRequest(id: string): Promise<void> {
@@ -329,6 +333,8 @@ export async function initBookStore(): Promise<void> {
     // Set up real-time listeners — the first snapshot IS the initial data load.
     // No separate getDocs call needed (saves reads).
     setupRealtimeListeners();
+    // Returns: real-time listener with docChanges() for cross-device sync
+    setupReturnsListener();
     // Requests: use getDocs for guaranteed initial load (not just onSnapshot)
     // then set up onSnapshot for real-time updates after initial data arrives.
     loadRequestsFromFirestore().then(() => {
@@ -432,6 +438,34 @@ function setupRealtimeListeners(): void {
       checkMigration();
     }, (err) => console.warn('Meta listener error:', err));
 
+  }).catch(() => {});
+}
+
+// Real-time listener for the returns collection.
+// Uses docChanges() so each update costs only the changed docs, not all 1,956 books.
+function setupReturnsListener(): void {
+  if (!db) return;
+  firestoreLib().then(({ collection, onSnapshot }) => {
+    onSnapshot(collection(db!, COL_RETURNS), (snap) => {
+      if (returnsWritesInFlight > 0) return; // local write in-flight — skip stale echo
+      let changed = false;
+      snap.docChanges().forEach((change) => {
+        const entry = { ...change.doc.data(), bookId: change.doc.id } as ReturnEntry;
+        if (change.type === 'removed') {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [entry.bookId]: _removed, ...rest } = returnsCache;
+          returnsCache = rest;
+          changed = true;
+        } else {
+          returnsCache = { ...returnsCache, [entry.bookId]: entry };
+          changed = true;
+        }
+      });
+      if (changed) {
+        saveReturnsToLocalStorage();
+        notifyListeners();
+      }
+    }, (err) => console.warn('Returns listener error:', err));
   }).catch(() => {});
 }
 
