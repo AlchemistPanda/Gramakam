@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3,
@@ -120,6 +120,9 @@ export default function BooksDashboard({ onLogout }: Props) {
   const [lowStockBooks, setLowStockBooks] = useState<{ id: string; title: string; localTitle?: string; remaining: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const [syncPulse, setSyncPulse]   = useState(false);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track online / offline status — so cashiers know when working without internet.
   // navigator.onLine is unreliable: it stays true if device is on WiFi/LAN even when
@@ -199,9 +202,27 @@ export default function BooksDashboard({ onLogout }: Props) {
           .sort((a, b) => (a.quantity - a.sold) - (b.quantity - b.sold))
           .map((b) => ({ id: b.id, title: b.title, localTitle: b.localTitle, remaining: b.quantity - b.sold }))
       );
+      // Record sync timestamp and trigger pulse animation
+      setLastSyncAt(new Date());
+      setSyncPulse(true);
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = setTimeout(() => setSyncPulse(false), 2000);
     });
-    return unsub;
+    return () => {
+      unsub();
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
   }, []);
+
+  // Format last-synced time for display
+  const formatSyncTime = useCallback(() => {
+    if (!lastSyncAt) return '';
+    const diff = Math.floor((Date.now() - lastSyncAt.getTime()) / 1000);
+    if (diff < 10) return 'just now';
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return lastSyncAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  }, [lastSyncAt]);
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; desc: string }[] = [
     { id: 'billing',    label: 'Billing',    icon: ShoppingCart,    desc: 'Point of Sale' },
@@ -257,7 +278,12 @@ export default function BooksDashboard({ onLogout }: Props) {
             className="w-full z-[60] bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-semibold"
           >
             <WifiOff size={16} />
-            Offline — billing still works. Data will sync automatically when internet is restored.
+            <span>Offline — billing still works. Data will sync when internet is restored.</span>
+            {lastSyncAt && (
+              <span className="text-amber-200 text-xs ml-1">
+                Last synced: {lastSyncAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -368,7 +394,19 @@ export default function BooksDashboard({ onLogout }: Props) {
                   <ShieldCheck size={11} /> Admin
                 </span>
               )}
-              {!isOnline && (
+              {/* Connection & sync indicator */}
+              {isOnline ? (
+                <span className="flex items-center gap-1.5 text-gray-400">
+                  <span className="relative flex h-2 w-2">
+                    {syncPulse && <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />}
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                  </span>
+                  {syncPulse
+                    ? <span className="text-green-600 hidden sm:inline">syncing…</span>
+                    : lastSyncAt && <span className="hidden sm:inline">synced {formatSyncTime()}</span>
+                  }
+                </span>
+              ) : (
                 <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 font-semibold rounded-full">
                   <WifiOff size={11} /> Offline
                 </span>
