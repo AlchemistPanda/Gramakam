@@ -233,7 +233,7 @@ export default function ReturnPanel() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <div className="w-full min-w-0 overflow-x-hidden">
       {/* Header */}
       <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
         <div>
@@ -284,7 +284,7 @@ export default function ReturnPanel() {
       </div>
 
       {/* Publisher tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-4 min-w-0">
         {[
           { id: '__all__', name: 'All Publishers', pct: -1 },
           ...publishers.map(p => {
@@ -328,7 +328,7 @@ export default function ReturnPanel() {
         <input
           ref={searchRef}
           type="text"
-          placeholder="Search by book name, price, publisher, ISBN to log found copies…"
+          placeholder="Search book name, price or publisher…"
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => {
