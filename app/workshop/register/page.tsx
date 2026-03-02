@@ -137,9 +137,9 @@ export default function WorkshopRegisterPage() {
       if (photoFile) {
         setUploading(true);
         setUploadProgress(0);
-        const FIVE_MB = 5 * 1024 * 1024;
-        const fileToUpload = photoFile.size > FIVE_MB
-          ? await compressImage(photoFile, { maxWidth: 1920, maxHeight: 1920, quality: 0.88, maxSizeMB: 4.5 })
+        const FOUR_MB = 4 * 1024 * 1024;
+        const fileToUpload = photoFile.size > FOUR_MB
+          ? await compressImage(photoFile, { maxWidth: 1920, maxHeight: 1920, quality: 0.88, maxSizeMB: 3.5 })
           : photoFile;
         const fd = new FormData();
         fd.append('file', fileToUpload);
