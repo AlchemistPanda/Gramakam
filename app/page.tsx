@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Countdown from '@/components/Countdown';
 import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
-import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar, QrCode } from 'lucide-react';
+import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar } from 'lucide-react';
 
 // Real festival images from past editions
 const carouselImages = [
@@ -22,7 +22,6 @@ const quickLinks = [
   { href: '/feed', label: 'Latest Feed', icon: Newspaper, description: 'News, updates & announcements' },
   { href: '/merchandise', label: 'Merchandise', icon: ShoppingBag, description: 'Exclusive festival collectibles' },
   { href: '/contact', label: 'Contact Us', icon: Mail, description: 'Reach out to the Gramakam team' },
-  { href: '/qrgen', label: 'QR Generator', icon: QrCode, description: 'Create and download custom QR codes' },
 ];
 
 export default function HomePage() {
