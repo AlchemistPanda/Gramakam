@@ -14,9 +14,9 @@ export default function Footer() {
                 <Image
                   src="/images/gramakam-logo-white.png"
                   alt="Gramakam Logo"
-                  width={36}
-                  height={36}
-                  className="w-9 h-9 object-contain"
+                  width={48}
+                  height={48}
+                  className="w-full h-full object-contain p-1"
                 />
               </div>
               <h3

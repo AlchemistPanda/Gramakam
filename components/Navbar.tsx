@@ -40,9 +40,9 @@ export default function Navbar() {
               <Image
                 src="/images/gramakam-logo-white.png"
                 alt="Gramakam Logo"
-                width={28}
-                height={28}
-                className="w-6 h-6 md:w-7 md:h-7 object-contain"
+                width={44}
+                height={44}
+                className="w-full h-full object-contain p-1"
               />
             </div>
             <span className={`text-2xl md:text-3xl font-bold transition-colors duration-500 ${scrolled ? 'text-maroon' : 'text-white'}`} style={{ fontFamily: 'var(--font-heading)' }}>
