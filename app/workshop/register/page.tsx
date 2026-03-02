@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, X, CheckCircle, Loader2, Camera, ArrowLeft, AlertCircle } from 'lucide-react';
-import { compressImage, formatFileSize } from '@/lib/imageCompressor';
+import { compressImage } from '@/lib/imageCompressor';
 
 // ─── Bilingual label helper ──────────────────────────────────────────────────
 function Label({ en, ml, required }: { en: string; ml: string; required?: boolean }) {
@@ -72,6 +72,7 @@ export default function WorkshopRegisterPage() {
     if (!form.mobile_number.match(/^\+?[0-9]{10,13}$/))
                                         e.mobile_number    = 'Enter a valid mobile number / ശരിയായ നമ്പർ നൽകൂ';
     if (!form.consent_participate)      e.consent_participate = 'Parental consent is required / രക്ഷിതാവിന്റെ സമ്മതം ആവശ്യമാണ്';
+    if (!photoFile)                       e.photo               = 'Photo is required / ഫോട്ടോ നിർബന്ധമാണ്';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -425,10 +426,10 @@ export default function WorkshopRegisterPage() {
           {/* ── Section 3: Photo Upload ───────────────────────────────────── */}
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
             <h2 className="text-lg font-bold text-charcoal mb-1" style={{ fontFamily: 'var(--font-heading)' }}>
-              3. Child&apos;s Photo
+              3. Child&apos;s Photo <span className="text-red-500">*</span>
             </h2>
-            <p className="text-sm text-maroon mb-2">കുട്ടിയുടെ ഫോട്ടോ</p>
-            <p className="text-xs text-gray-400 mb-4">Optional. Any clear photo of the child. Up to 20 MB — files over 5 MB are auto-compressed. / ഐച്ഛികം. കുട്ടിയുടെ വ്യക്തമായ ഒരു ഫോട്ടോ. 20 MB വരെ അനുവദിക്കും, 5 MB-ൽ കൂടുതലുള്ളവ സ്വയം കംപ്രസ്സ് ചെയ്യും.</p>
+            <p className="text-sm text-maroon mb-4">കുട്ടിയുടെ ഫോട്ടോ</p>
+            <p className="text-xs text-gray-400 mb-4">A full size photo preferred. / പൂർണ്ണ വലുപ്പമുള്ള ഫോട്ടോ ശ്രദ്ധിക്കണം.</p>
 
             {photoPreview ? (
               <div className="flex items-end gap-3">
@@ -442,19 +443,12 @@ export default function WorkshopRegisterPage() {
                     <X size={12} />
                   </button>
                 </div>
-                <div className="text-xs text-gray-400 space-y-1">
-                  <p className="font-medium text-charcoal truncate max-w-[160px]">{photoFile?.name}</p>
-                  <p>{formatFileSize(photoFile?.size ?? 0)}</p>
-                  {photoFile && photoFile.size > 5 * 1024 * 1024 && (
-                    <p className="text-amber-500">⚡ Will be compressed before upload</p>
-                  )}
-                </div>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="flex flex-col items-center gap-2 w-full border-2 border-dashed border-gray-200 hover:border-maroon rounded-2xl py-8 text-gray-400 hover:text-maroon transition-colors"
+                className={`flex flex-col items-center gap-2 w-full border-2 border-dashed rounded-2xl py-8 transition-colors ${errors.photo ? 'border-red-300 text-red-400 hover:border-red-400' : 'border-gray-200 text-gray-400 hover:border-maroon hover:text-maroon'}`}
               >
                 <Camera size={28} />
                 <span className="text-sm font-medium">Click to upload photo</span>
