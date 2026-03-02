@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only image files are allowed' }, { status: 400 });
     }
 
-    // Validate size — max 5 MB
+    // Validate size — max 5 MB (client-side compresses to ~0.4 MB before sending)
     if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json({ error: 'Image must be under 5 MB' }, { status: 400 });
     }
@@ -29,13 +29,14 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to Cloudinary
+    // Upload to Cloudinary with aggressive compression to protect free-tier quota
     const result = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
           folder: 'gramakam-workshop-2026',
           resource_type: 'image',
-          transformation: [{ quality: 'auto', fetch_format: 'auto', width: 800, crop: 'limit' }],
+          // Resize to max 600×800, quality 60, convert to WebP — keeps each image < 80 KB
+          transformation: [{ quality: 60, fetch_format: 'webp', width: 600, height: 800, crop: 'limit' }],
         },
         (error, result) => {
           if (error || !result) reject(error ?? new Error('Upload failed'));

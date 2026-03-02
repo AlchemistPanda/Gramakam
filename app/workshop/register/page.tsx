@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, X, CheckCircle, Loader2, Camera, ArrowLeft, AlertCircle } from 'lucide-react';
+import { compressImage } from '@/lib/imageCompressor';
 
 // ─── Bilingual label helper ──────────────────────────────────────────────────
 function Label({ en, ml, required }: { en: string; ml: string; required?: boolean }) {
@@ -109,11 +110,14 @@ export default function WorkshopRegisterPage() {
       let photoUrl: string | null = null;
       let photoPublicId: string | null = null;
 
-      // Step 1: Upload photo if provided
+      // Step 1: Upload photo if provided (compress client-side first)
       if (photoFile) {
         setUploading(true);
+        const compressed = await compressImage(photoFile, {
+          maxWidth: 600, maxHeight: 800, quality: 0.75, maxSizeMB: 0.4,
+        });
         const fd = new FormData();
-        fd.append('file', photoFile);
+        fd.append('file', compressed);
         const uploadRes = await fetch('/api/workshop/upload', { method: 'POST', body: fd });
         const uploadData = await uploadRes.json();
         setUploading(false);
@@ -191,7 +195,7 @@ export default function WorkshopRegisterPage() {
             <ArrowLeft size={14} /> Back to Workshop
           </Link>
           <h1 className="text-3xl sm:text-4xl font-bold leading-tight" style={{ fontFamily: 'var(--font-heading)' }}>
-            Workshop Registration
+            Children&apos;s Acting Workshop Registration
           </h1>
           <p className="text-white/70 mt-1 text-sm">വർക്ക്‌ഷോപ്പ് രജിസ്ട്രേഷൻ</p>
           <p className="text-white/60 text-xs mt-3">
@@ -402,7 +406,7 @@ export default function WorkshopRegisterPage() {
               3. Child&apos;s Photo
             </h2>
             <p className="text-sm text-maroon mb-2">കുട്ടിയുടെ ഫോട്ടോ</p>
-            <p className="text-xs text-gray-400 mb-4">Optional. Clear passport-style photo preferred. Max 5 MB. / ഐच्छिക. പരമാവധി 5 MB.</p>
+            <p className="text-xs text-gray-400 mb-4">Optional. Clear photo of the child. Max 5 MB. / ഐച്ഛികം. കുട്ടിയുടെ വ്യക്തമായ ഒരു ഫോട്ടോ. പരമാവധി 5 MB.</p>
 
             {photoPreview ? (
               <div className="relative w-32 h-40 rounded-2xl overflow-hidden border-2 border-maroon/20">
