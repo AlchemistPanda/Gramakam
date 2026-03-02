@@ -2,12 +2,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import AnimatedSection from '@/components/AnimatedSection';
-import { Calendar, MapPin, Clock, Users, Star, ArrowRight, Sparkles } from 'lucide-react';
+import { Users, Star, ArrowRight, Sparkles } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: "Children's Acting Workshop | Gramakam 2026",
   description:
-    "Join the Gramakam Children's Acting Workshop — a fun, immersive theatre experience for young performers aged 8–16. Register now for the 2026 edition.",
+    "Join the Gramakam Children's Acting Workshop — a fun, immersive theatre experience for young performers. Register now for the 2026 edition.",
 };
 
 const galleryImages = [
@@ -38,10 +38,7 @@ const highlights = [
 ];
 
 const details = [
-  { icon: Calendar, label: 'Date', value: 'April 9 & 10, 2026' },
-  { icon: Clock,    label: 'Time', value: '9:00 AM – 1:00 PM (each day)' },
-  { icon: MapPin,   label: 'Venue', value: 'Festival Grounds, Velur, Thrissur' },
-  { icon: Users,    label: 'Age Group', value: '8 – 16 years' },
+  { icon: Users, label: 'Age Group', value: '10 – 20 years' },
 ];
 
 export default function WorkshopPage() {
