@@ -13,6 +13,7 @@ import {
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Registration {
   id: string;
+  reg_number: number | null;
   child_name: string;
   age: number;
   gender: string;
@@ -138,11 +139,12 @@ function PhotoCell({ url }: { url: string | null }) {
 // ─── Export to CSV ────────────────────────────────────────────────────────────
 function exportCSV(data: Registration[]) {
   const headers = [
-    'ID', 'Submitted At', 'Child Name', 'Age', 'Gender', 'School', 'Class/Grade',
+    'Reg #', 'ID', 'Submitted At', 'Child Name', 'Age', 'Gender', 'School', 'Class/Grade',
     'Interests', 'Previous Experience', 'Parent Name', 'Mobile', 'WhatsApp',
     'Email', 'Address', 'Consent Participate', 'Consent Media', 'Photo URL',
   ];
   const rows = data.map(r => [
+    r.reg_number != null ? `GRK-${String(r.reg_number).padStart(4, '0')}` : '',
     r.id,
     new Date(r.submitted_at).toLocaleString('en-IN'),
     r.child_name, r.age, r.gender, r.school_name, r.class_grade,
@@ -369,6 +371,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
                 <thead className="border-b border-gray-100 bg-gray-50/60">
                   <tr>
                     <th className="w-10 py-3 px-3 text-xs font-semibold text-gray-500">#</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide py-3 px-3 whitespace-nowrap">Reg #</th>
                     <th className="w-12 py-3 px-2 text-xs font-semibold text-gray-500">Photo</th>
                     <Th k="child_name" label="Child Name" />
                     <Th k="age" label="Age" />
@@ -391,6 +394,9 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
                         className="border-b border-gray-50 hover:bg-cream/20 cursor-pointer transition-colors"
                       >
                         <td className="py-3 px-3 text-gray-400 text-xs">{i + 1}</td>
+                        <td className="py-3 px-3 font-mono text-xs text-maroon font-semibold whitespace-nowrap">
+                          {r.reg_number != null ? `GRK-${String(r.reg_number).padStart(4, '0')}` : '—'}
+                        </td>
                         <td className="py-3 px-2"><PhotoCell url={r.photo_url} /></td>
                         <td className="py-3 px-3 font-semibold text-charcoal whitespace-nowrap">{r.child_name}</td>
                         <td className="py-3 px-3 text-gray-600">{r.age}</td>
