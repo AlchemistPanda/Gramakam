@@ -31,8 +31,6 @@ export async function POST(req: NextRequest) {
         {
           folder: 'gramakam-workshop-2026',
           resource_type: 'image',
-          // width/height only downscale if bigger than 1920px; quality auto picks optimal
-          transformation: [{ width: 1920, height: 1920, crop: 'limit', quality: 'auto' }],
         },
         (error, result) => {
           if (error || !result) {
