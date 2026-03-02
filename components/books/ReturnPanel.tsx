@@ -15,11 +15,12 @@ import {
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
-type Status = 'not_found' | 'partial' | 'complete' | 'extra';
-type StatusFilter = 'all' | Status | 'sold_out';
+type Status = 'not_found' | 'partial' | 'complete' | 'extra' | 'sold_out';
+type StatusFilter = 'all' | Status;
 
 function getStatus(expected: number, found: number | undefined): Status {
-  if (found === undefined || found === 0) return expected === 0 ? 'complete' : 'not_found';
+  if (expected === 0) return 'sold_out';
+  if (found === undefined || found === 0) return 'not_found';
   if (found === expected) return 'complete';
   if (found < expected) return 'partial';
   return 'extra';
@@ -30,9 +31,10 @@ const STATUS_COLORS: Record<Status, { row: string; badge: string; label: string 
   extra:     { row: 'bg-yellow-50',    badge: 'bg-yellow-100 text-yellow-700', label: '⚠ Extra'     },
   partial:   { row: 'bg-orange-50',    badge: 'bg-orange-100 text-orange-700', label: '◐ Partial'   },
   not_found: { row: 'bg-red-50/60',    badge: 'bg-red-100 text-red-700',       label: '✕ Not Found' },
+  sold_out:  { row: 'bg-blue-50',      badge: 'bg-blue-100 text-blue-700',     label: '✦ Sold Out'  },
 };
 
-const STATUS_ORDER: Record<Status, number> = { not_found: 0, partial: 1, extra: 2, complete: 3 };
+const STATUS_ORDER: Record<Status, number> = { not_found: 0, partial: 1, extra: 2, complete: 3, sold_out: 4 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -146,8 +148,7 @@ export default function ReturnPanel() {
 
   const filteredBooks = publisherBooks.filter(b => {
     const expected = Math.max(0, b.quantity - b.sold);
-    if (statusFilter === 'sold_out') return expected === 0;
-    if (hideZeroExpected && expected === 0) return false;
+    if (hideZeroExpected && expected === 0 && statusFilter !== 'sold_out') return false;
     if (statusFilter === 'all') return true;
     return getStatus(expected, entries[b.id]) === statusFilter;
   });
@@ -197,8 +198,9 @@ export default function ReturnPanel() {
         const diff     = found - expected;
         const status   = getStatus(expected, entries[b.id]);
         const statusLabel =
-          status === 'complete'  ? 'Complete'                    :
-          status === 'extra'     ? `Extra (+${diff})`            :
+          status === 'sold_out'  ? 'Sold Out'                       :
+          status === 'complete'  ? 'Complete'                        :
+          status === 'extra'     ? `Extra (+${diff})`                :
           status === 'partial'   ? `Partial (${found}/${expected})` :
           'Not Found';
         return {
@@ -543,7 +545,7 @@ export default function ReturnPanel() {
           { id: 'partial' as const,   label: `Partial (${countByStatus('partial')})`,     activeClass: 'bg-orange-500 text-white'},
           { id: 'complete' as const,  label: `Complete (${countByStatus('complete')})`,   activeClass: 'bg-green-500 text-white' },
           { id: 'extra' as const,     label: `Extra (${countByStatus('extra')})`,          activeClass: 'bg-yellow-500 text-white'},
-          { id: 'sold_out' as const,  label: `Fully Sold (${zeroExpectedCount})`,          activeClass: 'bg-blue-500 text-white'  },
+          { id: 'sold_out' as const,  label: `Sold Out (${countByStatus('sold_out')})`,   activeClass: 'bg-blue-500 text-white'  },
         ] as { id: StatusFilter; label: string; activeClass: string }[]).map(f => (
           <button
             key={f.id}
