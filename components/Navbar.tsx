@@ -8,6 +8,7 @@ import { Menu, X, ChevronDown, QrCode, Wrench } from 'lucide-react';
 
 const navLinks = [
   { href: '/', label: 'Home' },
+  { href: '/workshop', label: 'Workshop' },
   { href: '/gallery', label: 'Gallery' },
   { href: '/feed', label: 'Feed' },
   { href: '/merchandise', label: 'Merchandise' },
