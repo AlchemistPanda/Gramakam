@@ -98,9 +98,15 @@ function PasscodeGate({ onSuccess }: { onSuccess: () => void }) {
 }
 
 // ─── Photo thumbnail ──────────────────────────────────────────────────────────
-function PhotoCell({ url }: { url: string | null }) {
+function PhotoCell({ url, name }: { url: string | null; name: string }) {
   const [open, setOpen] = useState(false);
   if (!url) return <span className="text-gray-300 text-xs">—</span>;
+
+  // Insert fl_attachment flag into Cloudinary URL to force download
+  const downloadUrl = url.includes('/upload/')
+    ? url.replace('/upload/', '/upload/fl_attachment/')
+    : url;
+
   return (
     <>
       <button onClick={() => setOpen(true)} className="group relative w-10 h-12 rounded-lg overflow-hidden border border-gray-200 hover:border-maroon transition-colors">
@@ -128,6 +134,16 @@ function PhotoCell({ url }: { url: string | null }) {
               <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden">
                 <Image src={url} alt="Full photo" fill className="object-cover" unoptimized />
               </div>
+              <a
+                href={downloadUrl}
+                download={`${name.replace(/\s+/g, '_')}_photo.jpg`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-white text-charcoal text-sm font-semibold hover:bg-cream transition-colors shadow"
+              >
+                <Download size={14} /> Download Photo
+              </a>
             </motion.div>
           </motion.div>
         )}
@@ -178,6 +194,9 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterConsent, setFilterConsent] = useState<'all' | 'yes' | 'no'>('all');
   const [filterMedia, setFilterMedia] = useState<'all' | 'yes' | 'no'>('all');
+  const [filterSchool, setFilterSchool] = useState('');
+  const [filterAge, setFilterAge] = useState('');
+  const [filterClass, setFilterClass] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -201,6 +220,10 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
     else { setSortKey(key); setSortDir('asc'); }
   };
 
+  const schools = useMemo(() => [...new Set(registrations.map(r => r.school_name))].sort(), [registrations]);
+  const ages = useMemo(() => [...new Set(registrations.map(r => String(r.age)))].sort((a, b) => Number(a) - Number(b)), [registrations]);
+  const classes = useMemo(() => [...new Set(registrations.map(r => r.class_grade))].sort(), [registrations]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return registrations.filter(r => {
@@ -210,13 +233,16 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
         ? true : filterConsent === 'yes' ? r.consent_participate : !r.consent_participate;
       const matchMedia = filterMedia === 'all'
         ? true : filterMedia === 'yes' ? r.consent_media : !r.consent_media;
-      return matchSearch && matchConsent && matchMedia;
+      const matchSchool = !filterSchool || r.school_name === filterSchool;
+      const matchAge = !filterAge || String(r.age) === filterAge;
+      const matchClass = !filterClass || r.class_grade === filterClass;
+      return matchSearch && matchConsent && matchMedia && matchSchool && matchAge && matchClass;
     }).sort((a, b) => {
       const av = a[sortKey], bv = b[sortKey];
       const cmp = String(av ?? '').localeCompare(String(bv ?? ''), undefined, { numeric: true });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [registrations, search, sortKey, sortDir, filterConsent, filterMedia]);
+  }, [registrations, search, sortKey, sortDir, filterConsent, filterMedia, filterSchool, filterAge, filterClass]);
 
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey === k
@@ -327,9 +353,33 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
             <option value="yes">Media OK: Yes</option>
             <option value="no">Media OK: No</option>
           </select>
-          {(search || filterConsent !== 'all' || filterMedia !== 'all') && (
+          <select
+            value={filterSchool}
+            onChange={e => setFilterSchool(e.target.value)}
+            className="text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white focus:border-maroon focus:outline-none text-gray-600 max-w-[160px] truncate"
+          >
+            <option value="">All Schools</option>
+            {schools.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select
+            value={filterAge}
+            onChange={e => setFilterAge(e.target.value)}
+            className="text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white focus:border-maroon focus:outline-none text-gray-600"
+          >
+            <option value="">All Ages</option>
+            {ages.map(a => <option key={a} value={a}>Age {a}</option>)}
+          </select>
+          <select
+            value={filterClass}
+            onChange={e => setFilterClass(e.target.value)}
+            className="text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white focus:border-maroon focus:outline-none text-gray-600"
+          >
+            <option value="">All Classes</option>
+            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {(search || filterConsent !== 'all' || filterMedia !== 'all' || filterSchool || filterAge || filterClass) && (
             <button
-              onClick={() => { setSearch(''); setFilterConsent('all'); setFilterMedia('all'); }}
+              onClick={() => { setSearch(''); setFilterConsent('all'); setFilterMedia('all'); setFilterSchool(''); setFilterAge(''); setFilterClass(''); }}
               className="text-xs text-gray-400 hover:text-maroon transition-colors flex items-center gap-1"
             >
               <X size={12} /> Clear
@@ -397,7 +447,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
                         <td className="py-3 px-3 font-mono text-xs text-maroon font-semibold whitespace-nowrap">
                           {r.reg_number != null ? `GRK-${String(r.reg_number).padStart(4, '0')}` : '—'}
                         </td>
-                        <td className="py-3 px-2"><PhotoCell url={r.photo_url} /></td>
+                        <td className="py-3 px-2"><PhotoCell url={r.photo_url} name={r.child_name} /></td>
                         <td className="py-3 px-3 font-semibold text-charcoal whitespace-nowrap">{r.child_name}</td>
                         <td className="py-3 px-3 text-gray-600">{r.age}</td>
                         <td className="py-3 px-3 text-gray-600 text-xs">{r.gender}</td>
@@ -450,8 +500,11 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
                                   {r.address && (
                                     <div className="col-span-2"><span className="text-gray-400 text-xs block">Address</span><span className="text-charcoal">{r.address}</span></div>
                                   )}
-                                  <div className="col-span-2 sm:col-span-4">
-                                    <span className="text-gray-300 text-xs font-mono">ID: {r.id}</span>
+                                  <div className="col-span-2 sm:col-span-4 flex items-center gap-4">
+                                    {r.reg_number != null && (
+                                      <span className="text-maroon font-bold font-mono text-base">GRK-{String(r.reg_number).padStart(4, '0')}</span>
+                                    )}
+                                    <span className="text-gray-300 text-xs font-mono">UUID: {r.id}</span>
                                   </div>
                                 </div>
                               </motion.div>
