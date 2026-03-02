@@ -19,11 +19,11 @@ type Status = 'not_found' | 'partial' | 'complete' | 'extra' | 'sold_out';
 type StatusFilter = 'all' | Status;
 
 function getStatus(expected: number, found: number | undefined): Status {
+  if (found !== undefined && found > expected) return 'extra';
   if (expected === 0) return 'sold_out';
   if (found === undefined || found === 0) return 'not_found';
   if (found === expected) return 'complete';
-  if (found < expected) return 'partial';
-  return 'extra';
+  return 'partial';
 }
 
 const STATUS_COLORS: Record<Status, { row: string; badge: string; label: string }> = {
