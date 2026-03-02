@@ -54,6 +54,7 @@ export default function WorkshopRegisterPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [successId, setSuccessId] = useState<string | null>(null);
+  const [successRegCode, setSuccessRegCode] = useState<string>('');
   const [submitError, setSubmitError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -168,6 +169,7 @@ export default function WorkshopRegisterPage() {
       if (!res.ok) throw new Error(data.error ?? 'Registration failed');
 
       setSuccessId(data.id);
+      setSuccessRegCode(data.regCode ?? '');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -202,9 +204,16 @@ export default function WorkshopRegisterPage() {
             ഗ്രാമകം കുട്ടികളുടെ ആക്ടിംഗ് വർക്ക്‌ഷോപ്പ് 2026-ൽ രജിസ്റ്റർ ചെയ്തതിന് നന്ദി.
             കൂടുതൽ വിവരങ്ങൾക്കായി ഞങ്ങൾ നിങ്ങളുടെ മൊബൈൽ നമ്പറിൽ ബന്ധപ്പെടും.
           </p>
-          <div className="mt-5 bg-gray-50 rounded-2xl p-4">
-            <p className="text-xs text-gray-400 mb-1">Registration ID</p>
-            <p className="font-mono text-xs text-charcoal break-all">{successId}</p>
+          {successRegCode && (
+            <div className="mt-5 bg-maroon/5 border-2 border-maroon/20 rounded-2xl p-5">
+              <p className="text-xs text-gray-400 mb-1">Your Registration Number</p>
+              <p className="text-3xl font-bold text-maroon tracking-widest" style={{ fontFamily: 'var(--font-heading)' }}>{successRegCode}</p>
+              <p className="text-xs text-gray-400 mt-1">Save this number for your reference / ദയവായി ഈ നമ്പർ സൂക്ഷിക്കൂ</p>
+            </div>
+          )}
+          <div className="mt-3 bg-gray-50 rounded-xl p-3">
+            <p className="text-xs text-gray-300 mb-0.5">Reference ID</p>
+            <p className="font-mono text-xs text-gray-400 break-all">{successId}</p>
           </div>
           <Link
             href="/workshop"

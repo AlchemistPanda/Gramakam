@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         photo_url:            body.photo_url ?? null,
         photo_public_id:      body.photo_public_id ?? null,
       }])
-      .select('id')
+      .select('id, reg_number')
       .single();
 
     if (error) {
@@ -50,7 +50,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to save registration. Please try again.' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, id: data.id });
+    const regCode = `GRK-${String(data.reg_number).padStart(4, '0')}`;
+    return NextResponse.json({ success: true, id: data.id, regCode });
   } catch (err) {
     console.error('Registration error:', err);
     return NextResponse.json({ error: 'Server error. Please try again.' }, { status: 500 });
