@@ -17,6 +17,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://gramakam.org'),
   title: {
     default: 'Gramakam — A Celebration of Theatre and Culture',
     template: '%s | Gramakam',
@@ -43,6 +44,22 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_IN',
     siteName: 'Gramakam',
+    url: 'https://gramakam.org',
+    images: [
+      {
+        url: '/images/gramakam-logo.png',
+        width: 1200,
+        height: 630,
+        alt: 'Gramakam — A Celebration of Theatre and Culture',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Gramakam — A Celebration of Theatre and Culture',
+    description:
+      'An annual theatre and cultural festival in Kerala, India, celebrating theatre, literature, and community.',
+    images: ['/images/gramakam-logo.png'],
   },
 };
 
