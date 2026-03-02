@@ -35,14 +35,14 @@ interface RegistrationForm {
   email: string;
   address: string;
   consent_participate: boolean;
-  consent_media: boolean;
+  consent_media: boolean | null;
 }
 
 const empty: RegistrationForm = {
   child_name: '', age: '', gender: '', school_name: '', class_grade: '',
   interests: '', previous_experience: false, parent_name: '',
   mobile_number: '', whatsapp_number: '', email: '', address: '',
-  consent_participate: false, consent_media: false,
+  consent_participate: false, consent_media: null,
 };
 
 export default function WorkshopRegisterPage() {
@@ -73,6 +73,7 @@ export default function WorkshopRegisterPage() {
     if (!form.mobile_number.match(/^\+?[0-9]{10,13}$/))
                                         e.mobile_number    = 'Enter a valid mobile number / ശരിയായ നമ്പർ നൽകൂ';
     if (!form.consent_participate)      e.consent_participate = 'Parental consent is required / രക്ഷിതാവിന്റെ സമ്മതം ആവശ്യമാണ്';
+    if (form.consent_media === null)       e.consent_media       = 'Please select Yes or No / ദയവായി തിരഞ്ഞെടുക്കൂ';
     if (!photoFile)                       e.photo               = 'Photo is required / ഫോട്ടോ നിർബന്ധമാണ്';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -510,23 +511,40 @@ export default function WorkshopRegisterPage() {
             </label>
             {errors.consent_participate && <p className="text-xs text-red-500 -mt-2 mb-4 ml-1">{errors.consent_participate}</p>}
 
-            {/* Consent for media */}
-            <label className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-colors ${form.consent_media ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-maroon/40'}`}>
-              <input
-                type="checkbox"
-                checked={form.consent_media}
-                onChange={e => set('consent_media', e.target.checked)}
-                className="w-4 h-4 accent-maroon mt-0.5 shrink-0"
-              />
-              <div>
-                <p className="text-sm font-semibold text-charcoal">
-                  Permission for photos / videos to be taken during the workshop.
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  വർക്ക്‌ഷോപ്പിനിടെ ഫോട്ടോ / വീഡിയോ എടുക്കുന്നതിനുള്ള അനുമതി.
-                </p>
+            {/* Consent for media — mandatory yes/no */}
+            <div className={`p-4 rounded-2xl border transition-colors ${errors.consent_media ? 'border-red-300 bg-red-50' : form.consent_media === null ? 'border-gray-200' : 'border-blue-200 bg-blue-50/40'}`}>
+              <p className="text-sm font-semibold text-charcoal mb-0.5">
+                Permission for photos / videos to be taken during the workshop. <span className="text-red-500">*</span>
+              </p>
+              <p className="text-xs text-gray-500 mb-3">
+                വർക്ക്‌ഷോപ്പിനിടെ ഫോട്ടോ / വീഡിയോ എടുക്കുന്നതിനുള്ള അനുമതി.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => set('consent_media', true)}
+                  className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                    form.consent_media === true
+                      ? 'border-blue-500 bg-blue-500 text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-blue-400'
+                  }`}
+                >
+                  ✓ Yes / അനുവദിക്കുന്നു
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('consent_media', false)}
+                  className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                    form.consent_media === false
+                      ? 'border-gray-500 bg-gray-500 text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                  }`}
+                >
+                  ✗ No / അനുവദിക്കുന്നില്ല
+                </button>
               </div>
-            </label>
+            </div>
+            {errors.consent_media && <p className="text-xs text-red-500 mt-2 ml-1">{errors.consent_media}</p>}
           </div>
 
           {/* ── Upload progress bar ──────────────────────────────────── */}
