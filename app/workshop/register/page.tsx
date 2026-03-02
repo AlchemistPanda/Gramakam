@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, X, CheckCircle, Loader2, Camera, ArrowLeft, AlertCircle } from 'lucide-react';
-import { compressImage } from '@/lib/imageCompressor';
+import { compressImage, formatFileSize } from '@/lib/imageCompressor';
 
 // ─── Bilingual label helper ──────────────────────────────────────────────────
 function Label({ en, ml, required }: { en: string; ml: string; required?: boolean }) {
@@ -21,7 +21,7 @@ const inputClass =
   'w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-maroon focus:outline-none text-sm transition-colors bg-white';
 const errorClass = 'border-red-400 bg-red-50';
 
-interface FormData {
+interface RegistrationForm {
   child_name: string;
   age: string;
   gender: string;
@@ -38,7 +38,7 @@ interface FormData {
   consent_media: boolean;
 }
 
-const empty: FormData = {
+const empty: RegistrationForm = {
   child_name: '', age: '', gender: '', school_name: '', class_grade: '',
   interests: '', previous_experience: false, parent_name: '',
   mobile_number: '', whatsapp_number: '', email: '', address: '',
@@ -46,17 +46,18 @@ const empty: FormData = {
 };
 
 export default function WorkshopRegisterPage() {
-  const [form, setForm] = useState<FormData>(empty);
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData | 'photo', string>>>({});
+  const [form, setForm] = useState<RegistrationForm>(empty);
+  const [errors, setErrors] = useState<Partial<Record<keyof RegistrationForm | 'photo', string>>>({});
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [successId, setSuccessId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const set = (k: keyof FormData, v: string | boolean) =>
+  const set = (k: keyof RegistrationForm, v: string | boolean) =>
     setForm(f => ({ ...f, [k]: v }));
 
   const validate = (): boolean => {
@@ -82,14 +83,34 @@ export default function WorkshopRegisterPage() {
       setErrors(prev => ({ ...prev, photo: 'Please select an image file / ഒരു ഇമേജ് ഫയൽ തിരഞ്ഞെടുക്കൂ' }));
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors(prev => ({ ...prev, photo: 'Image must be under 5 MB / 5 MB-ൽ കുറഞ്ഞ ഫയൽ തിരഞ്ഞെടുക്കൂ' }));
+    // Allow up to 20 MB — files over 5 MB will be auto-compressed before upload
+    if (file.size > 20 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, photo: 'Image must be under 20 MB / 20 MB-ൽ കുറഞ്ഞ ഫയൽ തിരഞ്ഞെടുക്കൂ' }));
       return;
     }
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
     setErrors(prev => ({ ...prev, photo: undefined }));
   };
+
+  // XHR upload so we get real progress events
+  const uploadWithProgress = (fd: globalThis.FormData): Promise<{ url: string; publicId: string }> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (ev) => {
+        if (ev.lengthComputable) setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          reject(new Error(JSON.parse(xhr.responseText).error ?? 'Upload failed'));
+        }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Network error — check your connection')));
+      xhr.open('POST', '/api/workshop/upload');
+      xhr.send(fd);
+    });
 
   const removePhoto = () => {
     setPhotoFile(null);
@@ -110,18 +131,19 @@ export default function WorkshopRegisterPage() {
       let photoUrl: string | null = null;
       let photoPublicId: string | null = null;
 
-      // Step 1: Upload photo if provided (compress client-side first)
+      // Step 1: Upload photo if provided
+      // Only compress if the file exceeds 5 MB — otherwise keep original quality
       if (photoFile) {
         setUploading(true);
-        const compressed = await compressImage(photoFile, {
-          maxWidth: 600, maxHeight: 800, quality: 0.75, maxSizeMB: 0.4,
-        });
+        setUploadProgress(0);
+        const FIVE_MB = 5 * 1024 * 1024;
+        const fileToUpload = photoFile.size > FIVE_MB
+          ? await compressImage(photoFile, { maxWidth: 1920, maxHeight: 1920, quality: 0.88, maxSizeMB: 4.5 })
+          : photoFile;
         const fd = new FormData();
-        fd.append('file', compressed);
-        const uploadRes = await fetch('/api/workshop/upload', { method: 'POST', body: fd });
-        const uploadData = await uploadRes.json();
+        fd.append('file', fileToUpload);
+        const uploadData = await uploadWithProgress(fd);
         setUploading(false);
-        if (!uploadRes.ok) throw new Error(uploadData.error ?? 'Photo upload failed');
         photoUrl = uploadData.url;
         photoPublicId = uploadData.publicId;
       }
@@ -406,18 +428,27 @@ export default function WorkshopRegisterPage() {
               3. Child&apos;s Photo
             </h2>
             <p className="text-sm text-maroon mb-2">കുട്ടിയുടെ ഫോട്ടോ</p>
-            <p className="text-xs text-gray-400 mb-4">Optional. Clear photo of the child. Max 5 MB. / ഐച്ഛികം. കുട്ടിയുടെ വ്യക്തമായ ഒരു ഫോട്ടോ. പരമാവധി 5 MB.</p>
+            <p className="text-xs text-gray-400 mb-4">Optional. Any clear photo of the child. Up to 20 MB — files over 5 MB are auto-compressed. / ഐച്ഛികം. കുട്ടിയുടെ വ്യക്തമായ ഒരു ഫോട്ടോ. 20 MB വരെ അനുവദിക്കും, 5 MB-ൽ കൂടുതലുള്ളവ സ്വയം കംപ്രസ്സ് ചെയ്യും.</p>
 
             {photoPreview ? (
-              <div className="relative w-32 h-40 rounded-2xl overflow-hidden border-2 border-maroon/20">
-                <Image src={photoPreview} alt="Preview" fill className="object-cover" />
-                <button
-                  type="button"
-                  onClick={removePhoto}
-                  className="absolute top-1 right-1 bg-black/60 rounded-full p-1 text-white hover:bg-black/80 transition-colors"
-                >
-                  <X size={12} />
-                </button>
+              <div className="flex items-end gap-3">
+                <div className="relative w-32 h-40 rounded-2xl overflow-hidden border-2 border-maroon/20 shrink-0">
+                  <Image src={photoPreview} alt="Preview" fill className="object-cover" />
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="absolute top-1 right-1 bg-black/60 rounded-full p-1 text-white hover:bg-black/80 transition-colors"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <div className="text-xs text-gray-400 space-y-1">
+                  <p className="font-medium text-charcoal truncate max-w-[160px]">{photoFile?.name}</p>
+                  <p>{formatFileSize(photoFile?.size ?? 0)}</p>
+                  {photoFile && photoFile.size > 5 * 1024 * 1024 && (
+                    <p className="text-amber-500">⚡ Will be compressed before upload</p>
+                  )}
+                </div>
               </div>
             ) : (
               <button
@@ -486,6 +517,35 @@ export default function WorkshopRegisterPage() {
             </label>
           </div>
 
+          {/* ── Upload progress bar ──────────────────────────────────── */}
+          <AnimatePresence>
+            {uploading && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-charcoal flex items-center gap-2">
+                    <Loader2 size={14} className="animate-spin text-maroon" />
+                    {uploadProgress < 100 ? 'Uploading photo...' : 'Processing photo...'}
+                  </p>
+                  <span className="text-sm font-bold text-maroon">{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <motion.div
+                    className="h-full bg-maroon rounded-full"
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${uploadProgress}%` }}
+                    transition={{ duration: 0.2 }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">ഫോട്ടോ അപ്‌ലോഡ് ചെയ്യുന്നു... {uploadProgress}%</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* ── Submit ───────────────────────────────────────────────────── */}
           <button
             type="submit"
@@ -495,7 +555,7 @@ export default function WorkshopRegisterPage() {
             {submitting ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                {uploading ? 'Uploading photo... / ഫോട്ടോ അപ്‌ലോഡ് ചെയ്യുന്നു...' : 'Submitting... / സമർപ്പിക്കുന്നു...'}
+                {uploading ? `Uploading photo... ${uploadProgress}%` : 'Submitting... / സമർപ്പിക്കുന്നു...'}
               </>
             ) : (
               <>

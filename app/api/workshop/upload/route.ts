@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
           folder: 'gramakam-workshop-2026',
           resource_type: 'image',
           // Resize to max 600×800, quality 60, convert to WebP — keeps each image < 80 KB
-          transformation: [{ quality: 60, fetch_format: 'webp', width: 600, height: 800, crop: 'limit' }],
+          // Keep original Full HD quality — only scale down above 1920px
+          transformation: [{ quality: 'auto:good', fetch_format: 'auto', width: 1920, height: 1920, crop: 'limit' }],
         },
         (error, result) => {
           if (error || !result) reject(error ?? new Error('Upload failed'));
