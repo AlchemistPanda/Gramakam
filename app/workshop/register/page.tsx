@@ -239,9 +239,9 @@ export default function WorkshopRegisterPage() {
           <h1 className="text-3xl sm:text-4xl font-bold leading-tight" style={{ fontFamily: 'var(--font-heading)' }}>
             Children&apos;s Acting Workshop Registration
           </h1>
-          <p className="text-white/70 mt-1 text-sm">വർക്ക്‌ഷോപ്പ് രജിസ്ട്രേഷൻ</p>
+          <p className="text-white/70 mt-1 text-sm">കുട്ടികളുടെ അഭിനയ പരിശീലന കളരി</p>
           <p className="text-white/60 text-xs mt-3">
-            Fields marked <span className="text-red-300">*</span> are required &nbsp;|&nbsp; <span className="text-white/40">* അടയാളമുള്ള ഫീൽഡുകൾ നിർബന്ധമാണ്</span>
+            Fields marked <span className="text-red-300">*</span> are required &nbsp;|&nbsp; <span className="text-white/40"> * അടയാളമുള്ള ഫീൽഡുകൾ നിർബന്ധമായും പൂരിപ്പിക്കേണ്ടതുണ്ട്</span>
           </p>
         </div>
       </div>
