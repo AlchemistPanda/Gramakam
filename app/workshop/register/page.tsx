@@ -94,29 +94,33 @@ export default function WorkshopRegisterPage() {
     setErrors(prev => ({ ...prev, photo: undefined }));
   };
 
-  // XHR upload so we get real progress events
-  const uploadWithProgress = (fd: globalThis.FormData): Promise<{ url: string; publicId: string }> =>
+  // Upload directly to Cloudinary (unsigned preset — no server, no signature)
+  const uploadWithProgress = (file: File): Promise<{ url: string; publicId: string }> =>
     new Promise((resolve, reject) => {
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      if (!cloudName) { reject(new Error('Cloudinary not configured')); return; }
+
+      const fd = new globalThis.FormData();
+      fd.append('file', file);
+      fd.append('upload_preset', 'gramakam-workshop');
+
       const xhr = new XMLHttpRequest();
       xhr.upload.addEventListener('progress', (ev) => {
         if (ev.lengthComputable) setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
       });
       xhr.addEventListener('load', () => {
-        // Safely parse — Vercel may return an HTML error page instead of JSON
         let parsed: Record<string, unknown> = {};
-        try { parsed = JSON.parse(xhr.responseText); } catch { /* non-JSON response */ }
+        try { parsed = JSON.parse(xhr.responseText); } catch { /* non-JSON */ }
 
         if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(parsed as { url: string; publicId: string });
+          resolve({ url: parsed.secure_url as string, publicId: parsed.public_id as string });
         } else {
-          const msg = typeof parsed.error === 'string'
-            ? parsed.error
-            : `Upload failed (HTTP ${xhr.status})`;
-          reject(new Error(msg));
+          const errObj = parsed.error as Record<string, unknown> | undefined;
+          reject(new Error((errObj?.message as string) ?? `Upload failed (HTTP ${xhr.status})`));
         }
       });
       xhr.addEventListener('error', () => reject(new Error('Network error — check your connection')));
-      xhr.open('POST', '/api/workshop/upload');
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`);
       xhr.send(fd);
     });
 
@@ -148,9 +152,7 @@ export default function WorkshopRegisterPage() {
         const fileToUpload = photoFile.size > FOUR_MB
           ? await compressImage(photoFile, { maxWidth: 1920, maxHeight: 1920, quality: 0.88, maxSizeMB: 3.5 })
           : photoFile;
-        const fd = new FormData();
-        fd.append('file', fileToUpload);
-        const uploadData = await uploadWithProgress(fd);
+        const uploadData = await uploadWithProgress(fileToUpload);
         setUploading(false);
         photoUrl = uploadData.url;
         photoPublicId = uploadData.publicId;
