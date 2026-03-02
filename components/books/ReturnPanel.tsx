@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, X, CheckCircle, PackageCheck,
-  FileSpreadsheet, RotateCcw, Trash2, Plus,
+  FileSpreadsheet, RotateCcw, Trash2, Plus, AlertTriangle,
 } from 'lucide-react';
 import type { Book } from '@/types/books';
 import {
@@ -12,6 +12,70 @@ import {
   getReturnEntries, setReturnEntry, deleteReturnEntry, clearReturnEntries,
   onDataChange,
 } from '@/lib/bookStore';
+
+// ─── Passcode modal ─────────────────────────────────────────────────────────
+
+const RESET_PASSCODE = '9090';
+
+function ResetPasscodeModal({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
+  const [value, setValue] = useState('');
+  const [shake, setShake] = useState(false);
+  const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const attempt = () => {
+    if (value === RESET_PASSCODE) {
+      onConfirm();
+    } else {
+      setShake(true);
+      setError('Incorrect passcode.');
+      setValue('');
+      setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl shadow-2xl p-7 w-full max-w-sm mx-4 relative"
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+          <X size={18} />
+        </button>
+        <div className="flex flex-col items-center mb-5">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 bg-red-100">
+            <AlertTriangle size={26} className="text-red-600" />
+          </div>
+          <h2 className="text-lg font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>Reset Return Entries</h2>
+          <p className="text-xs text-red-500 font-medium text-center mt-1">This will permanently delete all counted entries.</p>
+          <p className="text-sm text-gray-500 text-center mt-2">Enter passcode to continue</p>
+        </div>
+        <motion.div animate={shake ? { x: [0, -8, 8, -8, 8, 0] } : {}} transition={{ duration: 0.4 }}>
+          <input
+            ref={inputRef}
+            type="password"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setError(''); }}
+            onKeyDown={(e) => e.key === 'Enter' && attempt()}
+            className={`w-full text-center text-2xl tracking-[0.5em] px-4 py-3.5 border-2 rounded-2xl outline-none transition-colors font-mono ${
+              error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-maroon'
+            }`}
+            placeholder="••••"
+            maxLength={20}
+          />
+        </motion.div>
+        {error && <p className="text-xs text-red-500 font-medium text-center mt-2">{error}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border-2 border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+          <button onClick={attempt} className="flex-1 py-3 rounded-2xl font-semibold text-sm text-white bg-red-600 hover:bg-red-700 transition-colors">Continue</button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -56,6 +120,9 @@ export default function ReturnPanel() {
   // Entry modal
   const [selectedBook, setSelectedBook]       = useState<Book | null>(null);
   const [foundInput, setFoundInput]           = useState('');
+
+  // Reset passcode guard
+  const [showResetPasscode, setShowResetPasscode] = useState(false);
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -271,7 +338,7 @@ export default function ReturnPanel() {
             Export Report
           </button>
           <button
-            onClick={handleClear}
+            onClick={() => setShowResetPasscode(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-red-50 hover:text-red-600 transition-colors"
           >
             <RotateCcw size={16} />
@@ -662,6 +729,17 @@ export default function ReturnPanel() {
       )}
 
       </> /* end publisher selected block */
+      )}
+
+      {/* Reset passcode guard */}
+      {showResetPasscode && (
+        <ResetPasscodeModal
+          onClose={() => setShowResetPasscode(false)}
+          onConfirm={() => {
+            setShowResetPasscode(false);
+            handleClear();
+          }}
+        />
       )}
     </div>
   );
