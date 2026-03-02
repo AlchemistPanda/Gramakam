@@ -35,14 +35,16 @@ export default function Navbar() {
       <div className="container-custom">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <Image
-              src={scrolled ? '/images/gramakam-logo.png' : '/images/gramakam-logo-white.png'}
-              alt="Gramakam Logo"
-              width={40}
-              height={40}
-              className="w-8 h-8 md:w-10 md:h-10 object-contain transition-opacity duration-500"
-            />
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-9 h-9 md:w-11 md:h-11 bg-maroon rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+              <Image
+                src="/images/gramakam-logo-white.png"
+                alt="Gramakam Logo"
+                width={28}
+                height={28}
+                className="w-6 h-6 md:w-7 md:h-7 object-contain"
+              />
+            </div>
             <span className={`text-2xl md:text-3xl font-bold transition-colors duration-500 ${scrolled ? 'text-maroon' : 'text-white'}`} style={{ fontFamily: 'var(--font-heading)' }}>
               Gramakam
             </span>

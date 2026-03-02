@@ -10,13 +10,15 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <Image
-                src="/images/gramakam-logo-white.png"
-                alt="Gramakam Logo"
-                width={48}
-                height={48}
-                className="w-12 h-12 object-contain"
-              />
+              <div className="w-12 h-12 bg-maroon rounded-xl flex items-center justify-center shrink-0">
+                <Image
+                  src="/images/gramakam-logo-white.png"
+                  alt="Gramakam Logo"
+                  width={36}
+                  height={36}
+                  className="w-9 h-9 object-contain"
+                />
+              </div>
               <h3
                 className="text-2xl font-bold text-cream"
                 style={{ fontFamily: 'var(--font-heading)' }}
