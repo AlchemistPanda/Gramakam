@@ -8,11 +8,6 @@ cloudinary.config({
   secure: true,
 });
 
-// Increase Next.js body size limit for this route
-export const config = {
-  api: { bodyParser: { sizeLimit: '20mb' } },
-};
-
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -40,15 +35,23 @@ export async function POST(req: NextRequest) {
           transformation: [{ width: 1920, height: 1920, crop: 'limit', quality: 'auto' }],
         },
         (error, result) => {
-          if (error || !result) reject(error ?? new Error('Cloudinary upload failed'));
-          else resolve({ secure_url: result.secure_url, public_id: result.public_id });
+          if (error || !result) {
+            const msg = (error as { message?: string })?.message ?? 'Cloudinary upload failed';
+            reject(new Error(msg));
+          } else {
+            resolve({ secure_url: result.secure_url, public_id: result.public_id });
+          }
         }
       ).end(buffer);
     });
 
     return NextResponse.json({ url: result.secure_url, publicId: result.public_id });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    // Cloudinary SDK rejects with { message, http_code } — not an Error instance
+    const message =
+      err instanceof Error ? err.message
+      : (err as { message?: string })?.message
+      ?? String(err);
     console.error('Cloudinary upload error:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }

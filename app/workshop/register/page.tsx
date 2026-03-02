@@ -102,10 +102,17 @@ export default function WorkshopRegisterPage() {
         if (ev.lengthComputable) setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
       });
       xhr.addEventListener('load', () => {
+        // Safely parse — Vercel may return an HTML error page instead of JSON
+        let parsed: Record<string, unknown> = {};
+        try { parsed = JSON.parse(xhr.responseText); } catch { /* non-JSON response */ }
+
         if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText));
+          resolve(parsed as { url: string; publicId: string });
         } else {
-          reject(new Error(JSON.parse(xhr.responseText).error ?? 'Upload failed'));
+          const msg = typeof parsed.error === 'string'
+            ? parsed.error
+            : `Upload failed (HTTP ${xhr.status})`;
+          reject(new Error(msg));
         }
       });
       xhr.addEventListener('error', () => reject(new Error('Network error — check your connection')));
