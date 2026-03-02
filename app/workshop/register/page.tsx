@@ -48,6 +48,7 @@ const empty: RegistrationForm = {
 export default function WorkshopRegisterPage() {
   const [form, setForm] = useState<RegistrationForm>(empty);
   const [errors, setErrors] = useState<Partial<Record<keyof RegistrationForm | 'photo', string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof RegistrationForm | 'photo', boolean>>>({});
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -58,8 +59,65 @@ export default function WorkshopRegisterPage() {
   const [submitError, setSubmitError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const set = (k: keyof RegistrationForm, v: string | boolean) =>
+  const validateField = (key: keyof RegistrationForm | 'photo', value: string | boolean | null | File) => {
+    const newErrors = { ...errors };
+    
+    switch (key) {
+      case 'child_name':
+        if (!String(value).trim()) newErrors.child_name = 'Required / ആവശ്യമാണ്';
+        else delete newErrors.child_name;
+        break;
+      case 'age':
+        if (!value || Number(value) < 10 || Number(value) > 20)
+          newErrors.age = 'Enter a valid age (10–20) / 10–20 വയസ്';
+        else delete newErrors.age;
+        break;
+      case 'gender':
+        if (!value) newErrors.gender = 'Required / ആവശ്യമാണ്';
+        else delete newErrors.gender;
+        break;
+      case 'school_name':
+        if (!String(value).trim()) newErrors.school_name = 'Required / ആവശ്യമാണ്';
+        else delete newErrors.school_name;
+        break;
+      case 'class_grade':
+        if (!String(value).trim()) newErrors.class_grade = 'Required / ആവശ്യമാണ്';
+        else delete newErrors.class_grade;
+        break;
+      case 'parent_name':
+        if (!String(value).trim()) newErrors.parent_name = 'Required / ആവശ്യമാണ്';
+        else delete newErrors.parent_name;
+        break;
+      case 'mobile_number':
+        if (!String(value).match(/^\+?[0-9]{10,13}$/))
+          newErrors.mobile_number = 'Enter a valid mobile number / ശരിയായ നമ്പർ നൽകൂ';
+        else delete newErrors.mobile_number;
+        break;
+      case 'consent_participate':
+        if (!value) newErrors.consent_participate = 'Parental consent is required / രക്ഷിതാവിന്റെ സമ്മതം ആവശ്യമാണ്';
+        else delete newErrors.consent_participate;
+        break;
+      case 'consent_media':
+        if (value === null) newErrors.consent_media = 'Please select Yes or No / ദയവായി തിരഞ്ഞെടുക്കൂ';
+        else delete newErrors.consent_media;
+        break;
+      case 'photo':
+        if (!value) newErrors.photo = 'Photo is required / ഫോട്ടോ നിർബന്ധമാണ്';
+        else delete newErrors.photo;
+        break;
+    }
+    setErrors(newErrors);
+  };
+
+  const set = (k: keyof RegistrationForm, v: string | boolean) => {
     setForm(f => ({ ...f, [k]: v }));
+    setTouched(t => ({ ...t, [k]: true }));
+    validateField(k, v);
+  };
+
+  const markTouched = (k: keyof RegistrationForm | 'photo') => {
+    setTouched(t => ({ ...t, [k]: true }));
+  };
 
   const validate = (): boolean => {
     const e: typeof errors = {};
@@ -93,7 +151,8 @@ export default function WorkshopRegisterPage() {
     }
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
-    setErrors(prev => ({ ...prev, photo: undefined }));
+    setTouched(t => ({ ...t, photo: true }));
+    validateField('photo', file);
   };
 
   // Upload directly to Cloudinary (unsigned preset — no server, no signature)
@@ -130,6 +189,8 @@ export default function WorkshopRegisterPage() {
     setPhotoFile(null);
     setPhotoPreview(null);
     if (fileRef.current) fileRef.current.value = '';
+    setTouched(t => ({ ...t, photo: true }));
+    validateField('photo', null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
