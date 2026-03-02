@@ -64,8 +64,8 @@ export default function WorkshopRegisterPage() {
   const validate = (): boolean => {
     const e: typeof errors = {};
     if (!form.child_name.trim())       e.child_name       = 'Required / ആവശ്യമാണ്';
-    if (!form.age || Number(form.age) < 5 || Number(form.age) > 20)
-                                        e.age              = 'Enter a valid age (5–20) / 5–20 വയസ്';
+    if (!form.age || Number(form.age) < 10 || Number(form.age) > 20)
+                                        e.age              = 'Enter a valid age (10–20) / 10–20 വയസ്';
     if (!form.gender)                   e.gender           = 'Required / ആവശ്യമാണ്';
     if (!form.school_name.trim())       e.school_name      = 'Required / ആവശ്യമാണ്';
     if (!form.class_grade.trim())       e.class_grade      = 'Required / ആവശ്യമാണ്';
@@ -290,11 +290,11 @@ export default function WorkshopRegisterPage() {
                 <Label en="Age" ml="വയസ്" required />
                 <input
                   type="number"
-                  min={5} max={20}
+                  min={10} max={20}
                   value={form.age}
                   onChange={e => set('age', e.target.value)}
                   className={`${inputClass} ${errors.age ? errorClass : ''}`}
-                  placeholder="8"
+                  placeholder="10"
                 />
                 {errors.age && <p className="text-xs text-red-500 mt-1">{errors.age}</p>}
               </div>
