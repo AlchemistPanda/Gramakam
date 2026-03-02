@@ -1104,6 +1104,7 @@ export function setReturnEntry(bookId: string, found: number): void {
   const entry: ReturnEntry = { bookId, found, updatedAt: new Date().toISOString() };
   returnsCache = { ...returnsCache, [bookId]: entry };
   saveReturnsToLocalStorage();
+  notifyListeners();
   fsSetReturnEntry(entry).catch(() => {});
 }
 
@@ -1111,11 +1112,13 @@ export function deleteReturnEntry(bookId: string): void {
   const { [bookId]: _, ...rest } = returnsCache;
   returnsCache = rest;
   saveReturnsToLocalStorage();
+  notifyListeners();
   fsDeleteReturnEntry(bookId).catch(() => {});
 }
 
 export function clearReturnEntries(): void {
   returnsCache = {};
   saveReturnsToLocalStorage();
+  notifyListeners();
   fsClearReturnEntries().catch(() => {});
 }
