@@ -429,7 +429,7 @@ export default function WorkshopRegisterPage() {
               3. Child&apos;s Photo <span className="text-red-500">*</span>
             </h2>
             <p className="text-sm text-maroon mb-4">കുട്ടിയുടെ ഫോട്ടോ</p>
-            <p className="text-xs text-gray-400 mb-4">A full size photo preferred. / പൂർണ്ണ വലുപ്പമുള്ള ഫോട്ടോ ശ്രദ്ധിക്കണം.</p>
+            <p className="text-xs text-gray-400 mb-4">A full size photo preferred.</p>
 
             {photoPreview ? (
               <div className="flex items-end gap-3">
