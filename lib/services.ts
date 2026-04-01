@@ -257,6 +257,15 @@ export async function getUpiPayments(): Promise<UpiPayment[]> {
   })) as UpiPayment[];
 }
 
+// Parses SMS datetime format "DD-MM-YYYY HH:MM:SS" → Date
+function parseSmsDatetime(dt: string): Date | null {
+  // "26-03-2026 09:09:40"
+  const match = dt.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const [, dd, mm, yyyy, hh, min, ss] = match;
+  return new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+05:30`);
+}
+
 export async function verifyOrderByUpiRef(
   orderId: string,
   upiRef: string,
@@ -271,9 +280,18 @@ export async function verifyOrderByUpiRef(
   );
   const snapshot = await getDocs(q);
 
-  const matchingPayment = snapshot.docs.find(
-    (d) => d.data().amount >= orderTotal
-  );
+  const now = Date.now();
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+
+  const matchingPayment = snapshot.docs.find((d) => {
+    const data = d.data();
+    // Check amount
+    if (data.amount < orderTotal) return false;
+    // Check time: payment must be within the last 2 hours
+    const paymentTime = parseSmsDatetime(data.datetime);
+    if (!paymentTime) return true; // if we can't parse, don't block on time
+    return now - paymentTime.getTime() <= TWO_HOURS_MS;
+  });
   if (!matchingPayment) return false;
 
   // Atomically link order and payment
