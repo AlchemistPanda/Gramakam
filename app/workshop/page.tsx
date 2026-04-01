@@ -38,7 +38,7 @@ const highlights = [
 ];
 
 const details = [
-  { icon: Users, label: 'Age Group', value: '10 – 20 years' },
+  { icon: Users, label: 'Age Group', value: '10 – 18 years' },
   { icon: Calendar, label: 'Dates', value: 'April 18 – 22, 2026' },
   { icon: MapPin, label: 'Venue', value: 'Govt. RSRVHSS Velur' },
 ];
