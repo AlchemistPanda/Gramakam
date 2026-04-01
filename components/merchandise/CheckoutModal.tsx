@@ -7,7 +7,7 @@ import type { MerchCartItem } from '@/types';
 import { createMerchOrder } from '@/lib/services';
 import OrderStatus from './OrderStatus';
 
-const MERCH_UPI_VPA = 'dummy@upi'; // Replace with real UPI ID later
+const MERCH_UPI_VPA = '9446624599@cnrb';
 const MERCH_UPI_NAME = 'Gramakam Merchandise';
 
 function generateOrderId(): string {
