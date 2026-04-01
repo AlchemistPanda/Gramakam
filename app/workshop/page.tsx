@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import AnimatedSection from '@/components/AnimatedSection';
-import { Users, Star, ArrowRight, Sparkles } from 'lucide-react';
+import { Users, Star, ArrowRight, Sparkles, Calendar, MapPin } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: "Children's Acting Workshop | Gramakam 2026",
@@ -39,6 +39,8 @@ const highlights = [
 
 const details = [
   { icon: Users, label: 'Age Group', value: '10 – 20 years' },
+  { icon: Calendar, label: 'Dates', value: 'April 18 – 22, 2026' },
+  { icon: MapPin, label: 'Venue', value: 'Govt. RSRVHSS Velur' },
 ];
 
 export default function WorkshopPage() {
@@ -69,7 +71,7 @@ export default function WorkshopPage() {
               Children&apos;s<br />Acting Workshop
             </h1>
             <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto mb-10 font-light leading-relaxed">
-              A two-day immersive theatre experience for young minds — discover the magic
+              A five-day immersive theatre experience for young minds — discover the magic
               of storytelling, movement, and the stage.
             </p>
             <Link
@@ -115,7 +117,7 @@ export default function WorkshopPage() {
               <div className="w-12 h-0.5 bg-maroon mb-6" />
               <p className="text-gray-600 leading-relaxed mb-4">
                 As part of the Gramakam Theatre Festival 2026, we are proud to present an
-                exclusive two-day acting workshop designed for children and young adults.
+                exclusive five-day acting workshop designed for children and young adults.
                 Guided by experienced theatre practitioners, participants will explore the
                 fundamentals of acting, improvisation, and storytelling in a nurturing,
                 playful environment.
