@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Lock, Search, Download, RefreshCw, Users, CheckCircle2,
   Camera, LogOut, ChevronUp, ChevronDown, ArrowLeft, Loader2,
-  AlertCircle, X
+  AlertCircle, X, Trash2
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -197,6 +197,37 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [filterSchool, setFilterSchool] = useState('');
   const [filterAge, setFilterAge] = useState('');
   const [filterClass, setFilterClass] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Registration | null>(null);
+  const [deletePasscode, setDeletePasscode] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const confirmDelete = async () => {
+    if (deletePasscode !== PASSCODE) {
+      setDeleteError('Incorrect passcode');
+      setDeletePasscode('');
+      return;
+    }
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      const res = await fetch('/api/workshop/registrations', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteTarget.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Delete failed');
+      setRegistrations(prev => prev.filter(r => r.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setDeletePasscode('');
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -474,6 +505,15 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
                             {new Date(r.submitted_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </td>
+                        <td className="py-3 px-3">
+                          <button
+                            onClick={e => { e.stopPropagation(); setDeleteTarget(r); setDeletePasscode(''); setDeleteError(''); }}
+                            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Delete registration"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
                       </tr>
                       {/* Expanded row */}
                       <AnimatePresence>
@@ -520,6 +560,65 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+            onClick={() => { setDeleteTarget(null); setDeletePasscode(''); setDeleteError(''); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={22} className="text-red-500" />
+              </div>
+              <h2 className="text-base font-bold text-charcoal text-center mb-1" style={{ fontFamily: 'var(--font-heading)' }}>
+                Delete Registration?
+              </h2>
+              <p className="text-sm text-gray-500 text-center mb-1">
+                <span className="font-semibold text-charcoal">{deleteTarget.child_name}</span>
+              </p>
+              <p className="text-xs text-gray-400 text-center mb-5">This cannot be undone. Enter the admin passcode to confirm.</p>
+              <input
+                type="password"
+                value={deletePasscode}
+                onChange={e => { setDeletePasscode(e.target.value); setDeleteError(''); }}
+                onKeyDown={e => e.key === 'Enter' && confirmDelete()}
+                placeholder="Enter passcode"
+                maxLength={10}
+                className="w-full text-center text-xl tracking-[0.4em] border-2 border-gray-200 rounded-xl py-2.5 focus:border-red-400 focus:outline-none mb-2"
+                autoFocus
+              />
+              {deleteError && <p className="text-xs text-red-500 text-center mb-2">{deleteError}</p>}
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={() => { setDeleteTarget(null); setDeletePasscode(''); setDeleteError(''); }}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleteLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {deleteLoading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
