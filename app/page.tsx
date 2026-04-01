@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import Countdown from '@/components/Countdown';
+import CountdownSection from '@/components/CountdownSection';
 import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
 import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar } from 'lucide-react';
@@ -25,8 +25,6 @@ const quickLinks = [
 ];
 
 export default function HomePage() {
-  const countdownDate = '2026-04-08T00:00:00+05:30';
-
   return (
     <>
       {/* ===== HERO SECTION — Full-bleed background image ===== */}
@@ -77,7 +75,7 @@ export default function HomePage() {
             {/* Date & Location pill */}
             <div className="flex flex-wrap justify-center gap-4 mb-10 text-sm text-white/70">
               <span className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-                <Calendar size={14} /> April 8, 2026
+                <Calendar size={14} /> April 18, 2026
               </span>
               <span className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
                 <MapPin size={14} /> Velur, Thrissur, Kerala
@@ -120,8 +118,7 @@ export default function HomePage() {
           <AnimatedSection>
             <p className="text-maroon uppercase tracking-[0.2em] text-sm mb-2 font-semibold">Mark Your Calendar</p>
             <h2 className="heading-lg text-charcoal mb-2">Gramakam 2026</h2>
-            <p className="text-gray-600 mb-10">April 8, 2026 &middot; Velur, Thrissur, Kerala</p>
-            <Countdown targetDate={countdownDate} />
+            <CountdownSection />
           </AnimatedSection>
         </div>
       </section>
