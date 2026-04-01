@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
-import { CheckCircle, X, ChevronLeft, ChevronRight, Ruler, ShoppingCart } from 'lucide-react';
-import { submitPrebook } from '@/lib/services';
-import CartDrawer from '@/components/merchandise/CartDrawer';
+import { X, ChevronLeft, ChevronRight, Plus, Minus, ShoppingBag } from 'lucide-react';
 import CheckoutModal from '@/components/merchandise/CheckoutModal';
 import type { MerchCartItem } from '@/types';
 
@@ -17,14 +15,6 @@ interface MerchProduct {
   price: number;
   sizes?: string[];
 }
-
-const sizeChartData = {
-  S:   { chest: '86–91 cm', length: '67 cm' },
-  M:   { chest: '92–97 cm', length: '69 cm' },
-  L:   { chest: '98–103 cm', length: '71 cm' },
-  XL:  { chest: '104–109 cm', length: '73 cm' },
-  XXL: { chest: '110–116 cm', length: '75 cm' },
-};
 
 const products: MerchProduct[] = [
   {
@@ -63,157 +53,74 @@ const products: MerchProduct[] = [
   },
 ];
 
+// Per-product selection state: { size, quantity }
+interface Selection {
+  size: string;
+  quantity: number;
+}
+
 export default function MerchandisePage() {
-  // Lightbox state
+  const [selections, setSelections] = useState<Record<string, Selection>>({});
+  const [showCheckout, setShowCheckout] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ images: string[]; index: number } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<Record<string, number>>({});
 
-  // Cart state
-  const [cart, setCart] = useState<MerchCartItem[]>([]);
-  const [showCart, setShowCart] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false);
+  const getSelection = (id: string, product: MerchProduct): Selection =>
+    selections[id] ?? { size: product.sizes?.[0] ?? 'N/A', quantity: 0 };
 
-  // Add-to-cart size picker state
-  const [sizePickerProduct, setSizePickerProduct] = useState<string | null>(null);
-  const [pickerSize, setPickerSize] = useState('');
+  const setSize = (id: string, product: MerchProduct, size: string) => {
+    const sel = getSelection(id, product);
+    setSelections((prev) => ({ ...prev, [id]: { ...sel, size } }));
+  };
 
-  // Pre-book state (fallback)
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    mobile: '',
-    item: '',
-    size: '',
-    quantity: 1,
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const setQty = (id: string, product: MerchProduct, delta: number) => {
+    const sel = getSelection(id, product);
+    const newQty = Math.max(0, Math.min(10, sel.quantity + delta));
+    setSelections((prev) => ({ ...prev, [id]: { ...sel, quantity: newQty } }));
+  };
 
-  // Size guide state
-  const [showSizeGuide, setShowSizeGuide] = useState(false);
-  const [sizeGuideTab, setSizeGuideTab] = useState<'chart' | 'finder' | 'measure'>('chart');
-  const [findHeight, setFindHeight] = useState('');
-  const [findWeight, setFindWeight] = useState('');
-  const [suggestedSize, setSuggestedSize] = useState<string | null>(null);
-
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  function computeSuggestedSize() {
-    const h = parseFloat(findHeight);
-    const w = parseFloat(findWeight);
-    if (!h || !w || h < 100 || w < 20) return;
-    let size = 'M';
-    if (w < 55) size = 'S';
-    else if (w < 68) size = 'M';
-    else if (w < 82) size = 'L';
-    else if (w < 96) size = 'XL';
-    else size = 'XXL';
-    if (h >= 183 && size === 'S') size = 'M';
-    if (h >= 188 && size === 'M') size = 'L';
-    setSuggestedSize(size);
-  }
-
-  // Cart functions
-  const addToCart = (product: MerchProduct, size: string) => {
-    setCart((prev) => {
-      const existing = prev.findIndex(
-        (item) => item.productId === product.id && item.size === size
-      );
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = { ...updated[existing], quantity: Math.min(updated[existing].quantity + 1, 10) };
-        return updated;
-      }
-      return [...prev, { productId: product.id, name: product.name, price: product.price, size, quantity: 1 }];
+  // Build cart from selections
+  const cart: MerchCartItem[] = products
+    .filter((p) => (selections[p.id]?.quantity ?? 0) > 0)
+    .map((p) => {
+      const sel = getSelection(p.id, p);
+      return { productId: p.id, name: p.name, price: p.price, size: sel.size, quantity: sel.quantity };
     });
-    setSizePickerProduct(null);
-    setPickerSize('');
-  };
 
-  const handleAddToCart = (product: MerchProduct) => {
-    if (product.sizes && product.sizes.length > 1) {
-      setSizePickerProduct(product.id);
-      setPickerSize(product.sizes[0]);
-    } else {
-      addToCart(product, product.sizes?.[0] || 'N/A');
-    }
-  };
+  const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
+  const totalAmount = cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
-  const updateCartQty = (index: number, delta: number) => {
-    setCart((prev) => {
-      const updated = [...prev];
-      const newQty = updated[index].quantity + delta;
-      if (newQty < 1) return prev;
-      if (newQty > 10) return prev;
-      updated[index] = { ...updated[index], quantity: newQty };
-      return updated;
-    });
-  };
-
-  const removeFromCart = (index: number) => {
-    setCart((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Pre-book fallback
-  const handlePrebook = (productId: string) => {
-    const product = products.find((p) => p.id === productId);
-    if (product) {
-      setSelectedProduct(productId);
-      setFormData({ ...formData, item: product.name, size: product.sizes?.[0] || 'N/A' });
-      setIsSubmitted(false);
-    }
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      await submitPrebook(formData);
-      setIsSubmitted(true);
-      setFormData({ name: '', email: '', mobile: '', item: '', size: '', quantity: 1 });
-    } catch {
-      console.error('Submission failed');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Lightbox
   const openLightbox = (images: string[], index: number) => setLightboxImage({ images, index });
-  const closeLightbox = () => setLightboxImage(null);
-  const navigateLightbox = (direction: number) => {
+  const navigateLightbox = (dir: number) => {
     if (!lightboxImage) return;
-    const newIndex = (lightboxImage.index + direction + lightboxImage.images.length) % lightboxImage.images.length;
+    const newIndex = (lightboxImage.index + dir + lightboxImage.images.length) % lightboxImage.images.length;
     setLightboxImage({ ...lightboxImage, index: newIndex });
   };
 
-  const selectedProductData = products.find((p) => p.id === selectedProduct);
-
   return (
-    <div className="section-padding bg-cream min-h-screen">
+    <div className="section-padding bg-cream min-h-screen pb-32">
       <div className="container-custom">
         <AnimatedSection>
           <div className="text-center mb-10">
-            <p className="text-maroon uppercase tracking-[0.2em] text-sm mb-2">
-              Festival Collectibles
-            </p>
+            <p className="text-maroon uppercase tracking-[0.2em] text-sm mb-2">Festival Collectibles</p>
             <h1 className="heading-xl text-charcoal mb-4">Merchandise</h1>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Take home a piece of Gramakam. Our exclusive festival merchandise
-              is designed to celebrate the spirit of theatre and culture.
+              Take home a piece of Gramakam. Pick your items below and tap Checkout.
             </p>
             <div className="w-16 h-0.5 bg-maroon mx-auto mt-6" />
           </div>
         </AnimatedSection>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {products.map((product, index) => {
-            const currentImg = activeImageIndex[product.id] || 0;
+            const sel = getSelection(product.id, product);
+            const currentImg = activeImageIndex[product.id] ?? 0;
+            const hasMultipleSizes = product.sizes && product.sizes.length > 1;
+
             return (
               <AnimatedSection key={product.id} delay={index * 0.1}>
-                <div className="card bg-white h-full flex flex-col">
+                <div className={`card bg-white h-full flex flex-col transition-shadow duration-300 ${sel.quantity > 0 ? 'ring-2 ring-maroon shadow-lg' : ''}`}>
                   {/* Product Image */}
                   <div className="relative aspect-square bg-gray-100 overflow-hidden group">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -237,47 +144,38 @@ export default function MerchandisePage() {
                         {product.images.map((_, i) => (
                           <button
                             key={i}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveImageIndex({ ...activeImageIndex, [product.id]: i });
-                            }}
-                            className={`w-2 h-2 rounded-full transition-all ${
-                              i === currentImg ? 'bg-white scale-125 shadow' : 'bg-white/60'
-                            }`}
+                            onClick={(e) => { e.stopPropagation(); setActiveImageIndex({ ...activeImageIndex, [product.id]: i }); }}
+                            className={`w-2 h-2 rounded-full transition-all ${i === currentImg ? 'bg-white scale-125 shadow' : 'bg-white/60'}`}
                           />
                         ))}
+                      </div>
+                    )}
+                    {sel.quantity > 0 && (
+                      <div className="absolute top-2 right-2 bg-maroon text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow">
+                        {sel.quantity}
                       </div>
                     )}
                   </div>
 
                   {/* Product Info */}
                   <div className="p-5 flex-grow flex flex-col">
-                    <h3
-                      className="text-lg font-semibold text-charcoal mb-1"
-                      style={{ fontFamily: 'var(--font-heading)' }}
-                    >
+                    <h3 className="text-lg font-semibold text-charcoal mb-1" style={{ fontFamily: 'var(--font-heading)' }}>
                       {product.name}
                     </h3>
                     <p className="text-xl font-bold text-maroon mb-2">₹{product.price}</p>
-                    <p className="text-gray-600 text-sm mb-4 flex-grow">
-                      {product.description}
-                    </p>
-                    {product.sizes && (
-                      <p className="text-xs text-earth mb-3">
-                        Sizes: {product.sizes.join(', ')}
-                      </p>
-                    )}
+                    <p className="text-gray-600 text-sm mb-4 flex-grow">{product.description}</p>
 
-                    {/* Size picker inline (shown when this product's size picker is active) */}
-                    {sizePickerProduct === product.id && product.sizes && product.sizes.length > 1 && (
-                      <div className="mb-3 space-y-2">
+                    {/* Size selector */}
+                    {hasMultipleSizes && (
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-500 mb-2 font-medium">Select Size</p>
                         <div className="flex gap-1.5 flex-wrap">
-                          {product.sizes.map((size) => (
+                          {product.sizes!.map((size) => (
                             <button
                               key={size}
-                              onClick={() => setPickerSize(size)}
-                              className={`px-3 py-1.5 rounded-md border text-xs font-semibold transition-all ${
-                                pickerSize === size
+                              onClick={() => setSize(product.id, product, size)}
+                              className={`px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all ${
+                                sel.size === size
                                   ? 'bg-maroon text-white border-maroon'
                                   : 'bg-white text-charcoal border-gray-300 hover:border-maroon'
                               }`}
@@ -286,490 +184,109 @@ export default function MerchandisePage() {
                             </button>
                           ))}
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => addToCart(product, pickerSize)}
-                            className="btn-primary text-xs flex-1 py-2"
-                          >
-                            Add ({pickerSize})
-                          </button>
-                          <button
-                            onClick={() => setSizePickerProduct(null)}
-                            className="btn-secondary text-xs px-3 py-2"
-                          >
-                            Cancel
-                          </button>
-                        </div>
                       </div>
                     )}
 
-                    {sizePickerProduct !== product.id && (
-                      <div className="space-y-2">
+                    {/* Quantity controls */}
+                    <div className="flex items-center justify-between mt-auto">
+                      <p className="text-xs text-gray-400">Qty</p>
+                      <div className="flex items-center gap-3">
                         <button
-                          onClick={() => handleAddToCart(product)}
-                          className="btn-primary text-sm w-full"
+                          onClick={() => setQty(product.id, product, -1)}
+                          disabled={sel.quantity === 0}
+                          className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors text-lg font-bold"
                         >
-                          Add to Cart
+                          <Minus size={16} />
                         </button>
+                        <span className="text-xl font-bold text-charcoal w-6 text-center">{sel.quantity}</span>
                         <button
-                          onClick={() => handlePrebook(product.id)}
-                          className="text-xs text-gray-400 hover:text-maroon w-full text-center underline underline-offset-2"
+                          onClick={() => setQty(product.id, product, 1)}
+                          disabled={sel.quantity === 10}
+                          className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors"
                         >
-                          No UPI? Pre-book instead
+                          <Plus size={16} />
                         </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </AnimatedSection>
             );
           })}
         </div>
-
-        {/* Floating Cart Button */}
-        <AnimatePresence>
-          {cartCount > 0 && (
-            <motion.button
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              onClick={() => setShowCart(true)}
-              className="fixed bottom-6 right-6 z-40 bg-maroon text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-maroon-dark transition-colors"
-            >
-              <ShoppingCart size={22} />
-              <motion.span
-                key={cartCount}
-                initial={{ scale: 0.5 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 bg-white text-maroon text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shadow"
-              >
-                {cartCount}
-              </motion.span>
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {/* Cart Drawer */}
-        <CartDrawer
-          open={showCart}
-          onClose={() => setShowCart(false)}
-          cart={cart}
-          onUpdateQty={updateCartQty}
-          onRemove={removeFromCart}
-          onCheckout={() => {
-            setShowCart(false);
-            setShowCheckout(true);
-          }}
-        />
-
-        {/* Checkout Modal */}
-        <CheckoutModal
-          open={showCheckout}
-          onClose={() => setShowCheckout(false)}
-          cart={cart}
-          onOrderPlaced={() => setCart([])}
-        />
-
-        {/* Image Lightbox Modal */}
-        <AnimatePresence>
-          {lightboxImage && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
-              onClick={closeLightbox}
-            >
-              <button
-                onClick={closeLightbox}
-                className="absolute top-4 right-4 text-white/80 hover:text-white z-10"
-              >
-                <X size={32} />
-              </button>
-              <motion.img
-                key={lightboxImage.index}
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                src={lightboxImage.images[lightboxImage.index]}
-                alt="Product view"
-                className="max-w-full max-h-[85vh] object-contain rounded-lg"
-                onClick={(e) => e.stopPropagation()}
-              />
-              {lightboxImage.images.length > 1 && (
-                <>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); navigateLightbox(-1); }}
-                    className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition-colors"
-                  >
-                    <ChevronLeft size={28} />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); navigateLightbox(1); }}
-                    className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition-colors"
-                  >
-                    <ChevronRight size={28} />
-                  </button>
-                  <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
-                    {lightboxImage.images.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLightboxImage({ ...lightboxImage, index: i });
-                        }}
-                        className={`w-2.5 h-2.5 rounded-full transition-all ${
-                          i === lightboxImage.index ? 'bg-white scale-125' : 'bg-white/50'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Size Guide Modal */}
-        <AnimatePresence>
-          {showSizeGuide && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4"
-              onClick={() => setShowSizeGuide(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.92, opacity: 0 }}
-                className="bg-white rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
-                  <h3 className="font-semibold text-charcoal text-base">T-Shirt Size Guide</h3>
-                  <button onClick={() => setShowSizeGuide(false)} className="text-gray-400 hover:text-charcoal">
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="flex border-b border-gray-100">
-                  {(['chart', 'finder', 'measure'] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setSizeGuideTab(tab)}
-                      className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
-                        sizeGuideTab === tab
-                          ? 'text-maroon border-b-2 border-maroon'
-                          : 'text-gray-500 hover:text-charcoal'
-                      }`}
-                    >
-                      {tab === 'chart' ? 'Size Chart' : tab === 'finder' ? 'Find My Size' : 'How to Measure'}
-                    </button>
-                  ))}
-                </div>
-                <div className="p-6">
-                  {sizeGuideTab === 'chart' && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-4">All measurements are in centimetres (cm). When between sizes, size up.</p>
-                      <table className="w-full text-sm text-center border-collapse">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="py-2 px-3 text-left font-semibold text-charcoal border border-gray-200">Size</th>
-                            <th className="py-2 px-3 font-semibold text-charcoal border border-gray-200">Chest (cm)</th>
-                            <th className="py-2 px-3 font-semibold text-charcoal border border-gray-200">Length (cm)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Object.entries(sizeChartData).map(([size, m]) => (
-                            <tr
-                              key={size}
-                              className={formData.size === size ? 'bg-maroon/10 font-semibold' : 'hover:bg-gray-50'}
-                            >
-                              <td className="py-2 px-3 text-left border border-gray-200 font-medium">
-                                {size} {formData.size === size && <span className="text-maroon text-xs ml-1">← selected</span>}
-                              </td>
-                              <td className="py-2 px-3 border border-gray-200 text-gray-700">{m.chest}</td>
-                              <td className="py-2 px-3 border border-gray-200 text-gray-700">{m.length}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <p className="text-xs text-gray-400 mt-3">These are garment measurements, not body measurements. Add ~5 cm to your chest size for a comfortable fit.</p>
-                    </div>
-                  )}
-                  {sizeGuideTab === 'finder' && (
-                    <div className="space-y-4">
-                      <p className="text-xs text-gray-500">Enter your height and weight for a size recommendation.</p>
-                      <div className="flex gap-3">
-                        <div className="flex-1">
-                          <label className="block text-xs font-medium text-charcoal mb-1">Height (cm)</label>
-                          <input
-                            type="number"
-                            min={100}
-                            max={220}
-                            placeholder="e.g. 170"
-                            value={findHeight}
-                            onChange={(e) => { setFindHeight(e.target.value); setSuggestedSize(null); }}
-                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-xs font-medium text-charcoal mb-1">Weight (kg)</label>
-                          <input
-                            type="number"
-                            min={20}
-                            max={200}
-                            placeholder="e.g. 65"
-                            value={findWeight}
-                            onChange={(e) => { setFindWeight(e.target.value); setSuggestedSize(null); }}
-                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={computeSuggestedSize}
-                        disabled={!findHeight || !findWeight}
-                        className="w-full py-2.5 bg-maroon text-white rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-maroon/90 transition-colors"
-                      >
-                        Recommend My Size
-                      </button>
-                      {suggestedSize && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                          <p className="text-xs text-gray-500 mb-1">We recommend</p>
-                          <p className="text-3xl font-bold text-maroon">{suggestedSize}</p>
-                          {sizeChartData[suggestedSize as keyof typeof sizeChartData] && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Chest {sizeChartData[suggestedSize as keyof typeof sizeChartData].chest} &bull; Length {sizeChartData[suggestedSize as keyof typeof sizeChartData].length}
-                            </p>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData((f) => ({ ...f, size: suggestedSize! }));
-                              setShowSizeGuide(false);
-                            }}
-                            className="mt-3 text-xs text-maroon underline underline-offset-2"
-                          >
-                            Select {suggestedSize} and close
-                          </button>
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-400">This is an estimate. When in doubt, size up — festival tees are best worn relaxed.</p>
-                    </div>
-                  )}
-                  {sizeGuideTab === 'measure' && (
-                    <div className="space-y-5">
-                      <p className="text-xs text-gray-500">Use a soft measuring tape for best results. Measure directly over light clothing.</p>
-                      <div className="space-y-4">
-                        <div className="flex gap-3 items-start">
-                          <div className="w-8 h-8 rounded-full bg-maroon/10 flex items-center justify-center text-maroon font-bold text-sm shrink-0 mt-0.5">1</div>
-                          <div>
-                            <p className="text-sm font-semibold text-charcoal">Chest</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Wrap the tape around the fullest part of your chest, keeping it horizontal and parallel to the ground. Arms relaxed at your sides.</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-3 items-start">
-                          <div className="w-8 h-8 rounded-full bg-maroon/10 flex items-center justify-center text-maroon font-bold text-sm shrink-0 mt-0.5">2</div>
-                          <div>
-                            <p className="text-sm font-semibold text-charcoal">Length</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Measure from the highest point of your shoulder (where the seam sits) straight down to where you&apos;d like the hem to fall.</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-3 items-start">
-                          <div className="w-8 h-8 rounded-full bg-maroon/10 flex items-center justify-center text-maroon font-bold text-sm shrink-0 mt-0.5">3</div>
-                          <div>
-                            <p className="text-sm font-semibold text-charcoal">Tip: Garment vs. Body</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Our size chart shows garment measurements. For a comfortable regular fit, your chest should be ~5 cm smaller than the garment chest listed.</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-                        Still unsure? Try the <button type="button" onClick={() => setSizeGuideTab('finder')} className="underline font-medium">Find My Size</button> tool, or when in doubt — size up.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Pre-book Form Modal (fallback) */}
-        <AnimatePresence>
-          {selectedProduct && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-              onClick={() => setSelectedProduct(null)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-xl p-6 md:p-8 max-w-md w-full shadow-xl max-h-[90vh] overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {isSubmitted ? (
-                  <div className="text-center py-4">
-                    <CheckCircle size={48} className="text-green-500 mx-auto mb-4" />
-                    <h3 className="heading-md text-charcoal mb-2">Pre-booked!</h3>
-                    <p className="text-gray-600 mb-4">
-                      Your pre-booking has been received. We&apos;ll be in touch soon.
-                    </p>
-                    <button
-                      onClick={() => setSelectedProduct(null)}
-                      className="btn-secondary"
-                    >
-                      Close
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <h3
-                      className="heading-md text-charcoal mb-1"
-                      style={{ fontFamily: 'var(--font-heading)' }}
-                    >
-                      Pre-book: {selectedProductData?.name}
-                    </h3>
-                    <p className="text-gray-500 text-sm mb-6">
-                      No payment required now. We&apos;ll contact you with details.
-                    </p>
-
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                      <div>
-                        <label htmlFor="prebook-name" className="block text-sm font-medium text-charcoal mb-1">
-                          Name *
-                        </label>
-                        <input
-                          id="prebook-name"
-                          type="text"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="prebook-email" className="block text-sm font-medium text-charcoal mb-1">
-                          Email *
-                        </label>
-                        <input
-                          id="prebook-email"
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="prebook-mobile" className="block text-sm font-medium text-charcoal mb-1">
-                          Mobile Number *
-                        </label>
-                        <div className="flex">
-                          <span className="inline-flex items-center px-3 py-3 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-sm text-gray-600 font-medium">
-                            +91
-                          </span>
-                          <input
-                            id="prebook-mobile"
-                            type="tel"
-                            value={formData.mobile}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                              setFormData({ ...formData, mobile: val });
-                            }}
-                            placeholder="9876543210"
-                            pattern="[6-9][0-9]{9}"
-                            title="Enter a valid 10-digit Indian mobile number"
-                            className="w-full px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
-                            required
-                          />
-                        </div>
-                      </div>
-                      {selectedProductData?.sizes && selectedProductData.sizes.length > 1 && (
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium text-charcoal">Size</label>
-                            <button
-                              type="button"
-                              onClick={() => { setShowSizeGuide(true); setSizeGuideTab('chart'); setSuggestedSize(null); }}
-                              className="flex items-center gap-1 text-xs text-maroon underline underline-offset-2 hover:text-maroon/80"
-                            >
-                              <Ruler size={12} /> Size Guide
-                            </button>
-                          </div>
-                          <div className="flex gap-2 flex-wrap">
-                            {selectedProductData.sizes.map((size) => (
-                              <button
-                                key={size}
-                                type="button"
-                                onClick={() => setFormData({ ...formData, size })}
-                                className={`px-4 py-2 rounded-lg border text-sm font-semibold transition-all ${
-                                  formData.size === size
-                                    ? 'bg-maroon text-white border-maroon shadow-sm'
-                                    : 'bg-white text-charcoal border-gray-300 hover:border-maroon'
-                                }`}
-                              >
-                                {size}
-                              </button>
-                            ))}
-                          </div>
-                          {formData.size && sizeChartData[formData.size as keyof typeof sizeChartData] && (
-                            <p className="text-xs text-gray-500 mt-1.5">
-                              {formData.size}: Chest {sizeChartData[formData.size as keyof typeof sizeChartData].chest} &bull; Length {sizeChartData[formData.size as keyof typeof sizeChartData].length} &bull;{' '}
-                              <button
-                                type="button"
-                                onClick={() => { setShowSizeGuide(true); setSizeGuideTab('finder'); setSuggestedSize(null); }}
-                                className="text-maroon underline underline-offset-1"
-                              >
-                                Not sure your size?
-                              </button>
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      <div>
-                        <label htmlFor="prebook-qty" className="block text-sm font-medium text-charcoal mb-1">
-                          Quantity
-                        </label>
-                        <input
-                          id="prebook-qty"
-                          type="number"
-                          min={1}
-                          max={10}
-                          value={formData.quantity}
-                          onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
-                        />
-                      </div>
-
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedProduct(null)}
-                          className="btn-secondary flex-1"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="btn-primary flex-1 disabled:opacity-50"
-                        >
-                          {isSubmitting ? 'Submitting...' : 'Pre-book'}
-                        </button>
-                      </div>
-                    </form>
-                  </>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
+
+      {/* Sticky Checkout Bar */}
+      <AnimatePresence>
+        {totalItems > 0 && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-0 left-0 right-0 z-40 bg-maroon text-white shadow-2xl"
+          >
+            <div className="container-custom py-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <ShoppingBag size={22} className="shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">{totalItems} item{totalItems > 1 ? 's' : ''} selected</p>
+                  <p className="text-white/70 text-xs">Total: ₹{totalAmount}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCheckout(true)}
+                className="bg-white text-maroon font-bold px-8 py-3 rounded-full text-sm hover:bg-cream transition-colors shadow-md shrink-0"
+              >
+                Checkout →
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Checkout Modal */}
+      <CheckoutModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        cart={cart}
+        onOrderPlaced={() => setSelections({})}
+      />
+
+      {/* Image Lightbox */}
+      <AnimatePresence>
+        {lightboxImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightboxImage(null)}
+          >
+            <button onClick={() => setLightboxImage(null)} className="absolute top-4 right-4 text-white/80 hover:text-white z-10">
+              <X size={32} />
+            </button>
+            <motion.img
+              key={lightboxImage.index}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              src={lightboxImage.images[lightboxImage.index]}
+              alt="Product view"
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            {lightboxImage.images.length > 1 && (
+              <>
+                <button onClick={(e) => { e.stopPropagation(); navigateLightbox(-1); }} className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-2">
+                  <ChevronLeft size={28} />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); navigateLightbox(1); }} className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-2">
+                  <ChevronRight size={28} />
+                </button>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
