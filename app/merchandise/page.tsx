@@ -3,14 +3,18 @@
 import { useState, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
-import { CheckCircle, X, ChevronLeft, ChevronRight, Ruler } from 'lucide-react';
+import { CheckCircle, X, ChevronLeft, ChevronRight, Ruler, ShoppingCart } from 'lucide-react';
 import { submitPrebook } from '@/lib/services';
+import CartDrawer from '@/components/merchandise/CartDrawer';
+import CheckoutModal from '@/components/merchandise/CheckoutModal';
+import type { MerchCartItem } from '@/types';
 
 interface MerchProduct {
   id: string;
   name: string;
   description: string;
   images: string[];
+  price: number;
   sizes?: string[];
 }
 
@@ -29,6 +33,7 @@ const products: MerchProduct[] = [
     description:
       'Premium cotton t-shirt with the iconic Gramakam festival design. A wearable piece of cultural art.',
     images: ['/images/merch/tshirt2.jpg', '/images/merch/tshirt.jpg'],
+    price: 1,
     sizes: ['S', 'M', 'L', 'XL', 'XXL'],
   },
   {
@@ -37,6 +42,7 @@ const products: MerchProduct[] = [
     description:
       'Beautifully designed notebook cover featuring traditional Kerala art motifs and Gramakam branding.',
     images: ['/images/merch/cover.svg'],
+    price: 1,
   },
   {
     id: 'keychain',
@@ -44,6 +50,7 @@ const products: MerchProduct[] = [
     description:
       'A unique festival keepsake. Carry a piece of Gramakam wherever you go.',
     images: ['/images/merch/keychain.svg'],
+    price: 1,
   },
   {
     id: 'hat',
@@ -51,14 +58,27 @@ const products: MerchProduct[] = [
     description:
       'Stylish festival cap with embroidered Gramakam logo. Perfect for sun and style.',
     images: ['/images/merch/hat.svg'],
+    price: 1,
     sizes: ['One Size'],
   },
 ];
 
 export default function MerchandisePage() {
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  // Lightbox state
   const [lightboxImage, setLightboxImage] = useState<{ images: string[]; index: number } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<Record<string, number>>({});
+
+  // Cart state
+  const [cart, setCart] = useState<MerchCartItem[]>([]);
+  const [showCart, setShowCart] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+
+  // Add-to-cart size picker state
+  const [sizePickerProduct, setSizePickerProduct] = useState<string | null>(null);
+  const [pickerSize, setPickerSize] = useState('');
+
+  // Pre-book state (fallback)
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -69,11 +89,15 @@ export default function MerchandisePage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Size guide state
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [sizeGuideTab, setSizeGuideTab] = useState<'chart' | 'finder' | 'measure'>('chart');
   const [findHeight, setFindHeight] = useState('');
   const [findWeight, setFindWeight] = useState('');
   const [suggestedSize, setSuggestedSize] = useState<string | null>(null);
+
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   function computeSuggestedSize() {
     const h = parseFloat(findHeight);
@@ -85,12 +109,53 @@ export default function MerchandisePage() {
     else if (w < 82) size = 'L';
     else if (w < 96) size = 'XL';
     else size = 'XXL';
-    // Bump up one size if tall (length matters)
     if (h >= 183 && size === 'S') size = 'M';
     if (h >= 188 && size === 'M') size = 'L';
     setSuggestedSize(size);
   }
 
+  // Cart functions
+  const addToCart = (product: MerchProduct, size: string) => {
+    setCart((prev) => {
+      const existing = prev.findIndex(
+        (item) => item.productId === product.id && item.size === size
+      );
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = { ...updated[existing], quantity: Math.min(updated[existing].quantity + 1, 10) };
+        return updated;
+      }
+      return [...prev, { productId: product.id, name: product.name, price: product.price, size, quantity: 1 }];
+    });
+    setSizePickerProduct(null);
+    setPickerSize('');
+  };
+
+  const handleAddToCart = (product: MerchProduct) => {
+    if (product.sizes && product.sizes.length > 1) {
+      setSizePickerProduct(product.id);
+      setPickerSize(product.sizes[0]);
+    } else {
+      addToCart(product, product.sizes?.[0] || 'N/A');
+    }
+  };
+
+  const updateCartQty = (index: number, delta: number) => {
+    setCart((prev) => {
+      const updated = [...prev];
+      const newQty = updated[index].quantity + delta;
+      if (newQty < 1) return prev;
+      if (newQty > 10) return prev;
+      updated[index] = { ...updated[index], quantity: newQty };
+      return updated;
+    });
+  };
+
+  const removeFromCart = (index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Pre-book fallback
   const handlePrebook = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (product) {
@@ -103,7 +168,6 @@ export default function MerchandisePage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
     try {
       await submitPrebook(formData);
       setIsSubmitted(true);
@@ -115,12 +179,9 @@ export default function MerchandisePage() {
     }
   };
 
-  const openLightbox = (images: string[], index: number) => {
-    setLightboxImage({ images, index });
-  };
-
+  // Lightbox
+  const openLightbox = (images: string[], index: number) => setLightboxImage({ images, index });
   const closeLightbox = () => setLightboxImage(null);
-
   const navigateLightbox = (direction: number) => {
     if (!lightboxImage) return;
     const newIndex = (lightboxImage.index + direction + lightboxImage.images.length) % lightboxImage.images.length;
@@ -163,7 +224,6 @@ export default function MerchandisePage() {
                       loading="lazy"
                       onClick={() => openLightbox(product.images, currentImg)}
                     />
-                    {/* Click to view overlay */}
                     <div
                       className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center cursor-pointer"
                       onClick={() => openLightbox(product.images, currentImg)}
@@ -172,7 +232,6 @@ export default function MerchandisePage() {
                         Tap to view
                       </span>
                     </div>
-                    {/* Image dots / navigation for multiple images */}
                     {product.images.length > 1 && (
                       <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
                         {product.images.map((_, i) => (
@@ -194,11 +253,12 @@ export default function MerchandisePage() {
                   {/* Product Info */}
                   <div className="p-5 flex-grow flex flex-col">
                     <h3
-                      className="text-lg font-semibold text-charcoal mb-2"
+                      className="text-lg font-semibold text-charcoal mb-1"
                       style={{ fontFamily: 'var(--font-heading)' }}
                     >
                       {product.name}
                     </h3>
+                    <p className="text-xl font-bold text-maroon mb-2">₹{product.price}</p>
                     <p className="text-gray-600 text-sm mb-4 flex-grow">
                       {product.description}
                     </p>
@@ -207,18 +267,108 @@ export default function MerchandisePage() {
                         Sizes: {product.sizes.join(', ')}
                       </p>
                     )}
-                    <button
-                      onClick={() => handlePrebook(product.id)}
-                      className="btn-primary text-sm w-full"
-                    >
-                      Pre-book Now
-                    </button>
+
+                    {/* Size picker inline (shown when this product's size picker is active) */}
+                    {sizePickerProduct === product.id && product.sizes && product.sizes.length > 1 && (
+                      <div className="mb-3 space-y-2">
+                        <div className="flex gap-1.5 flex-wrap">
+                          {product.sizes.map((size) => (
+                            <button
+                              key={size}
+                              onClick={() => setPickerSize(size)}
+                              className={`px-3 py-1.5 rounded-md border text-xs font-semibold transition-all ${
+                                pickerSize === size
+                                  ? 'bg-maroon text-white border-maroon'
+                                  : 'bg-white text-charcoal border-gray-300 hover:border-maroon'
+                              }`}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => addToCart(product, pickerSize)}
+                            className="btn-primary text-xs flex-1 py-2"
+                          >
+                            Add ({pickerSize})
+                          </button>
+                          <button
+                            onClick={() => setSizePickerProduct(null)}
+                            className="btn-secondary text-xs px-3 py-2"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {sizePickerProduct !== product.id && (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => handleAddToCart(product)}
+                          className="btn-primary text-sm w-full"
+                        >
+                          Add to Cart
+                        </button>
+                        <button
+                          onClick={() => handlePrebook(product.id)}
+                          className="text-xs text-gray-400 hover:text-maroon w-full text-center underline underline-offset-2"
+                        >
+                          No UPI? Pre-book instead
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </AnimatedSection>
             );
           })}
         </div>
+
+        {/* Floating Cart Button */}
+        <AnimatePresence>
+          {cartCount > 0 && (
+            <motion.button
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              onClick={() => setShowCart(true)}
+              className="fixed bottom-6 right-6 z-40 bg-maroon text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-maroon-dark transition-colors"
+            >
+              <ShoppingCart size={22} />
+              <motion.span
+                key={cartCount}
+                initial={{ scale: 0.5 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-1 -right-1 bg-white text-maroon text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shadow"
+              >
+                {cartCount}
+              </motion.span>
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        {/* Cart Drawer */}
+        <CartDrawer
+          open={showCart}
+          onClose={() => setShowCart(false)}
+          cart={cart}
+          onUpdateQty={updateCartQty}
+          onRemove={removeFromCart}
+          onCheckout={() => {
+            setShowCart(false);
+            setShowCheckout(true);
+          }}
+        />
+
+        {/* Checkout Modal */}
+        <CheckoutModal
+          open={showCheckout}
+          onClose={() => setShowCheckout(false)}
+          cart={cart}
+          onOrderPlaced={() => setCart([])}
+        />
 
         {/* Image Lightbox Modal */}
         <AnimatePresence>
@@ -230,15 +380,12 @@ export default function MerchandisePage() {
               className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
               onClick={closeLightbox}
             >
-              {/* Close button */}
               <button
                 onClick={closeLightbox}
                 className="absolute top-4 right-4 text-white/80 hover:text-white z-10"
               >
                 <X size={32} />
               </button>
-
-              {/* Image */}
               <motion.img
                 key={lightboxImage.index}
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -249,8 +396,6 @@ export default function MerchandisePage() {
                 className="max-w-full max-h-[85vh] object-contain rounded-lg"
                 onClick={(e) => e.stopPropagation()}
               />
-
-              {/* Navigation arrows for multi-image */}
               {lightboxImage.images.length > 1 && (
                 <>
                   <button
@@ -265,7 +410,6 @@ export default function MerchandisePage() {
                   >
                     <ChevronRight size={28} />
                   </button>
-                  {/* Dots */}
                   <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
                     {lightboxImage.images.map((_, i) => (
                       <button
@@ -303,15 +447,12 @@ export default function MerchandisePage() {
                 className="bg-white rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Header */}
                 <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
                   <h3 className="font-semibold text-charcoal text-base">T-Shirt Size Guide</h3>
                   <button onClick={() => setShowSizeGuide(false)} className="text-gray-400 hover:text-charcoal">
                     <X size={20} />
                   </button>
                 </div>
-
-                {/* Tabs */}
                 <div className="flex border-b border-gray-100">
                   {(['chart', 'finder', 'measure'] as const).map((tab) => (
                     <button
@@ -327,9 +468,7 @@ export default function MerchandisePage() {
                     </button>
                   ))}
                 </div>
-
                 <div className="p-6">
-                  {/* Tab: Size Chart */}
                   {sizeGuideTab === 'chart' && (
                     <div>
                       <p className="text-xs text-gray-500 mb-4">All measurements are in centimetres (cm). When between sizes, size up.</p>
@@ -359,8 +498,6 @@ export default function MerchandisePage() {
                       <p className="text-xs text-gray-400 mt-3">These are garment measurements, not body measurements. Add ~5 cm to your chest size for a comfortable fit.</p>
                     </div>
                   )}
-
-                  {/* Tab: Find My Size */}
                   {sizeGuideTab === 'finder' && (
                     <div className="space-y-4">
                       <p className="text-xs text-gray-500">Enter your height and weight for a size recommendation.</p>
@@ -422,8 +559,6 @@ export default function MerchandisePage() {
                       <p className="text-xs text-gray-400">This is an estimate. When in doubt, size up — festival tees are best worn relaxed.</p>
                     </div>
                   )}
-
-                  {/* Tab: How to Measure */}
                   {sizeGuideTab === 'measure' && (
                     <div className="space-y-5">
                       <p className="text-xs text-gray-500">Use a soft measuring tape for best results. Measure directly over light clothing.</p>
@@ -439,7 +574,7 @@ export default function MerchandisePage() {
                           <div className="w-8 h-8 rounded-full bg-maroon/10 flex items-center justify-center text-maroon font-bold text-sm shrink-0 mt-0.5">2</div>
                           <div>
                             <p className="text-sm font-semibold text-charcoal">Length</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Measure from the highest point of your shoulder (where the seam sits) straight down to where you'd like the hem to fall.</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Measure from the highest point of your shoulder (where the seam sits) straight down to where you&apos;d like the hem to fall.</p>
                           </div>
                         </div>
                         <div className="flex gap-3 items-start">
@@ -461,7 +596,7 @@ export default function MerchandisePage() {
           )}
         </AnimatePresence>
 
-        {/* Pre-book Form Modal */}
+        {/* Pre-book Form Modal (fallback) */}
         <AnimatePresence>
           {selectedProduct && (
             <motion.div

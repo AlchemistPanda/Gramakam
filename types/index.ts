@@ -62,3 +62,45 @@ export interface AdminUser {
   uid: string;
   email: string;
 }
+
+// ==================== MERCH ORDERS ====================
+
+export interface MerchCartItem {
+  productId: string;
+  name: string;
+  price: number;
+  size: string;       // 'N/A' for non-sized items
+  quantity: number;
+}
+
+export type MerchOrderStatus = 'pending' | 'verified' | 'rejected' | 'manual_verified';
+
+export interface MerchOrder {
+  id: string;
+  orderId: string;            // human-readable: "GRM-xxxx"
+  items: MerchCartItem[];
+  total: number;
+  customerName: string;
+  customerEmail: string;
+  customerMobile: string;
+  upiRef: string;             // UPI reference number entered by customer
+  status: MerchOrderStatus;
+  matchedPaymentId?: string;
+  verifiedAt?: string;
+  verifiedBy?: string;        // 'auto' | 'admin'
+  rejectedAt?: string;
+  createdAt: Date | string;
+}
+
+export interface UpiPayment {
+  id: string;
+  amount: number;
+  datetime: string;           // from SMS: "26-03-2026 09:09:40"
+  senderUpi: string;
+  upiRef: string;
+  bank: string;
+  rawSms: string;
+  capturedAt: Date | string;
+  matched: boolean;
+  matchedOrderId?: string;
+}

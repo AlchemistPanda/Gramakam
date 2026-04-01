@@ -9,7 +9,9 @@ import {
   deleteDoc,
   query,
   orderBy,
+  where,
   serverTimestamp,
+  runTransaction,
 } from 'firebase/firestore';
 import {
   ref,
@@ -24,6 +26,9 @@ import type {
   FeedPost,
   ContactSubmission,
   MerchPrebook,
+  MerchOrder,
+  MerchOrderStatus,
+  UpiPayment,
   SiteConfig,
 } from '@/types';
 
@@ -201,6 +206,97 @@ export async function getPrebookEntries(): Promise<MerchPrebook[]> {
 export async function deletePrebook(id: string): Promise<void> {
   const docRef = doc(requireDb(), 'prebooks', id);
   await deleteDoc(docRef);
+}
+
+// ==================== MERCH ORDERS ====================
+
+export async function createMerchOrder(data: Omit<MerchOrder, 'id' | 'createdAt'>): Promise<string> {
+  const ordersRef = collection(requireDb(), 'merch_orders');
+  const docRef = await addDoc(ordersRef, {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function getMerchOrders(): Promise<MerchOrder[]> {
+  const ordersRef = collection(requireDb(), 'merch_orders');
+  const q = query(ordersRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt,
+  })) as MerchOrder[];
+}
+
+export async function updateMerchOrderStatus(
+  id: string,
+  status: MerchOrderStatus,
+  extra?: Partial<MerchOrder>
+): Promise<void> {
+  const docRef = doc(requireDb(), 'merch_orders', id);
+  await updateDoc(docRef, { status, ...extra });
+}
+
+export async function deleteMerchOrder(id: string): Promise<void> {
+  const docRef = doc(requireDb(), 'merch_orders', id);
+  await deleteDoc(docRef);
+}
+
+// ==================== UPI PAYMENTS ====================
+
+export async function getUpiPayments(): Promise<UpiPayment[]> {
+  const paymentsRef = collection(requireDb(), 'upi_payments');
+  const q = query(paymentsRef, orderBy('capturedAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    capturedAt: d.data().capturedAt?.toDate?.()?.toISOString() || d.data().capturedAt,
+  })) as UpiPayment[];
+}
+
+export async function verifyOrderByUpiRef(
+  orderId: string,
+  upiRef: string,
+  orderTotal: number
+): Promise<boolean> {
+  const database = requireDb();
+  const paymentsRef = collection(database, 'upi_payments');
+  const q = query(
+    paymentsRef,
+    where('upiRef', '==', upiRef),
+    where('matched', '==', false)
+  );
+  const snapshot = await getDocs(q);
+
+  const matchingPayment = snapshot.docs.find(
+    (d) => d.data().amount >= orderTotal
+  );
+  if (!matchingPayment) return false;
+
+  // Atomically link order and payment
+  const orderRef = doc(database, 'merch_orders', orderId);
+  const paymentRef = doc(database, 'upi_payments', matchingPayment.id);
+
+  await runTransaction(database, async (transaction) => {
+    const paymentSnap = await transaction.get(paymentRef);
+    if (paymentSnap.data()?.matched) return; // already matched by another request
+
+    transaction.update(orderRef, {
+      status: 'verified',
+      matchedPaymentId: matchingPayment.id,
+      verifiedAt: new Date().toISOString(),
+      verifiedBy: 'auto',
+    });
+    transaction.update(paymentRef, {
+      matched: true,
+      matchedOrderId: orderId,
+    });
+  });
+
+  return true;
 }
 
 // ==================== SITE CONFIG ====================

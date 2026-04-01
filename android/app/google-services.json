@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "835929251137",
+    "project_id": "gramakam-2026",
+    "storage_bucket": "gramakam-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:835929251137:android:a20448ecb0e0571a43d5c0",
+        "android_client_info": {
+          "package_name": "org.gramakam.upimonitor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCk2CxO74TIe2bhRmtPN5LqOqgMWmdRM1w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

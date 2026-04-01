@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.GramakamUPI" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/maroon</item>
+        <item name="colorPrimaryDark">@color/maroon_dark</item>
+        <item name="colorAccent">@color/maroon</item>
+        <item name="android:windowBackground">@color/cream</item>
+        <item name="android:statusBarColor">@color/maroon_dark</item>
+    </style>
+</resources>
