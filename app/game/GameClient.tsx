@@ -32,13 +32,15 @@ function getLevelConfig(level: number) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function randomSpot(existing: Spotlight[], stageW: number, stageH: number, isMobileDevice: boolean) {
-  const MARGIN_H = 12;
-  const MARGIN_TOP = isMobileDevice ? 18 : 12; // Extra margin at top for mobile HUD
+  // Larger margins to account for spotlight bubble size (radius up to 90px on mobile)
+  const MARGIN_H = 18;
+  const MARGIN_TOP = isMobileDevice ? 22 : 18; // Extra margin at top for mobile HUD
+  const MARGIN_BOTTOM = 18;
   const CENTER_X = 50, CENTER_Y = 50, CENTER_AVOID = 14;
   let x = 0, y = 0, tries = 0;
   do {
     x = MARGIN_H + Math.random() * (100 - MARGIN_H * 2);
-    y = MARGIN_TOP + Math.random() * (100 - MARGIN_TOP - MARGIN_H);
+    y = MARGIN_TOP + Math.random() * (100 - MARGIN_TOP - MARGIN_BOTTOM);
     const tooCenter = Math.abs(x - CENTER_X) < CENTER_AVOID && Math.abs(y - CENTER_Y) < CENTER_AVOID;
     const tooClose = existing.some((s) => Math.hypot(s.x - x, s.y - y) < 18);
     if (!tooCenter && !tooClose) break;
