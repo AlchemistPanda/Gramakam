@@ -31,6 +31,7 @@ import type {
   UpiPayment,
   SiteConfig,
   MediaItem,
+  Award,
 } from '@/types';
 
 // Helper to ensure Firebase is ready
@@ -136,6 +137,31 @@ export async function updateFeedPost(
 export async function deleteFeedPost(id: string): Promise<void> {
   const docRef = doc(requireDb(), 'posts', id);
   await deleteDoc(docRef);
+}
+
+// ==================== AWARDS ====================
+
+export async function getAwards(): Promise<Award[]> {
+  const ref = collection(requireDb(), 'awards');
+  const q = query(ref, orderBy('year', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt,
+  })) as Award[];
+}
+
+export async function addAward(
+  award: Omit<Award, 'id' | 'createdAt'>
+): Promise<string> {
+  const ref = collection(requireDb(), 'awards');
+  const docRef = await addDoc(ref, { ...award, createdAt: serverTimestamp() });
+  return docRef.id;
+}
+
+export async function deleteAward(id: string): Promise<void> {
+  await deleteDoc(doc(requireDb(), 'awards', id));
 }
 
 // ==================== MEDIA / PRESS ====================

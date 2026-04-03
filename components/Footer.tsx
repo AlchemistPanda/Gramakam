@@ -44,6 +44,7 @@ export default function Footer() {
                 { href: '/', label: 'Home' },
                 { href: '/about', label: 'About' },
                 { href: '/gallery', label: 'Gallery' },
+                { href: '/awards', label: 'Awards' },
                 { href: '/media', label: 'Media & News' },
                 { href: '/feed', label: 'Latest Feed' },
                 { href: '/merchandise', label: 'Merchandise' },

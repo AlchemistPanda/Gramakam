@@ -63,6 +63,19 @@ export interface AdminUser {
   email: string;
 }
 
+// ==================== AWARDS ====================
+
+export interface Award {
+  id: string;
+  year: number;
+  awardeeName: string;
+  title?: string;       // award title/category
+  description?: string;
+  imageUrl?: string;
+  cashAward?: number;
+  createdAt: Date | string;
+}
+
 // ==================== MEDIA / PRESS ====================
 
 export interface MediaItem {

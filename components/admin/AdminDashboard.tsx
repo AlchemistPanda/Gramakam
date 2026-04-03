@@ -23,6 +23,7 @@ import {
   CreditCard,
   Filter,
   ExternalLink,
+  Trophy,
 } from 'lucide-react';
 import {
   getGalleryItems,
@@ -47,6 +48,9 @@ import {
   getMediaItems,
   addMediaItem,
   deleteMediaItem,
+  getAwards,
+  addAward,
+  deleteAward,
 } from '@/lib/services';
 import type {
   GalleryItem,
@@ -56,11 +60,12 @@ import type {
   MerchOrder,
   UpiPayment,
   MediaItem,
+  Award,
 } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageCompressor';
 
-type AdminTab = 'overview' | 'gallery' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media';
+type AdminTab = 'overview' | 'gallery' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media' | 'awards';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -75,6 +80,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { id: 'gallery', label: 'Gallery', icon: ImageIcon },
     { id: 'feed', label: 'Feed Posts', icon: Newspaper },
     { id: 'media', label: 'Media & News', icon: Filter },
+    { id: 'awards', label: 'Awards', icon: Trophy },
     { id: 'contacts', label: 'Contact Messages', icon: Mail },
     { id: 'countdown', label: 'Countdown', icon: Clock },
     { id: 'merch', label: 'Merchandise', icon: ShoppingBag },
@@ -151,6 +157,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {activeTab === 'gallery' && <GalleryPanel />}
           {activeTab === 'feed' && <FeedPanel />}
           {activeTab === 'media' && <MediaPanel />}
+          {activeTab === 'awards' && <AwardsPanel />}
           {activeTab === 'contacts' && <ContactsPanel />}
           {activeTab === 'countdown' && <CountdownPanel />}
           {activeTab === 'merch' && <MerchPanel />}
@@ -1095,6 +1102,155 @@ function MediaPanel() {
                       {item.linkUrl}
                     </a>
                   )}
+                </div>
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                  aria-label="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ===== AWARDS PANEL =====
+function AwardsPanel() {
+  const [items, setItems] = useState<Award[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Form state
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [awardeeName, setAwardeeName] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [cashAward, setCashAward] = useState(10001);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+
+  const loadItems = async () => {
+    try {
+      const data = await getAwards();
+      setItems(data);
+    } catch { /* Firebase not configured */ }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadItems(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
+
+  const resetForm = () => {
+    setYear(new Date().getFullYear());
+    setAwardeeName('');
+    setTitle('');
+    setDescription('');
+    setCashAward(10001);
+    setImageFile(null);
+    setShowForm(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!awardeeName) return;
+    setUploading(true);
+    try {
+      let imageUrl: string | undefined;
+      if (imageFile) {
+        const compressed = await compressImage(imageFile);
+        const path = `awards/${Date.now()}_${compressed.name}`;
+        imageUrl = await uploadImage(compressed, path);
+      }
+      await addAward({
+        year,
+        awardeeName,
+        title: title || undefined,
+        description: description || undefined,
+        cashAward,
+        imageUrl,
+      });
+      resetForm();
+      await loadItems();
+    } catch {
+      alert('Upload failed. Make sure Firebase is configured.');
+    }
+    setUploading(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this award?')) return;
+    try {
+      await deleteAward(id);
+      await loadItems();
+    } catch { alert('Delete failed.'); }
+  };
+
+  const inputCls = 'px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none w-full';
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="heading-lg text-charcoal">Awards Management</h2>
+        <button onClick={() => setShowForm(!showForm)} className="btn-primary text-sm flex items-center gap-2">
+          <Plus size={16} /> Add Award
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+          <h3 className="font-semibold text-charcoal mb-4">Add New Award</h3>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="number" placeholder="Year *" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className={inputCls} required />
+            <input type="text" placeholder="Awardee Name *" value={awardeeName} onChange={(e) => setAwardeeName(e.target.value)} className={inputCls} required />
+            <input type="text" placeholder="Award Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
+            <input type="number" placeholder="Cash Award Amount" value={cashAward} onChange={(e) => setCashAward(parseInt(e.target.value))} className={inputCls} />
+            <textarea placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputCls} md:col-span-2 resize-none`} rows={2} />
+            <div className="md:col-span-2">
+              <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className={inputCls} />
+            </div>
+            <div className="md:col-span-2 flex gap-3">
+              <button type="submit" disabled={uploading} className="btn-primary text-sm disabled:opacity-50">
+                {uploading ? 'Saving...' : 'Save'}
+              </button>
+              <button type="button" onClick={resetForm} className="btn-secondary text-sm">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
+        ) : items.length === 0 ? (
+          <div className="p-6 text-center text-gray-500">
+            <Trophy size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="font-medium">No awards yet</p>
+            <p className="text-sm mt-1">Add awards using the button above.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors">
+                {item.imageUrl ? (
+                  <div className="relative w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-gray-100">
+                    <Image src={item.imageUrl} alt={item.awardeeName} fill className="object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-gold/10 flex items-center justify-center shrink-0">
+                    <Trophy size={24} className="text-gold" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-charcoal">{item.awardeeName}</p>
+                  {item.title && <p className="text-sm text-maroon">{item.title}</p>}
+                  <p className="text-xs text-gray-500 mt-1">
+                    {item.year}
+                    {item.cashAward && ` • ₹${item.cashAward.toLocaleString()}`}
+                  </p>
                 </div>
                 <button
                   onClick={() => handleDelete(item.id)}
