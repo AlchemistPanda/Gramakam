@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { Trophy, Heart, Zap, Play, RotateCcw, Star, ChevronRight, Loader2 } from 'lucide-react';
 import { submitGameScore, getTopGameScores } from '@/lib/services';
+import GameQuiz from './GameQuiz';
 import type { GameScore } from '@/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -124,6 +125,8 @@ export default function GameClient() {
   const [namePending, setNamePending] = useState(false);
   const [shake, setShake] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [pendingLives, setPendingLives] = useState(0);
 
   // Global leaderboard state
   const [globalScores, setGlobalScores] = useState<GameScore[]>([]);
@@ -202,21 +205,23 @@ export default function GameClient() {
     }, cfg.spawnInterval);
   }, [spawnSpotlight]);
 
-  // ── Tick: remove expired spotlights → lose life ───────────────────────
+  // ── Tick: remove expired spotlights → show quiz to save life ───────────
   const tick = useCallback(() => {
     if (!gameRef.current.running) return;
     setSpotlights((prev) => {
       const now = Date.now();
       const expired = prev.filter((s) => now - s.born >= s.lifetime);
       if (expired.length > 0) {
-        const newLives = Math.max(0, gameRef.current.lives - expired.length);
-        gameRef.current.lives = newLives;
         gameRef.current.combo = 0;
-        setLives(newLives);
         setCombo(0);
         setShake(true);
         setTimeout(() => setShake(false), 500);
-        if (newLives <= 0) {
+
+        // Show quiz to try to save one life
+        if (gameRef.current.lives > 0) {
+          setPendingLives(expired.length);
+          setQuizOpen(true);
+        } else {
           gameRef.current.running = false;
           setTimeout(() => endGame(), 300);
         }
@@ -224,6 +229,29 @@ export default function GameClient() {
       return prev.filter((s) => now - s.born < s.lifetime);
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleQuizCorrect = () => {
+    // Correct answer: save 1 life
+    const newLives = gameRef.current.lives;
+    gameRef.current.lives = newLives;
+    setLives(newLives);
+    setQuizOpen(false);
+    setPendingLives(0);
+  };
+
+  const handleQuizIncorrect = () => {
+    // Incorrect answer: lose all pending lives
+    const newLives = Math.max(0, gameRef.current.lives - pendingLives);
+    gameRef.current.lives = newLives;
+    setLives(newLives);
+    setQuizOpen(false);
+
+    if (newLives <= 0) {
+      gameRef.current.running = false;
+      setTimeout(() => endGame(), 300);
+    }
+    setPendingLives(0);
+  };
 
   // ── Hit a spotlight ────────────────────────────────────────────────────
   const hitSpotlight = useCallback((id: string, x: number, y: number) => {
@@ -568,6 +596,13 @@ export default function GameClient() {
           </div>
         </div>
       )}
+
+      {/* ── Quiz Modal ── */}
+      <GameQuiz
+        isOpen={quizOpen}
+        onCorrect={handleQuizCorrect}
+        onIncorrect={handleQuizIncorrect}
+      />
 
       {/* ── Global CSS animation ── */}
       <style jsx global>{`
