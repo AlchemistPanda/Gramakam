@@ -31,13 +31,14 @@ function getLevelConfig(level: number) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function randomSpot(existing: Spotlight[], stageW: number, stageH: number) {
-  const MARGIN = 12;
+function randomSpot(existing: Spotlight[], stageW: number, stageH: number, isMobileDevice: boolean) {
+  const MARGIN_H = 12;
+  const MARGIN_TOP = isMobileDevice ? 18 : 12; // Extra margin at top for mobile HUD
   const CENTER_X = 50, CENTER_Y = 50, CENTER_AVOID = 14;
   let x = 0, y = 0, tries = 0;
   do {
-    x = MARGIN + Math.random() * (100 - MARGIN * 2);
-    y = MARGIN + Math.random() * (100 - MARGIN * 2);
+    x = MARGIN_H + Math.random() * (100 - MARGIN_H * 2);
+    y = MARGIN_TOP + Math.random() * (100 - MARGIN_TOP - MARGIN_H);
     const tooCenter = Math.abs(x - CENTER_X) < CENTER_AVOID && Math.abs(y - CENTER_Y) < CENTER_AVOID;
     const tooClose = existing.some((s) => Math.hypot(s.x - x, s.y - y) < 18);
     if (!tooCenter && !tooClose) break;
@@ -178,7 +179,7 @@ export default function GameClient() {
     setSpotlights((prev) => {
       const cfg = getLevelConfig(gameRef.current.level);
       if (prev.length >= cfg.maxSimultaneous) return prev;
-      const { x, y } = randomSpot(prev, 100, 100);
+      const { x, y } = randomSpot(prev, 100, 100, isMobile);
       // Larger spotlights on mobile for easier tapping
       const baseSize = isMobile ? 70 : 52;
       const sizeVariance = isMobile ? 20 : 24;
@@ -388,17 +389,17 @@ export default function GameClient() {
           </div>
 
           {/* HUD */}
-          <div className={`absolute top-0 left-0 right-0 z-20 flex items-center justify-between ${isMobile ? 'px-2 py-2 gap-2' : 'px-4 py-3 gap-4'} transition-transform ${shake ? 'animate-bounce' : ''}`}>
+          <div className={`absolute ${isMobile ? 'top-3' : 'top-0'} left-0 right-0 z-20 flex items-center justify-between ${isMobile ? 'px-2 py-3 gap-2' : 'px-4 py-3 gap-4'} transition-transform ${shake ? 'animate-bounce' : ''}`}>
             {/* Score */}
-            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
-              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>Score</p>
-              <p className={`text-amber-300 font-bold leading-none ${isMobile ? 'text-lg' : 'text-xl'}`}>{score}</p>
+            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
+              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[8px] leading-tight' : 'text-[10px]'}`}>Score</p>
+              <p className={`text-amber-300 font-bold leading-tight ${isMobile ? 'text-lg' : 'text-xl'}`}>{score}</p>
             </div>
 
             {/* Level - center */}
             <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} text-center flex-grow`}>
-              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[7px]' : 'text-[9px]'}`}>Level</p>
-              <p className={`text-amber-300 font-bold leading-none ${isMobile ? 'text-xl' : 'text-2xl'}`}>{level}</p>
+              <p className={`text-white/50 uppercase tracking-wider leading-tight ${isMobile ? 'text-[7px]' : 'text-[9px]'}`}>Level</p>
+              <p className={`text-amber-300 font-bold leading-tight ${isMobile ? 'text-xl' : 'text-2xl'}`}>{level}</p>
               <div className={`flex gap-1 justify-center ${isMobile ? 'mt-1' : 'mt-2'}`}>
                 {Array.from({ length: getLevelConfig(level).hitsToLevel }).map((_, i) => (
                   <div key={i} className={`${isMobile ? 'h-1 w-2' : 'h-1.5 w-3'} rounded-full transition-all ${i < hits % getLevelConfig(level).hitsToLevel ? 'bg-amber-400' : 'bg-white/20'}`} />
@@ -407,9 +408,9 @@ export default function GameClient() {
             </div>
 
             {/* Lives */}
-            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
-              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>Lives</p>
-              <div className={`flex gap-0.5 mt-${isMobile ? '0.5' : '0.5'}`}>
+            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
+              <p className={`text-white/50 uppercase tracking-wider leading-tight ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>Lives</p>
+              <div className={`flex gap-0.5 ${isMobile ? 'mt-0.5' : 'mt-0.5'}`}>
                 {[0, 1, 2].map((i) => (
                   <Heart key={i} size={isMobile ? 14 : 16} className={`transition-all ${i < lives ? 'text-red-400 fill-red-400' : 'text-white/20'}`} />
                 ))}
