@@ -1,0 +1,596 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
+import { Trophy, Heart, Zap, Play, RotateCcw, Star, ChevronRight } from 'lucide-react';
+
+// ── Types ──────────────────────────────────────────────────────────────────
+interface Spotlight {
+  id: string;
+  x: number;        // % from left
+  y: number;        // % from top
+  born: number;     // timestamp
+  lifetime: number; // ms before it disappears
+  size: number;     // px radius
+}
+
+interface HighScore {
+  name: string;
+  score: number;
+  level: number;
+  date: string;
+}
+
+type Screen = 'menu' | 'playing' | 'gameover' | 'leaderboard';
+
+// ── Level configuration ────────────────────────────────────────────────────
+function getLevelConfig(level: number) {
+  const capped = Math.min(level, 12);
+  return {
+    lifetime: Math.max(600, 2400 - capped * 150),       // ms
+    spawnInterval: Math.max(400, 1800 - capped * 110),  // ms between new spotlights
+    maxSimultaneous: Math.min(1 + Math.floor(capped / 2), 6),
+    hitsToLevel: 8,
+    scorePerHit: 10 + (level - 1) * 5,
+  };
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function randomSpot(existing: Spotlight[], stageW: number, stageH: number) {
+  const MARGIN = 12; // percent
+  const CENTER_X = 50, CENTER_Y = 50, CENTER_AVOID = 14;
+  let x = 0, y = 0, tries = 0;
+  do {
+    x = MARGIN + Math.random() * (100 - MARGIN * 2);
+    y = MARGIN + Math.random() * (100 - MARGIN * 2);
+    const tooCenter = Math.abs(x - CENTER_X) < CENTER_AVOID && Math.abs(y - CENTER_Y) < CENTER_AVOID;
+    const tooClose = existing.some((s) => Math.hypot(s.x - x, s.y - y) < 18);
+    if (!tooCenter && !tooClose) break;
+    tries++;
+  } while (tries < 30);
+  return { x, y };
+}
+
+function saveHighScores(scores: HighScore[]) {
+  try { localStorage.setItem('gramakam_game_scores', JSON.stringify(scores.slice(0, 10))); } catch {}
+}
+
+function loadHighScores(): HighScore[] {
+  try { return JSON.parse(localStorage.getItem('gramakam_game_scores') || '[]'); } catch { return []; }
+}
+
+// ── Component ──────────────────────────────────────────────────────────────
+export default function GameClient() {
+  const [screen, setScreen] = useState<Screen>('menu');
+  const [spotlights, setSpotlights] = useState<Spotlight[]>([]);
+  const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [level, setLevel] = useState(1);
+  const [hits, setHits] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [popups, setPopups] = useState<{ id: string; x: number; y: number; text: string }[]>([]);
+  const [highScores, setHighScores] = useState<HighScore[]>([]);
+  const [playerName, setPlayerName] = useState('');
+  const [namePending, setNamePending] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  const gameRef = useRef({
+    running: false,
+    score: 0,
+    lives: 3,
+    level: 1,
+    hits: 0,
+    combo: 0,
+    spawnTimer: null as ReturnType<typeof setTimeout> | null,
+    tickTimer: null as ReturnType<typeof setInterval> | null,
+  });
+
+  // ── Spawn a spotlight ──────────────────────────────────────────────────
+  const spawnSpotlight = useCallback(() => {
+    if (!gameRef.current.running) return;
+    setSpotlights((prev) => {
+      const cfg = getLevelConfig(gameRef.current.level);
+      if (prev.length >= cfg.maxSimultaneous) return prev;
+      const { x, y } = randomSpot(prev, 100, 100);
+      const size = 52 + Math.random() * 24;
+      return [
+        ...prev,
+        { id: `${Date.now()}-${Math.random()}`, x, y, born: Date.now(), lifetime: cfg.lifetime, size },
+      ];
+    });
+  }, []);
+
+  const scheduleSpawn = useCallback(() => {
+    if (!gameRef.current.running) return;
+    const cfg = getLevelConfig(gameRef.current.level);
+    gameRef.current.spawnTimer = setTimeout(() => {
+      spawnSpotlight();
+      scheduleSpawn();
+    }, cfg.spawnInterval);
+  }, [spawnSpotlight]);
+
+  // ── Tick: remove expired spotlights → lose life ───────────────────────
+  const tick = useCallback(() => {
+    if (!gameRef.current.running) return;
+    setSpotlights((prev) => {
+      const now = Date.now();
+      const expired = prev.filter((s) => now - s.born >= s.lifetime);
+      if (expired.length > 0) {
+        const newLives = Math.max(0, gameRef.current.lives - expired.length);
+        gameRef.current.lives = newLives;
+        gameRef.current.combo = 0;
+        setLives(newLives);
+        setCombo(0);
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
+        if (newLives <= 0) {
+          gameRef.current.running = false;
+          setTimeout(() => endGame(), 300);
+        }
+      }
+      return prev.filter((s) => now - s.born < s.lifetime);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Hit a spotlight ────────────────────────────────────────────────────
+  const hitSpotlight = useCallback((id: string, x: number, y: number) => {
+    if (!gameRef.current.running) return;
+    const cfg = getLevelConfig(gameRef.current.level);
+
+    gameRef.current.combo += 1;
+    const multiplier = Math.min(gameRef.current.combo, 5);
+    const pts = cfg.scorePerHit * multiplier;
+    gameRef.current.score += pts;
+    gameRef.current.hits += 1;
+    setScore(gameRef.current.score);
+    setCombo(gameRef.current.combo);
+
+    const popupText = multiplier > 1 ? `${multiplier}x COMBO! +${pts}` : `+${pts}`;
+    const popupId = `${Date.now()}-${Math.random()}`;
+    setPopups((prev) => [...prev, { id: popupId, x, y, text: popupText }]);
+    setTimeout(() => setPopups((prev) => prev.filter((p) => p.id !== popupId)), 900);
+
+    setSpotlights((prev) => prev.filter((s) => s.id !== id));
+
+    // Level up
+    if (gameRef.current.hits >= cfg.hitsToLevel) {
+      gameRef.current.hits = 0;
+      gameRef.current.level += 1;
+      setLevel(gameRef.current.level);
+    }
+    setHits(gameRef.current.hits);
+  }, []);
+
+  // ── Start / End ────────────────────────────────────────────────────────
+  const startGame = () => {
+    gameRef.current = { running: true, score: 0, lives: 3, level: 1, hits: 0, combo: 0, spawnTimer: null, tickTimer: null };
+    setScore(0); setLives(3); setLevel(1); setHits(0); setCombo(0);
+    setSpotlights([]);
+    setPopups([]);
+    setScreen('playing');
+    setTimeout(() => {
+      spawnSpotlight();
+      scheduleSpawn();
+      gameRef.current.tickTimer = setInterval(tick, 80);
+    }, 300);
+  };
+
+  const endGame = useCallback(() => {
+    if (gameRef.current.spawnTimer) clearTimeout(gameRef.current.spawnTimer);
+    if (gameRef.current.tickTimer) clearInterval(gameRef.current.tickTimer);
+    setSpotlights([]);
+    setScreen('gameover');
+    setNamePending(true);
+  }, []);
+
+  const submitScore = () => {
+    const name = playerName.trim() || 'Anonymous';
+    const newEntry: HighScore = {
+      name,
+      score: gameRef.current.score,
+      level: gameRef.current.level,
+      date: new Date().toLocaleDateString('en-IN'),
+    };
+    const updated = [...loadHighScores(), newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
+    saveHighScores(updated);
+    setHighScores(updated);
+    setNamePending(false);
+    setScreen('leaderboard');
+  };
+
+  useEffect(() => {
+    setHighScores(loadHighScores());
+    return () => {
+      if (gameRef.current.spawnTimer) clearTimeout(gameRef.current.spawnTimer);
+      if (gameRef.current.tickTimer) clearInterval(gameRef.current.tickTimer);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Render ─────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center overflow-hidden">
+
+      {/* ── MENU ── */}
+      {screen === 'menu' && (
+        <div className="flex flex-col items-center gap-8 px-6 py-12 text-center z-10">
+          {/* Stage lamp decoration */}
+          <div className="text-6xl animate-pulse">🎭</div>
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold text-amber-300 mb-2" style={{ fontFamily: 'var(--font-heading)', textShadow: '0 0 30px #fbbf24' }}>
+              Spotlight!
+            </h1>
+            <p className="text-white/60 text-sm">A Gramakam Theatre Game</p>
+          </div>
+          <Image src="/images/gramakam-logo-white.png" alt="Gramakam" width={100} height={100} className="opacity-60" />
+          <div className="bg-white/5 rounded-2xl p-5 max-w-xs text-left space-y-3 text-sm text-white/70">
+            <p className="text-white font-semibold text-center mb-2">How to play</p>
+            <p>🔦 Spotlights appear on stage — tap them before they fade!</p>
+            <p>💥 Chain hits for combo multipliers</p>
+            <p>❤️ You have 3 lives — miss 3 and it&apos;s curtains</p>
+            <p>⚡ Each level gets faster. How far can you go?</p>
+          </div>
+          <button
+            onClick={startGame}
+            className="flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-black font-bold px-10 py-4 rounded-2xl text-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-400/30"
+          >
+            <Play size={22} /> Let the Show Begin!
+          </button>
+          {highScores.length > 0 && (
+            <button
+              onClick={() => { setHighScores(loadHighScores()); setScreen('leaderboard'); }}
+              className="text-white/50 hover:text-white text-sm flex items-center gap-1 transition-colors"
+            >
+              <Trophy size={14} /> View Leaderboard
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── PLAYING ── */}
+      {screen === 'playing' && (
+        <div className="w-full h-screen relative overflow-hidden select-none">
+
+          {/* Stage background */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'radial-gradient(ellipse 80% 60% at 50% 100%, #1a0a00 0%, #0a0500 50%, #000 100%)',
+            }}
+          />
+
+          {/* Stage floor lines */}
+          <div className="absolute bottom-0 left-0 right-0 h-24 opacity-20">
+            {[0, 8, 16, 24].map((i) => (
+              <div key={i} className="absolute w-full border-t border-amber-900/60" style={{ bottom: `${i}px` }} />
+            ))}
+          </div>
+
+          {/* Left curtain */}
+          <div
+            className="absolute top-0 left-0 w-16 md:w-24 h-full"
+            style={{
+              background: 'linear-gradient(to right, #4a0000 0%, #2a0000 60%, transparent 100%)',
+              boxShadow: 'inset -20px 0 40px rgba(0,0,0,0.5)',
+            }}
+          />
+          {/* Right curtain */}
+          <div
+            className="absolute top-0 right-0 w-16 md:w-24 h-full"
+            style={{
+              background: 'linear-gradient(to left, #4a0000 0%, #2a0000 60%, transparent 100%)',
+              boxShadow: 'inset 20px 0 40px rgba(0,0,0,0.5)',
+            }}
+          />
+
+          {/* Top arch / proscenium */}
+          <div
+            className="absolute top-0 left-0 right-0 h-12"
+            style={{ background: 'linear-gradient(to bottom, #1a0000 0%, transparent 100%)' }}
+          />
+
+          {/* Gramakam logo center */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0 opacity-20">
+            <Image src="/images/gramakam-logo-white.png" alt="" width={130} height={130} />
+          </div>
+
+          {/* HUD */}
+          <div className={`absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 transition-transform ${shake ? 'animate-bounce' : ''}`}>
+            {/* Score */}
+            <div className="bg-black/60 backdrop-blur-sm rounded-xl px-3 py-1.5 text-center">
+              <p className="text-white/50 text-[10px] uppercase tracking-wider">Score</p>
+              <p className="text-amber-300 font-bold text-xl leading-none">{score}</p>
+            </div>
+
+            {/* Level & hits progress */}
+            <div className="bg-black/60 backdrop-blur-sm rounded-xl px-4 py-1.5 text-center">
+              <p className="text-amber-300/70 text-[10px] uppercase tracking-wider">Level {level}</p>
+              <div className="flex gap-1 mt-1">
+                {Array.from({ length: getLevelConfig(level).hitsToLevel }).map((_, i) => (
+                  <div key={i} className={`h-1.5 w-3 rounded-full transition-all ${i < hits % getLevelConfig(level).hitsToLevel ? 'bg-amber-400' : 'bg-white/20'}`} />
+                ))}
+              </div>
+            </div>
+
+            {/* Lives */}
+            <div className="bg-black/60 backdrop-blur-sm rounded-xl px-3 py-1.5 text-center">
+              <p className="text-white/50 text-[10px] uppercase tracking-wider">Lives</p>
+              <div className="flex gap-1 mt-0.5">
+                {[0, 1, 2].map((i) => (
+                  <Heart key={i} size={16} className={`transition-all ${i < lives ? 'text-red-400 fill-red-400' : 'text-white/20'}`} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Combo banner */}
+          {combo >= 2 && (
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+              <div className="bg-amber-400/20 border border-amber-400/40 text-amber-300 text-sm font-bold px-4 py-1.5 rounded-full flex items-center gap-1">
+                <Zap size={14} className="fill-amber-300" /> {combo}x COMBO!
+              </div>
+            </div>
+          )}
+
+          {/* Stage – interactive area */}
+          <div ref={stageRef} className="absolute inset-0 z-10 cursor-crosshair">
+
+            {/* Spotlights */}
+            {spotlights.map((spot) => (
+              <SpotlightCircle
+                key={spot.id}
+                spot={spot}
+                onHit={(x, y) => hitSpotlight(spot.id, x, y)}
+              />
+            ))}
+
+            {/* Score popups */}
+            {popups.map((p) => (
+              <div
+                key={p.id}
+                className="absolute z-30 pointer-events-none font-bold text-amber-300 text-sm whitespace-nowrap"
+                style={{
+                  left: `${p.x}%`,
+                  top: `${p.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                  animation: 'floatUp 0.9s ease-out forwards',
+                  textShadow: '0 0 10px #fbbf24',
+                }}
+              >
+                {p.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── GAME OVER ── */}
+      {screen === 'gameover' && (
+        <div className="flex flex-col items-center gap-6 px-6 text-center max-w-sm mx-auto">
+          <div className="text-5xl">🎭</div>
+          <h2 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-heading)' }}>
+            Curtains Down!
+          </h2>
+          <div className="flex gap-8 text-center">
+            <div>
+              <p className="text-4xl font-bold text-amber-300">{score}</p>
+              <p className="text-white/50 text-sm">Score</p>
+            </div>
+            <div>
+              <p className="text-4xl font-bold text-white">{level}</p>
+              <p className="text-white/50 text-sm">Level</p>
+            </div>
+          </div>
+
+          {namePending ? (
+            <div className="w-full space-y-3">
+              <p className="text-white/70 text-sm">Enter your name for the leaderboard</p>
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submitScore()}
+                placeholder="Your name"
+                maxLength={20}
+                autoFocus
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center placeholder-white/30 outline-none focus:border-amber-400 transition-colors"
+              />
+              <button
+                onClick={submitScore}
+                className="w-full bg-amber-400 hover:bg-amber-300 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
+              >
+                Save Score <ChevronRight size={18} />
+              </button>
+            </div>
+          ) : null}
+
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={startGame}
+              className="flex-1 bg-amber-400 hover:bg-amber-300 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-105"
+            >
+              <RotateCcw size={16} /> Play Again
+            </button>
+            <button
+              onClick={() => { setHighScores(loadHighScores()); setScreen('leaderboard'); }}
+              className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
+            >
+              <Trophy size={16} /> Scores
+            </button>
+          </div>
+          <button onClick={() => setScreen('menu')} className="text-white/40 hover:text-white text-sm transition-colors">
+            Back to Menu
+          </button>
+        </div>
+      )}
+
+      {/* ── LEADERBOARD ── */}
+      {screen === 'leaderboard' && (
+        <div className="flex flex-col items-center gap-6 px-6 w-full max-w-sm text-center">
+          <Trophy size={40} className="text-amber-300" />
+          <h2 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-heading)' }}>
+            Leaderboard
+          </h2>
+
+          {highScores.length === 0 ? (
+            <p className="text-white/50">No scores yet. Be the first!</p>
+          ) : (
+            <div className="w-full space-y-2">
+              {highScores.map((entry, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
+                    i === 0 ? 'bg-amber-400/20 border border-amber-400/40' :
+                    i === 1 ? 'bg-gray-400/10 border border-gray-400/20' :
+                    i === 2 ? 'bg-amber-800/20 border border-amber-800/30' :
+                    'bg-white/5'
+                  }`}
+                >
+                  <span className={`font-bold text-lg w-7 text-center ${i === 0 ? 'text-amber-300' : i < 3 ? 'text-white/70' : 'text-white/30'}`}>
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
+                  </span>
+                  <span className="flex-1 text-left text-white font-medium truncate">{entry.name}</span>
+                  <span className="text-white/50 text-xs">Lv.{entry.level}</span>
+                  <span className="text-amber-300 font-bold">{entry.score}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={startGame}
+              className="flex-1 bg-amber-400 hover:bg-amber-300 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
+            >
+              <Play size={16} /> Play
+            </button>
+            <button
+              onClick={() => setScreen('menu')}
+              className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl transition-all"
+            >
+              Menu
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Global CSS animation ── */}
+      <style jsx global>{`
+        @keyframes floatUp {
+          0%   { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+          100% { opacity: 0; transform: translate(-50%, -150%) scale(0.8); }
+        }
+        @keyframes flicker {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.85; }
+        }
+        @keyframes pop {
+          0%   { transform: scale(0.4); opacity: 0; }
+          60%  { transform: scale(1.1); opacity: 1; }
+          100% { transform: scale(1);   opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Spotlight Circle ────────────────────────────────────────────────────────
+function SpotlightCircle({ spot, onHit }: { spot: Spotlight; onHit: (x: number, y: number) => void }) {
+  const [progress, setProgress] = useState(1); // 1 → 0
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    const update = () => {
+      const elapsed = Date.now() - spot.born;
+      const p = Math.max(0, 1 - elapsed / spot.lifetime);
+      setProgress(p);
+      if (p > 0) rafRef.current = requestAnimationFrame(update);
+    };
+    rafRef.current = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [spot.born, spot.lifetime]);
+
+  const r = spot.size;
+  const circumference = 2 * Math.PI * (r - 4);
+  const dash = circumference * progress;
+
+  const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    onHit(spot.x, spot.y);
+  };
+
+  // colour fades warm → red as time runs out
+  const hue = Math.round(30 * progress); // 30 (amber) → 0 (red)
+  const light = Math.round(55 + 10 * progress);
+
+  return (
+    <div
+      className="absolute cursor-pointer"
+      style={{
+        left: `${spot.x}%`,
+        top: `${spot.y}%`,
+        transform: 'translate(-50%, -50%)',
+        animation: 'pop 0.2s ease-out',
+        touchAction: 'manipulation',
+      }}
+      onClick={handleClick}
+      onTouchStart={handleClick}
+    >
+      {/* Glow halo */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: `-${r * 0.4}px`,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, hsla(${hue},100%,${light}%,0.25) 0%, transparent 70%)`,
+          animation: 'flicker 0.4s ease-in-out infinite alternate',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Main light circle */}
+      <svg width={r * 2} height={r * 2} style={{ overflow: 'visible', display: 'block' }}>
+        {/* Filled glow */}
+        <defs>
+          <radialGradient id={`glow-${spot.id}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={`hsl(${hue},100%,${light + 10}%)`} stopOpacity="0.9" />
+            <stop offset="60%" stopColor={`hsl(${hue},100%,${light}%)`} stopOpacity="0.6" />
+            <stop offset="100%" stopColor={`hsl(${hue},100%,50%)`} stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <circle
+          cx={r}
+          cy={r}
+          r={r - 4}
+          fill={`url(#glow-${spot.id})`}
+        />
+
+        {/* Countdown ring */}
+        <circle
+          cx={r}
+          cy={r}
+          r={r - 4}
+          fill="none"
+          stroke={`hsl(${hue},100%,${light}%)`}
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${circumference}`}
+          strokeDashoffset="0"
+          transform={`rotate(-90 ${r} ${r})`}
+          style={{ transition: 'stroke 0.1s' }}
+        />
+
+        {/* Tap icon */}
+        <text
+          x={r}
+          y={r + 5}
+          textAnchor="middle"
+          fontSize={r * 0.55}
+          style={{ userSelect: 'none', pointerEvents: 'none' }}
+        >
+          ✨
+        </text>
+      </svg>
+    </div>
+  );
+}

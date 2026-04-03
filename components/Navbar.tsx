@@ -13,6 +13,7 @@ const navLinks = [
   { href: '/awards', label: 'Awards' },
   { href: '/media', label: 'Media & News' },
   { href: '/workshop', label: "Children's Workshop" },
+  { href: '/game', label: '🎭 Game' },
   { href: '/contact', label: 'Contact' },
 ];
 

@@ -46,6 +46,7 @@ export default function Footer() {
                 { href: '/gallery', label: 'Gallery' },
                 { href: '/awards', label: 'Awards' },
                 { href: '/media', label: 'Media & News' },
+                { href: '/game', label: '🎭 Spotlight Game' },
                 { href: '/feed', label: 'Latest Feed' },
                 { href: '/merchandise', label: 'Merchandise' },
                 { href: '/contact', label: 'Contact' },
