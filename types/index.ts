@@ -63,6 +63,21 @@ export interface AdminUser {
   email: string;
 }
 
+// ==================== MEDIA / PRESS ====================
+
+export interface MediaItem {
+  id: string;
+  type: 'newspaper' | 'link';
+  title: string;
+  description?: string;
+  source?: string;      // e.g., "Mathrubhumi", "Manorama"
+  imageUrl?: string;    // newspaper cutting image
+  linkUrl?: string;     // external news article URL
+  year: number;
+  date: string;         // ISO date string
+  createdAt: Date | string;
+}
+
 // ==================== MERCH ORDERS ====================
 
 export interface MerchCartItem {

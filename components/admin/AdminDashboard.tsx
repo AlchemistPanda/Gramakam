@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, FormEvent } from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -21,6 +22,7 @@ import {
   XCircle,
   CreditCard,
   Filter,
+  ExternalLink,
 } from 'lucide-react';
 import {
   getGalleryItems,
@@ -42,6 +44,9 @@ import {
   getSiteConfig,
   updateSiteConfig,
   uploadImage,
+  getMediaItems,
+  addMediaItem,
+  deleteMediaItem,
 } from '@/lib/services';
 import type {
   GalleryItem,
@@ -50,11 +55,12 @@ import type {
   MerchPrebook,
   MerchOrder,
   UpiPayment,
+  MediaItem,
 } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageCompressor';
 
-type AdminTab = 'overview' | 'gallery' | 'feed' | 'contacts' | 'countdown' | 'merch';
+type AdminTab = 'overview' | 'gallery' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -68,6 +74,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'gallery', label: 'Gallery', icon: ImageIcon },
     { id: 'feed', label: 'Feed Posts', icon: Newspaper },
+    { id: 'media', label: 'Media & News', icon: Filter },
     { id: 'contacts', label: 'Contact Messages', icon: Mail },
     { id: 'countdown', label: 'Countdown', icon: Clock },
     { id: 'merch', label: 'Merchandise', icon: ShoppingBag },
@@ -143,6 +150,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {activeTab === 'overview' && <OverviewPanel />}
           {activeTab === 'gallery' && <GalleryPanel />}
           {activeTab === 'feed' && <FeedPanel />}
+          {activeTab === 'media' && <MediaPanel />}
           {activeTab === 'contacts' && <ContactsPanel />}
           {activeTab === 'countdown' && <CountdownPanel />}
           {activeTab === 'merch' && <MerchPanel />}
@@ -915,5 +923,191 @@ function MerchPaymentsSubTab() {
         </div>
       )}
     </div>
+  );
+}
+
+// ===== MEDIA PANEL =====
+function MediaPanel() {
+  const [items, setItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Form state
+  const [type, setType] = useState<'newspaper' | 'link'>('newspaper');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [source, setSource] = useState('');
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [linkUrl, setLinkUrl] = useState('');
+
+  const loadItems = async () => {
+    try {
+      const data = await getMediaItems();
+      setItems(data);
+    } catch { /* Firebase not configured */ }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadItems(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
+
+  const resetForm = () => {
+    setTitle(''); setDescription(''); setSource('');
+    setYear(new Date().getFullYear());
+    setDate(new Date().toISOString().slice(0, 10));
+    setImageFile(null); setLinkUrl('');
+    setType('newspaper');
+    setShowForm(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title) return;
+    setUploading(true);
+    try {
+      let imageUrl: string | undefined;
+      if (type === 'newspaper' && imageFile) {
+        const compressed = await compressImage(imageFile);
+        const path = `media/${Date.now()}_${compressed.name}`;
+        imageUrl = await uploadImage(compressed, path);
+      }
+      await addMediaItem({
+        type,
+        title,
+        description: description || undefined,
+        source: source || undefined,
+        year,
+        date,
+        imageUrl,
+        linkUrl: type === 'link' ? linkUrl : undefined,
+      });
+      resetForm();
+      await loadItems();
+    } catch {
+      alert('Upload failed. Make sure Firebase is configured.');
+    }
+    setUploading(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this media item?')) return;
+    try {
+      await deleteMediaItem(id);
+      await loadItems();
+    } catch { alert('Delete failed.'); }
+  };
+
+  const inputCls = 'px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none w-full';
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="heading-lg text-charcoal">Media &amp; News</h2>
+        <button onClick={() => setShowForm(!showForm)} className="btn-primary text-sm flex items-center gap-2">
+          <Plus size={16} /> Add Item
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+          <h3 className="font-semibold text-charcoal mb-4">Add Media Item</h3>
+
+          {/* Type toggle */}
+          <div className="flex gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setType('newspaper')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                type === 'newspaper' ? 'bg-maroon text-white border-maroon' : 'border-gray-300 text-gray-600'
+              }`}
+            >
+              Newspaper Cutting
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('link')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                type === 'link' ? 'bg-maroon text-white border-maroon' : 'border-gray-300 text-gray-600'
+              }`}
+            >
+              News Link
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="text" placeholder="Title *" value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} required />
+            <input type="text" placeholder="Source (e.g., Mathrubhumi)" value={source} onChange={(e) => setSource(e.target.value)} className={inputCls} />
+            <input type="number" placeholder="Year" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className={inputCls} />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+            <textarea placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputCls} md:col-span-2 resize-none`} rows={2} />
+            {type === 'newspaper' ? (
+              <div className="md:col-span-2">
+                <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className={inputCls} required />
+              </div>
+            ) : (
+              <div className="md:col-span-2">
+                <input type="url" placeholder="Article URL *" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} className={inputCls} required />
+              </div>
+            )}
+            <div className="md:col-span-2 flex gap-3">
+              <button type="submit" disabled={uploading} className="btn-primary text-sm disabled:opacity-50">
+                {uploading ? 'Saving...' : 'Save'}
+              </button>
+              <button type="button" onClick={resetForm} className="btn-secondary text-sm">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
+        ) : items.length === 0 ? (
+          <div className="p-6 text-center text-gray-500">
+            <Newspaper size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="font-medium">No media items yet</p>
+            <p className="text-sm mt-1">Add newspaper cuttings or news links using the button above.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors">
+                {item.imageUrl ? (
+                  <div className="relative w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-gray-100">
+                    <Image src={item.imageUrl} alt={item.title} fill className="object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-14 h-14 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                    <ExternalLink size={20} className="text-blue-400" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-charcoal text-sm truncate">{item.title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {item.type === 'newspaper' ? 'Newspaper' : 'News Link'}
+                    {item.source && ` · ${item.source}`}
+                    {` · ${item.year}`}
+                  </p>
+                  {item.linkUrl && (
+                    <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline truncate block mt-0.5">
+                      {item.linkUrl}
+                    </a>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                  aria-label="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 }

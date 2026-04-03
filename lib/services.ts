@@ -30,6 +30,7 @@ import type {
   MerchOrderStatus,
   UpiPayment,
   SiteConfig,
+  MediaItem,
 } from '@/types';
 
 // Helper to ensure Firebase is ready
@@ -135,6 +136,31 @@ export async function updateFeedPost(
 export async function deleteFeedPost(id: string): Promise<void> {
   const docRef = doc(requireDb(), 'posts', id);
   await deleteDoc(docRef);
+}
+
+// ==================== MEDIA / PRESS ====================
+
+export async function getMediaItems(): Promise<MediaItem[]> {
+  const ref = collection(requireDb(), 'media_items');
+  const q = query(ref, orderBy('date', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt,
+  })) as MediaItem[];
+}
+
+export async function addMediaItem(
+  item: Omit<MediaItem, 'id' | 'createdAt'>
+): Promise<string> {
+  const colRef = collection(requireDb(), 'media_items');
+  const docRef = await addDoc(colRef, { ...item, createdAt: serverTimestamp() });
+  return docRef.id;
+}
+
+export async function deleteMediaItem(id: string): Promise<void> {
+  await deleteDoc(doc(requireDb(), 'media_items', id));
 }
 
 // ==================== CONTACT SUBMISSIONS ====================
