@@ -3,6 +3,7 @@ import Link from 'next/link';
 import CountdownSection from '@/components/CountdownSection';
 import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
+import GameLeaderboard from '@/components/GameLeaderboard';
 import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar } from 'lucide-react';
 
 // Real festival images from past editions
@@ -179,6 +180,9 @@ export default function HomePage() {
           </AnimatedSection>
         </div>
       </section>
+
+      {/* ===== GAME LEADERBOARD SECTION ===== */}
+      <GameLeaderboard />
 
       {/* ===== QUICK NAVIGATION — with subtle bg ===== */}
       <section className="relative section-padding overflow-hidden">
