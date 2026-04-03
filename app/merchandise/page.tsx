@@ -64,9 +64,10 @@ export default function MerchandisePage() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ images: string[]; index: number } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<Record<string, number>>({});
+  const [buyNowItem, setBuyNowItem] = useState<{ product: MerchProduct; quantity: number } | null>(null);
 
   const getSelection = (id: string, product: MerchProduct): Selection =>
-    selections[id] ?? { size: product.sizes?.[0] ?? 'N/A', quantity: 0 };
+    selections[id] ?? { size: product.sizes?.[0] ?? 'N/A', quantity: 1 };
 
   const setSize = (id: string, product: MerchProduct, size: string) => {
     const sel = getSelection(id, product);
@@ -95,6 +96,12 @@ export default function MerchandisePage() {
     if (!lightboxImage) return;
     const newIndex = (lightboxImage.index + dir + lightboxImage.images.length) % lightboxImage.images.length;
     setLightboxImage({ ...lightboxImage, index: newIndex });
+  };
+
+  const buyNow = (product: MerchProduct) => {
+    const sel = getSelection(product.id, product);
+    setSelections({ [product.id]: sel });
+    setShowCheckout(true);
   };
 
   return (
@@ -188,12 +195,12 @@ export default function MerchandisePage() {
                     )}
 
                     {/* Quantity controls */}
-                    <div className="flex items-center justify-between mt-auto">
+                    <div className="flex items-center justify-between mb-4">
                       <p className="text-xs text-gray-400">Qty</p>
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => setQty(product.id, product, -1)}
-                          disabled={sel.quantity === 0}
+                          disabled={sel.quantity === 1}
                           className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors text-lg font-bold"
                         >
                           <Minus size={16} />
@@ -208,6 +215,14 @@ export default function MerchandisePage() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Buy Now Button */}
+                    <button
+                      onClick={() => buyNow(product)}
+                      className="w-full bg-maroon hover:bg-maroon-dark text-white font-bold py-3 rounded-lg transition-all duration-300 hover:scale-105"
+                    >
+                      Buy Now
+                    </button>
                   </div>
                 </div>
               </AnimatedSection>
