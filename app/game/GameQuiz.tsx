@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { CheckCircle, XCircle, Gift } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle, XCircle, Gift, Clock } from 'lucide-react';
 import { soundManager } from '@/lib/sounds';
 
 interface QuizQuestion {
@@ -12,7 +12,7 @@ interface QuizQuestion {
   explanation: string;
 }
 
-const quizQuestions: QuizQuestion[] = [
+const allQuestions: QuizQuestion[] = [
   {
     id: 'q1',
     question: 'In which year did Gramakam start?',
@@ -50,47 +50,96 @@ const quizQuestions: QuizQuestion[] = [
   },
 ];
 
-interface GameQuizProps {
-  onCorrect: () => void;
-  onIncorrect: () => void;
-  isOpen: boolean;
+function getRandomQuestions(count: number): QuizQuestion[] {
+  const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
 }
 
-export default function GameQuiz({ onCorrect, onIncorrect, isOpen }: GameQuizProps) {
-  const [currentQuestion, setCurrentQuestion] = useState(0);
+interface GameQuizProps {
+  isOpen: boolean;
+  lifeNumber: number; // 1, 2, or 3
+  onCorrect: () => void;
+  onIncorrect: () => void;
+}
+
+export default function GameQuiz({ isOpen, lifeNumber, onCorrect, onIncorrect }: GameQuizProps) {
+  const questionsToAsk = lifeNumber; // 1 question for life 1, 2 for life 2, 3 for life 3
+  const timePerQuestion = lifeNumber === 1 ? 10 : lifeNumber === 2 ? 8 : 5;
+
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answered, setAnswered] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(timePerQuestion);
+  const [allCorrect, setAllCorrect] = useState(true);
 
-  if (!isOpen) return null;
+  // Initialize questions
+  useEffect(() => {
+    if (isOpen) {
+      const randomQuestions = getRandomQuestions(questionsToAsk);
+      setQuestions(randomQuestions);
+      setCurrentQuestionIndex(0);
+      setSelectedAnswer(null);
+      setAnswered(false);
+      setTimeLeft(timePerQuestion);
+      setAllCorrect(true);
+    }
+  }, [isOpen, questionsToAsk, timePerQuestion]);
 
-  const question = quizQuestions[currentQuestion];
+  // Timer countdown
+  useEffect(() => {
+    if (!isOpen || answered || questions.length === 0) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          // Time's up - treat as incorrect
+          handleAnswer(-1);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, answered, questions]);
+
+  if (!isOpen || questions.length === 0) return null;
+
+  const question = questions[currentQuestionIndex];
+  const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
   const handleAnswer = (optionIndex: number) => {
     if (answered) return;
+
     setSelectedAnswer(optionIndex);
     const correct = optionIndex === question.correctAnswer;
-    setIsCorrect(correct);
-    setAnswered(true);
 
-    // Play sound feedback
-    if (correct) {
-      soundManager.playQuizCorrect();
-    } else {
+    if (!correct) {
+      setAllCorrect(false);
       soundManager.playQuizIncorrect();
+    } else {
+      soundManager.playQuizCorrect();
     }
+
+    setAnswered(true);
   };
 
   const handleContinue = () => {
-    if (isCorrect) {
-      onCorrect();
+    if (isLastQuestion || !allCorrect) {
+      // Quiz ended - either last question or got one wrong
+      if (allCorrect) {
+        onCorrect();
+      } else {
+        onIncorrect();
+      }
     } else {
-      onIncorrect();
+      // Move to next question
+      setCurrentQuestionIndex((prev) => prev + 1);
+      setSelectedAnswer(null);
+      setAnswered(false);
+      setTimeLeft(timePerQuestion);
     }
-    // Reset for next time
-    setSelectedAnswer(null);
-    setAnswered(false);
-    setCurrentQuestion((prev) => (prev + 1) % quizQuestions.length);
   };
 
   return (
@@ -98,18 +147,31 @@ export default function GameQuiz({ onCorrect, onIncorrect, isOpen }: GameQuizPro
       <div className="bg-charcoal border-2 border-amber-400/40 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Gift size={20} className="text-white" />
-            <h2 className="text-white font-bold text-lg">Bonus Question</h2>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Gift size={20} className="text-white" />
+              <h2 className="text-white font-bold text-lg">Save Your Life!</h2>
+            </div>
+            <div className="flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full">
+              <Clock size={16} className="text-white" />
+              <span className="text-white font-bold text-sm">{timeLeft}s</span>
+            </div>
           </div>
-          <p className="text-white/80 text-sm">Answer correctly to earn an extra life!</p>
+          <p className="text-white/80 text-sm">
+            Question {currentQuestionIndex + 1} of {questions.length}
+          </p>
         </div>
 
-        {/* Question */}
+        {/* Content */}
         <div className="p-6">
           <div className="mb-6">
-            <h3 className="text-white font-semibold text-lg leading-relaxed mb-1">{question.question}</h3>
-            <p className="text-white/40 text-xs">Question {currentQuestion + 1} of {quizQuestions.length}</p>
+            <h3 className="text-white font-semibold text-lg leading-relaxed mb-4">{question.question}</h3>
+            <div className="w-full bg-amber-500/20 rounded-lg h-1.5">
+              <div
+                className="bg-amber-400 h-1.5 rounded-lg transition-all duration-300"
+                style={{ width: `${(timeLeft / timePerQuestion) * 100}%` }}
+              />
+            </div>
           </div>
 
           {/* Options */}
@@ -121,7 +183,7 @@ export default function GameQuiz({ onCorrect, onIncorrect, isOpen }: GameQuizPro
                 disabled={answered}
                 className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all ${
                   selectedAnswer === index
-                    ? isCorrect
+                    ? index === question.correctAnswer
                       ? 'bg-green-500/20 border-2 border-green-500 text-green-300'
                       : 'bg-red-500/20 border-2 border-red-500 text-red-300'
                     : answered && index === question.correctAnswer
@@ -137,7 +199,7 @@ export default function GameQuiz({ onCorrect, onIncorrect, isOpen }: GameQuizPro
                   </div>
                   <span>{option}</span>
                   {answered && selectedAnswer === index && (
-                    isCorrect ? (
+                    index === question.correctAnswer ? (
                       <CheckCircle size={18} className="ml-auto text-green-400" />
                     ) : (
                       <XCircle size={18} className="ml-auto text-red-400" />
@@ -151,33 +213,32 @@ export default function GameQuiz({ onCorrect, onIncorrect, isOpen }: GameQuizPro
             ))}
           </div>
 
-          {/* Explanation */}
+          {/* Explanation & CTA */}
           {answered && (
-            <div className={`mb-6 p-3 rounded-lg ${isCorrect ? 'bg-green-500/10 border border-green-500/30' : 'bg-amber-500/10 border border-amber-500/30'}`}>
-              <p className={`text-sm ${isCorrect ? 'text-green-300' : 'text-amber-300'}`}>
-                {question.explanation}
-              </p>
-            </div>
-          )}
+            <>
+              <div className={`mb-6 p-3 rounded-lg ${selectedAnswer === question.correctAnswer ? 'bg-green-500/10 border border-green-500/30' : 'bg-amber-500/10 border border-amber-500/30'}`}>
+                <p className={`text-sm ${selectedAnswer === question.correctAnswer ? 'text-green-300' : 'text-amber-300'}`}>
+                  {question.explanation}
+                </p>
+              </div>
 
-          {/* CTA Button */}
-          {answered && (
-            <button
-              onClick={handleContinue}
-              className={`w-full font-bold py-3 rounded-lg transition-all ${
-                isCorrect
-                  ? 'bg-green-500 hover:bg-green-600 text-white'
-                  : 'bg-amber-500 hover:bg-amber-600 text-white'
-              }`}
-            >
-              {isCorrect ? '🎉 Continue Playing' : 'Try Next Question'}
-            </button>
+              <button
+                onClick={handleContinue}
+                className={`w-full font-bold py-3 rounded-lg transition-all ${
+                  selectedAnswer === question.correctAnswer
+                    ? 'bg-green-500 hover:bg-green-600 text-white'
+                    : 'bg-amber-500 hover:bg-amber-600 text-white'
+                }`}
+              >
+                {isLastQuestion || !allCorrect
+                  ? (selectedAnswer === question.correctAnswer ? '🎉 Continue Playing' : 'Back to Game')
+                  : '→ Next Question'}
+              </button>
+            </>
           )}
 
           {!answered && (
-            <p className="text-white/40 text-xs text-center">
-              Select an option to continue
-            </p>
+            <p className="text-white/40 text-xs text-center">Select an option to continue</p>
           )}
         </div>
       </div>

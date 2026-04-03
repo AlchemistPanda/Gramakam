@@ -127,7 +127,7 @@ export default function GameClient() {
   const [shake, setShake] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
-  const [pendingLives, setPendingLives] = useState(0);
+  const [lifeNumber, setLifeNumber] = useState(1); // Which life are we trying to save (1, 2, 3)
 
   // Global leaderboard state
   const [globalScores, setGlobalScores] = useState<GameScore[]>([]);
@@ -221,7 +221,17 @@ export default function GameClient() {
 
         // Show quiz to try to save one life
         if (gameRef.current.lives > 0) {
-          setPendingLives(expired.length);
+          // Pause the game
+          gameRef.current.running = false;
+          if (gameRef.current.spawnTimer) clearTimeout(gameRef.current.spawnTimer);
+          if (gameRef.current.tickTimer) clearInterval(gameRef.current.tickTimer);
+
+          // Calculate which life is being lost (1st, 2nd, or 3rd)
+          // If 3 lives left: saving 1st life
+          // If 2 lives left: saving 2nd life
+          // If 1 life left: saving 3rd life
+          const lifeBeingLost = 4 - gameRef.current.lives;
+          setLifeNumber(lifeBeingLost);
           setQuizOpen(true);
         } else {
           gameRef.current.running = false;
@@ -233,17 +243,19 @@ export default function GameClient() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleQuizCorrect = () => {
-    // Correct answer: save 1 life
-    const newLives = gameRef.current.lives;
-    gameRef.current.lives = newLives;
-    setLives(newLives);
+    // Correct answer: save 1 life, resume game
     setQuizOpen(false);
-    setPendingLives(0);
+    gameRef.current.running = true;
+    setTimeout(() => {
+      spawnSpotlight();
+      scheduleSpawn();
+      gameRef.current.tickTimer = setInterval(tick, 80);
+    }, 300);
   };
 
   const handleQuizIncorrect = () => {
-    // Incorrect answer: lose all pending lives
-    const newLives = Math.max(0, gameRef.current.lives - pendingLives);
+    // Incorrect answer: lose 1 life
+    const newLives = Math.max(0, gameRef.current.lives - 1);
     gameRef.current.lives = newLives;
     setLives(newLives);
     setQuizOpen(false);
@@ -251,8 +263,15 @@ export default function GameClient() {
     if (newLives <= 0) {
       gameRef.current.running = false;
       setTimeout(() => endGame(), 300);
+    } else {
+      // Resume game
+      gameRef.current.running = true;
+      setTimeout(() => {
+        spawnSpotlight();
+        scheduleSpawn();
+        gameRef.current.tickTimer = setInterval(tick, 80);
+      }, 300);
     }
-    setPendingLives(0);
   };
 
   // ── Hit a spotlight ────────────────────────────────────────────────────
@@ -347,21 +366,21 @@ export default function GameClient() {
 
       {/* ── MENU ── */}
       {screen === 'menu' && (
-        <div className="flex flex-col items-center gap-6 md:gap-8 px-4 md:px-6 py-8 md:py-12 text-center z-10 w-full max-w-sm">
-          <div className="text-6xl animate-pulse">🎭</div>
+        <div className="flex flex-col items-center gap-4 md:gap-6 px-4 md:px-6 py-4 md:py-6 text-center z-10 w-full max-w-sm max-h-screen overflow-y-auto">
+          <div className="text-5xl animate-pulse">🎭</div>
           <div>
-            <h1 className="text-4xl md:text-5xl font-bold text-amber-300 mb-2" style={{ fontFamily: 'var(--font-heading)', textShadow: '0 0 30px #fbbf24' }}>
+            <h1 className="text-3xl md:text-4xl font-bold text-amber-300 mb-1" style={{ fontFamily: 'var(--font-heading)', textShadow: '0 0 30px #fbbf24' }}>
               Spotlight!
             </h1>
-            <p className="text-white/60 text-sm">A Gramakam Theatre Game</p>
+            <p className="text-white/60 text-xs">A Gramakam Theatre Game</p>
           </div>
-          <Image src="/images/gramakam-logo-white.png" alt="Gramakam" width={100} height={100} className="opacity-60" />
-          <div className="bg-white/5 rounded-2xl p-5 max-w-xs text-left space-y-3 text-sm text-white/70">
-            <p className="text-white font-semibold text-center mb-2">How to play</p>
-            <p>🔦 Spotlights appear on stage — tap them before they fade!</p>
+          <Image src="/images/gramakam-logo-white.png" alt="Gramakam" width={80} height={80} className="opacity-60" />
+          <div className="bg-white/5 rounded-2xl p-3 max-w-xs text-left space-y-2 text-xs text-white/70">
+            <p className="text-white font-semibold text-center mb-1 text-sm">How to play</p>
+            <p>🔦 Tap spotlights before they fade</p>
             <p>💥 Chain hits for combo multipliers</p>
-            <p>❤️ You have 3 lives — miss 3 and it&apos;s curtains</p>
-            <p>⚡ Each level gets faster. How far can you go?</p>
+            <p>❤️ 3 lives — miss 3 and it&apos;s over</p>
+            <p>⚡ Each level gets faster</p>
           </div>
           <button
             onClick={startGame}
@@ -430,30 +449,30 @@ export default function GameClient() {
           </div>
 
           {/* HUD */}
-          <div className={`absolute ${isMobile ? 'top-3' : 'top-0'} left-0 right-0 z-20 flex items-center justify-between ${isMobile ? 'px-2 py-3 gap-2' : 'px-4 py-3 gap-4'} transition-transform ${shake ? 'animate-bounce' : ''}`}>
+          <div className={`absolute ${isMobile ? 'top-4' : 'top-2'} left-0 right-0 z-20 flex items-center justify-between ${isMobile ? 'px-2 py-2 gap-1' : 'px-4 py-3 gap-4'} transition-transform ${shake ? 'animate-bounce' : ''}`}>
             {/* Score */}
-            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
-              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[8px] leading-tight' : 'text-[10px]'}`}>Score</p>
-              <p className={`text-amber-300 font-bold leading-tight ${isMobile ? 'text-lg' : 'text-xl'}`}>{score}</p>
+            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
+              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[7px] leading-tight' : 'text-[9px]'}`}>Score</p>
+              <p className={`text-amber-300 font-bold leading-tight ${isMobile ? 'text-base' : 'text-lg'}`}>{score}</p>
             </div>
 
             {/* Level - center */}
-            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} text-center flex-grow`}>
-              <p className={`text-white/50 uppercase tracking-wider leading-tight ${isMobile ? 'text-[7px]' : 'text-[9px]'}`}>Level</p>
-              <p className={`text-amber-300 font-bold leading-tight ${isMobile ? 'text-xl' : 'text-2xl'}`}>{level}</p>
-              <div className={`flex gap-1 justify-center ${isMobile ? 'mt-1' : 'mt-2'}`}>
+            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1' : 'px-4 py-2'} text-center flex-grow`}>
+              <p className={`text-white/50 uppercase tracking-wider leading-tight ${isMobile ? 'text-[6px]' : 'text-[9px]'}`}>Level</p>
+              <p className={`text-amber-300 font-bold leading-tight ${isMobile ? 'text-lg' : 'text-2xl'}`}>{level}</p>
+              <div className={`flex gap-0.5 justify-center ${isMobile ? 'mt-0.5' : 'mt-1'}`}>
                 {Array.from({ length: getLevelConfig(level).hitsToLevel }).map((_, i) => (
-                  <div key={i} className={`${isMobile ? 'h-1 w-2' : 'h-1.5 w-3'} rounded-full transition-all ${i < hits % getLevelConfig(level).hitsToLevel ? 'bg-amber-400' : 'bg-white/20'}`} />
+                  <div key={i} className={`${isMobile ? 'h-0.5 w-1.5' : 'h-1 w-2'} rounded-full transition-all ${i < hits % getLevelConfig(level).hitsToLevel ? 'bg-amber-400' : 'bg-white/20'}`} />
                 ))}
               </div>
             </div>
 
             {/* Lives */}
-            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
-              <p className={`text-white/50 uppercase tracking-wider leading-tight ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>Lives</p>
-              <div className={`flex gap-0.5 ${isMobile ? 'mt-0.5' : 'mt-0.5'}`}>
+            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
+              <p className={`text-white/50 uppercase tracking-wider leading-tight ${isMobile ? 'text-[7px]' : 'text-[9px]'}`}>Lives</p>
+              <div className={`flex gap-0.5 mt-0.5`}>
                 {[0, 1, 2].map((i) => (
-                  <Heart key={i} size={isMobile ? 14 : 16} className={`transition-all ${i < lives ? 'text-red-400 fill-red-400' : 'text-white/20'}`} />
+                  <Heart key={i} size={isMobile ? 12 : 14} className={`transition-all ${i < lives ? 'text-red-400 fill-red-400' : 'text-white/20'}`} />
                 ))}
               </div>
             </div>
@@ -611,6 +630,7 @@ export default function GameClient() {
       {/* ── Quiz Modal ── */}
       <GameQuiz
         isOpen={quizOpen}
+        lifeNumber={lifeNumber}
         onCorrect={handleQuizCorrect}
         onIncorrect={handleQuizIncorrect}
       />
