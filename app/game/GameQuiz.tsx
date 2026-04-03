@@ -22,9 +22,9 @@ const quizQuestions: QuizQuestion[] = [
   {
     id: 'q2',
     question: 'What is the edition of Gramakam happening in 2026?',
-    options: ['3rd Edition', '4th Edition', '5th Edition', '6th Edition'],
+    options: ['7th Edition', '8th Edition', '9th Edition', '10th Edition'],
     correctAnswer: 2,
-    explanation: 'Gramakam 2026 is the 5th edition of the festival, celebrating its return after an extended hiatus.',
+    explanation: 'Gramakam 2026 is the 9th edition of the festival, celebrating its grand return after several years.',
   },
   {
     id: 'q3',
