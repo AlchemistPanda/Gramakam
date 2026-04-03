@@ -129,6 +129,8 @@ export default function GameClient() {
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [quizTimePerQuestion, setQuizTimePerQuestion] = useState(10);
+  const [isMuted, setIsMuted] = useState(false);
+  const [comboAnimatingAt, setComboAnimatingAt] = useState(0);
   const usedQuestionIdsRef = useRef<Set<string>>(new Set()); // tracks questions across whole game
 
   // Global leaderboard state
@@ -219,6 +221,7 @@ export default function GameClient() {
       const expired = prev.filter((s) => now - s.born >= s.lifetime);
       if (expired.length > 0) {
         soundManager.playMiss();
+        triggerHaptic('heavy'); // Strong haptic for miss
         gameRef.current.combo = 0;
         setCombo(0);
         setShake(true);
@@ -322,11 +325,14 @@ export default function GameClient() {
     setScore(gameRef.current.score);
     setCombo(gameRef.current.combo);
 
-    // Play sound
+    // Play sound and haptic - use multiplier-specific sound
     if (multiplier > 1) {
-      soundManager.playCombo();
+      soundManager.playComboX(multiplier);
+      triggerHaptic('heavy'); // Strong vibration for combos
+      setComboAnimatingAt(Date.now());
     } else {
       soundManager.playHit();
+      triggerHaptic('light'); // Light vibration for hit
     }
 
     const popupText = multiplier > 1 ? `${multiplier}x COMBO! +${pts}` : `+${pts}`;
@@ -340,6 +346,7 @@ export default function GameClient() {
       gameRef.current.hits = 0;
       gameRef.current.level += 1;
       soundManager.playLevelUp();
+      triggerHaptic('heavy'); // Haptic for level up
       setLevel(gameRef.current.level);
     }
     setHits(gameRef.current.hits);
@@ -397,6 +404,24 @@ export default function GameClient() {
   const goToLeaderboard = async () => {
     await fetchScores();
     setScreen('leaderboard');
+  };
+
+  const handleToggleMute = () => {
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
+    soundManager.setMuted(newMutedState);
+  };
+
+  // Haptic feedback for hits (if supported by device)
+  const triggerHaptic = (type: 'light' | 'medium' | 'heavy' = 'medium') => {
+    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+      const patterns = {
+        light: 10,
+        medium: 30,
+        heavy: 50,
+      };
+      navigator.vibrate(patterns[type]);
+    }
   };
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -515,13 +540,37 @@ export default function GameClient() {
                 ))}
               </div>
             </div>
+
+            {/* Mute & Difficulty - right side */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Difficulty Indicator */}
+              <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-1.5 py-1' : 'px-2 py-1.5'} text-center hidden sm:block`}>
+                <p className={`text-white/50 uppercase tracking-wider leading-tight ${isMobile ? 'text-[6px]' : 'text-[7px]'}`}>Difficulty</p>
+                <div className="flex gap-0.5 mt-0.5">
+                  {Array.from({ length: Math.min(level, 5) }).map((_, i) => (
+                    <div key={i} className={`w-1 h-2 rounded-full ${i < Math.ceil(level / 3) ? 'bg-red-400' : 'bg-white/20'}`} />
+                  ))}
+                </div>
+              </div>
+              
+              {/* Mute Button */}
+              <button
+                onClick={handleToggleMute}
+                className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} hover:bg-black/80 text-white transition-all active:scale-95`}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? '🔇' : '🔊'}
+              </button>
+            </div>
           </div>
 
-          {/* Combo banner */}
+          {/* Combo banner with multiplier */}
           {combo >= 2 && (
             <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-              <div className="bg-amber-400/20 border border-amber-400/40 text-amber-300 text-sm font-bold px-4 py-1.5 rounded-full flex items-center gap-1">
-                <Zap size={14} className="fill-amber-300" /> {combo}x COMBO!
+              <div className={`bg-gradient-to-r from-amber-500/30 to-red-500/30 border-2 border-amber-400/60 text-white text-sm font-bold px-6 py-2 rounded-full flex items-center gap-2 transition-all transform ${comboAnimatingAt && Date.now() - comboAnimatingAt < 300 ? 'scale-125' : 'scale-100'}`}>
+                <Zap size={16} className="fill-amber-300 text-amber-300 animate-pulse" /> 
+                <span className="text-amber-300">{combo}x COMBO</span>
+                <span className="text-amber-200 font-black text-lg">×{Math.min(combo, 5)}</span>
               </div>
             </div>
           )}
@@ -689,6 +738,15 @@ export default function GameClient() {
           0%   { transform: scale(0.4); opacity: 0; }
           60%  { transform: scale(1.1); opacity: 1; }
           100% { transform: scale(1);   opacity: 1; }
+        }
+        @keyframes pulse-scale {
+          0%   { transform: scale(1); }
+          50%  { transform: scale(1.15); }
+          100% { transform: scale(1); }
+        }
+        @keyframes glow-pulse {
+          0%, 100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.6); }
+          50%      { box-shadow: 0 0 40px rgba(251, 191, 36, 0.9); }
         }
       `}</style>
     </div>
