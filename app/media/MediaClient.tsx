@@ -7,8 +7,27 @@ import { getMediaItems } from '@/lib/services';
 import type { MediaItem } from '@/types';
 import { Newspaper, ExternalLink, X, ChevronLeft, ChevronRight, Calendar, BookOpen } from 'lucide-react';
 
+// Press coverage scraped from the old IF Creations site
+const staticMediaItems: MediaItem[] = [
+  { id: 's1',  type: 'newspaper', title: 'Gramakam 2019 — Press Coverage',         source: 'Press', year: 2019, date: '2019-05-11', imageUrl: '/images/media/img-20190511-wa0001.jpg',                    createdAt: '2019-05-11' },
+  { id: 's2',  type: 'newspaper', title: 'Gramakam 2019 — Festival News',           source: 'Press', year: 2019, date: '2019-04-13', imageUrl: '/images/media/img-20190413-wa0006.jpg',                    createdAt: '2019-04-13' },
+  { id: 's3',  type: 'newspaper', title: 'Gramakam 2019 — Media Coverage',          source: 'Press', year: 2019, date: '2019-04-12', imageUrl: '/images/media/img-20190412-wa0086.jpg',                    createdAt: '2019-04-12' },
+  { id: 's4',  type: 'newspaper', title: 'Gramakam 2019 — Festival Report',         source: 'Press', year: 2019, date: '2019-04-11', imageUrl: '/images/media/img-20190411-wa0001.jpg',                    createdAt: '2019-04-11' },
+  { id: 's5',  type: 'newspaper', title: 'Gramakam 2019 — Day 3 Coverage',          source: 'Press', year: 2019, date: '2019-04-10', imageUrl: '/images/media/img-20190410-wa0021.jpg',                    createdAt: '2019-04-10' },
+  { id: 's6',  type: 'newspaper', title: 'Gramakam 2019 — Festival Announcement',   source: 'Press', year: 2019, date: '2019-01-07', imageUrl: '/images/media/img-20190107-wa0082.jpg',                    createdAt: '2019-01-07' },
+  { id: 's7',  type: 'newspaper', title: 'Gramakam 2019 — Event Preview',           source: 'Press', year: 2019, date: '2019-01-07', imageUrl: '/images/media/img-20190107-wa0007.jpg',                    createdAt: '2019-01-07' },
+  { id: 's8',  type: 'newspaper', title: 'Gramakam 2019 — Programme Notice',        source: 'Press', year: 2019, date: '2019-02-19', imageUrl: '/images/media/img-20190219-wa0010.jpg',                    createdAt: '2019-02-19' },
+  { id: 's9',  type: 'newspaper', title: 'Gramakam 2019 — Pre-festival Coverage',   source: 'Press', year: 2019, date: '2019-04-15', imageUrl: '/images/media/img-20190415-wa0047.jpg',                    createdAt: '2019-04-15' },
+  { id: 's10', type: 'newspaper', title: 'Gramakam 2018 — Press Release',           source: 'Press', year: 2018, date: '2018-04-10', imageUrl: '/images/media/img-20180410-wa0069-copy-e1587991050103.jpg', createdAt: '2018-04-10' },
+  { id: 's11', type: 'newspaper', title: 'Gramakam 2018 — Festival Coverage',       source: 'Press', year: 2018, date: '2018-04-06', imageUrl: '/images/media/20180406_075719-e1587990421722.jpg',          createdAt: '2018-04-06' },
+  { id: 's12', type: 'newspaper', title: 'Gramakam 2018 — Year-End Report',         source: 'Press', year: 2018, date: '2018-12-31', imageUrl: '/images/media/img-20181231-wa0001-e1587994265617.jpg',      createdAt: '2018-12-31' },
+  { id: 's13', type: 'newspaper', title: 'Gramakam 2018 — Post-festival Report',    source: 'Press', year: 2018, date: '2018-09-08', imageUrl: '/images/media/img-20180908-wa0000-e1587991192973.jpg',      createdAt: '2018-09-08' },
+  { id: 's14', type: 'newspaper', title: 'Gramakam 2019 — Morning News',            source: 'Press', year: 2019, date: '2019-04-09', imageUrl: '/images/media/20190409_063133-e1587990860337.jpg',          createdAt: '2019-04-09' },
+  { id: 's15', type: 'link', title: 'Gramakam — IF Creations Facebook Page',        source: 'Facebook', year: 2019, date: '2019-04-01', linkUrl: 'https://www.facebook.com/graamakam/', createdAt: '2019-04-01' },
+];
+
 export default function MediaClient() {
-  const [items, setItems] = useState<MediaItem[]>([]);
+  const [items, setItems] = useState<MediaItem[]>(staticMediaItems);
   const [loading, setLoading] = useState(true);
   const [filterYear, setFilterYear] = useState<number | 'all'>('all');
   const [filterType, setFilterType] = useState<'all' | 'newspaper' | 'link'>('all');
@@ -16,7 +35,10 @@ export default function MediaClient() {
 
   useEffect(() => {
     getMediaItems()
-      .then((data) => { if (data.length > 0) setItems(data); })
+      .then((data) => {
+        // Merge Firestore items with static ones (Firestore takes precedence, shown first)
+        if (data.length > 0) setItems([...data, ...staticMediaItems]);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

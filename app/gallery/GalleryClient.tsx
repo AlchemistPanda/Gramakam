@@ -7,35 +7,49 @@ import { GalleryItem } from '@/types';
 import { getGalleryItems, getGalleryYears } from '@/lib/services';
 
 const fallbackItems: GalleryItem[] = [
-  // 2025 edition
-  { id: '1', title: 'Grand Stage Performance', imageUrl: '/images/festival/gramakam-01.jpg', year: 2025, category: 'Performance', type: 'image', createdAt: '2025-04-10' },
-  { id: '2', title: 'Drama Ensemble', imageUrl: '/images/festival/gramakam-02.jpg', year: 2025, category: 'Performance', type: 'image', createdAt: '2025-04-10' },
-  { id: '3', title: 'Festival Opening', imageUrl: '/images/festival/gramakam-03.jpg', year: 2025, category: 'Ceremony', type: 'image', createdAt: '2025-04-10' },
-  { id: '4', title: 'Audience Moments', imageUrl: '/images/festival/gramakam-04.jpg', year: 2025, category: 'Community', type: 'image', createdAt: '2025-04-10' },
-  { id: '5', title: 'Stage Lights', imageUrl: '/images/festival/gramakam-05.jpg', year: 2025, category: 'Performance', type: 'image', createdAt: '2025-04-10' },
-  { id: '6', title: 'Backstage Preparations', imageUrl: '/images/festival/gramakam-06.jpg', year: 2025, category: 'Behind the Scenes', type: 'image', createdAt: '2025-04-10' },
-  { id: '7', title: 'Cultural Showcase', imageUrl: '/images/festival/gramakam-07.jpg', year: 2025, category: 'Performance', type: 'image', createdAt: '2025-04-10' },
-  { id: '8', title: 'Community Gathering', imageUrl: '/images/festival/gramakam-08.jpg', year: 2025, category: 'Community', type: 'image', createdAt: '2025-04-10' },
-  { id: '9', title: 'Theatre Workshop', imageUrl: '/images/festival/gramakam-09.jpg', year: 2025, category: 'Workshop', type: 'image', createdAt: '2025-04-10' },
-  { id: '10', title: 'Evening Performance', imageUrl: '/images/festival/gramakam-10.jpg', year: 2025, category: 'Performance', type: 'image', createdAt: '2025-04-10' },
-  // 2024 edition
-  { id: '11', title: 'Opening Night 2024', imageUrl: '/images/festival/gramakam-11.jpg', year: 2024, category: 'Ceremony', type: 'image', createdAt: '2024-04-12' },
-  { id: '12', title: 'Street Theatre', imageUrl: '/images/festival/gramakam-12.jpg', year: 2024, category: 'Performance', type: 'image', createdAt: '2024-04-12' },
-  { id: '13', title: 'Literary Discussion', imageUrl: '/images/festival/gramakam-13.jpg', year: 2024, category: 'Literature', type: 'image', createdAt: '2024-04-12' },
-  { id: '14', title: 'Art Exhibition', imageUrl: '/images/festival/gramakam-14.jpg', year: 2024, category: 'Art', type: 'image', createdAt: '2024-04-12' },
-  { id: '15', title: 'Drama Night', imageUrl: '/images/festival/gramakam-15.jpg', year: 2024, category: 'Performance', type: 'image', createdAt: '2024-04-12' },
-  { id: '16', title: 'Festival Crowd', imageUrl: '/images/festival/gramakam-16.jpg', year: 2024, category: 'Community', type: 'image', createdAt: '2024-04-12' },
-  { id: '17', title: 'Artists Meet', imageUrl: '/images/festival/gramakam-17.jpg', year: 2024, category: 'Workshop', type: 'image', createdAt: '2024-04-12' },
-  { id: '18', title: 'Closing Ceremony', imageUrl: '/images/festival/gramakam-18.jpg', year: 2024, category: 'Ceremony', type: 'image', createdAt: '2024-04-12' },
-  // Earlier editions
-  { id: '19', title: 'Gramakam Beginnings', imageUrl: '/images/festival/gramakam-19.jpg', year: 2023, category: 'Performance', type: 'image', createdAt: '2023-04-15' },
-  { id: '20', title: 'Inaugural Performance', imageUrl: '/images/festival/gramakam-20.jpg', year: 2023, category: 'Performance', type: 'image', createdAt: '2023-04-15' },
-  { id: '21', title: 'Community Spirit', imageUrl: '/images/festival/gramakam-21.jpg', year: 2023, category: 'Community', type: 'image', createdAt: '2023-04-15' },
-  { id: '22', title: 'Stage Moments', imageUrl: '/images/festival/gramakam-22.jpg', year: 2023, category: 'Performance', type: 'image', createdAt: '2023-04-15' },
-  { id: '23', title: 'Classic Drama', imageUrl: '/images/festival/gramakam-23.jpg', year: 2023, category: 'Performance', type: 'image', createdAt: '2023-04-15' },
-  { id: '24', title: 'Festival Vibes', imageUrl: '/images/festival/gramakam-24.jpg', year: 2023, category: 'Community', type: 'image', createdAt: '2023-04-15' },
+  // ── Gramakam 2016 (inaugural edition) ──
+  { id: 'a16-1',  title: 'Gramakam 2016 — Festival Moment',       imageUrl: '/images/archive/2016/img_0009.jpg', year: 2016, category: 'Performance',  type: 'image', createdAt: '2016-04-10' },
+  { id: 'a16-2',  title: 'Gramakam 2016 — Stage Performance',     imageUrl: '/images/archive/2016/img_0050.jpg', year: 2016, category: 'Performance',  type: 'image', createdAt: '2016-04-10' },
+  { id: 'a16-3',  title: 'Gramakam 2016 — Community Gathering',   imageUrl: '/images/archive/2016/img_0095.jpg', year: 2016, category: 'Community',    type: 'image', createdAt: '2016-04-10' },
+  { id: 'a16-4',  title: 'Gramakam 2016 — Cultural Event',        imageUrl: '/images/archive/2016/img_0103.jpg', year: 2016, category: 'Ceremony',     type: 'image', createdAt: '2016-04-10' },
+  { id: 'a16-5',  title: 'Gramakam 2016 — Theatre Arts',          imageUrl: '/images/archive/2016/img_0110.jpg', year: 2016, category: 'Performance',  type: 'image', createdAt: '2016-04-11' },
+  { id: 'a16-6',  title: 'Gramakam 2016 — Festival Scene',        imageUrl: '/images/archive/2016/img_0115.jpg', year: 2016, category: 'Performance',  type: 'image', createdAt: '2016-04-11' },
+  { id: 'a16-7',  title: 'Gramakam 2016 — Drama on Stage',        imageUrl: '/images/archive/2016/img_0130.jpg', year: 2016, category: 'Performance',  type: 'image', createdAt: '2016-04-11' },
+  { id: 'a16-8',  title: 'Gramakam 2016 — Evening Performance',   imageUrl: '/images/archive/2016/img_0149.jpg', year: 2016, category: 'Performance',  type: 'image', createdAt: '2016-04-12' },
+  { id: 'a16-9',  title: 'Gramakam 2016 — Audience Moments',      imageUrl: '/images/archive/2016/img_0158.jpg', year: 2016, category: 'Community',    type: 'image', createdAt: '2016-04-12' },
+  { id: 'a16-10', title: 'Gramakam 2016 — Closing Night',         imageUrl: '/images/archive/2016/img_0176.jpg', year: 2016, category: 'Ceremony',     type: 'image', createdAt: '2016-04-12' },
+
+  // ── Gramakam 2017 ──
+  { id: 'a17-1',  title: 'Gramakam 2017 — Stage Performance',     imageUrl: '/images/archive/2017/img_5270.jpg', year: 2017, category: 'Performance',  type: 'image', createdAt: '2017-04-10' },
+  { id: 'a17-2',  title: 'Gramakam 2017 — Theatre Arts',          imageUrl: '/images/archive/2017/img_4699.jpg', year: 2017, category: 'Performance',  type: 'image', createdAt: '2017-04-10' },
+  { id: 'a17-3',  title: 'Gramakam 2017 — Festival Gathering',    imageUrl: '/images/archive/2017/img_0072.jpg', year: 2017, category: 'Community',    type: 'image', createdAt: '2017-04-10' },
+  { id: 'a17-4',  title: 'Gramakam 2017 — Drama Performance',     imageUrl: '/images/archive/2017/img_4653.jpg', year: 2017, category: 'Performance',  type: 'image', createdAt: '2017-04-11' },
+  { id: 'a17-5',  title: 'Gramakam 2017 — Cultural Show',         imageUrl: '/images/archive/2017/img_5395.jpg', year: 2017, category: 'Performance',  type: 'image', createdAt: '2017-04-11' },
+  { id: 'a17-6',  title: 'Gramakam 2017 — Evening Scene',         imageUrl: '/images/archive/2017/img_5358.jpg', year: 2017, category: 'Performance',  type: 'image', createdAt: '2017-04-11' },
+  { id: 'a17-7',  title: 'Gramakam 2017 — Stage Moments',         imageUrl: '/images/archive/2017/img_5404.jpg', year: 2017, category: 'Performance',  type: 'image', createdAt: '2017-04-12' },
+  { id: 'a17-8',  title: 'Gramakam 2017 — Festival Finale',       imageUrl: '/images/archive/2017/img_5402.jpg', year: 2017, category: 'Ceremony',     type: 'image', createdAt: '2017-04-12' },
+  { id: 'a17-9',  title: 'Gramakam 2017 — Workshop Session',      imageUrl: '/images/archive/2017/img_5288.jpg', year: 2017, category: 'Workshop',     type: 'image', createdAt: '2017-04-10' },
+  { id: 'a17-10', title: 'Gramakam 2017 — Behind the Scenes',     imageUrl: '/images/archive/2017/img_5282.jpg', year: 2017, category: 'Behind the Scenes', type: 'image', createdAt: '2017-04-10' },
+  { id: 'a17-11', title: 'Gramakam 2017 — Backstage',             imageUrl: '/images/archive/2017/img_4812.jpg', year: 2017, category: 'Behind the Scenes', type: 'image', createdAt: '2017-04-11' },
+  { id: 'a17-12', title: 'Gramakam 2017 — Artists at Work',       imageUrl: '/images/archive/2017/img_5133.jpg', year: 2017, category: 'Workshop',     type: 'image', createdAt: '2017-04-11' },
+  { id: 'a17-13', title: 'Gramakam 2017 — Community Spirit',      imageUrl: '/images/archive/2017/img_5126.jpg', year: 2017, category: 'Community',    type: 'image', createdAt: '2017-04-12' },
+  { id: 'a17-14', title: 'Gramakam 2017 — Opening Night',         imageUrl: '/images/archive/2017/img_5101.jpg', year: 2017, category: 'Ceremony',     type: 'image', createdAt: '2017-04-09' },
+
+  // ── Gramakam 2018 ──
+  { id: 'a18-1',  title: 'Gramakam 2018 — Festival Performance',  imageUrl: '/images/archive/2018/28058720_775055232691655_6966281045718395530_n.jpg', year: 2018, category: 'Performance',  type: 'image', createdAt: '2018-04-07' },
+  { id: 'a18-2',  title: 'Gramakam 2018 — Stage Drama',           imageUrl: '/images/archive/2018/28166248_775055319358313_6085606736929321343_n.jpg', year: 2018, category: 'Performance',  type: 'image', createdAt: '2018-04-07' },
+  { id: 'a18-3',  title: 'Gramakam 2018 — Cultural Event',        imageUrl: '/images/archive/2018/28166303_1987737631239795_4105687573656303939_n.jpg', year: 2018, category: 'Ceremony',     type: 'image', createdAt: '2018-04-08' },
+  { id: 'a18-4',  title: 'Gramakam 2018 — Theatre Arts',          imageUrl: '/images/archive/2018/28166660_1987737744573117_8783068195989532978_n.jpg', year: 2018, category: 'Performance',  type: 'image', createdAt: '2018-04-08' },
+  { id: 'a18-5',  title: 'Gramakam 2018 — Community Moment',      imageUrl: '/images/archive/2018/28167286_775055436024968_2844618791679476428_n.jpg', year: 2018, category: 'Community',    type: 'image', createdAt: '2018-04-09' },
+  { id: 'a18-6',  title: 'Gramakam 2018 — Audience',              imageUrl: '/images/archive/2018/28276743_775055126024999_8257317321838956998_n.jpg', year: 2018, category: 'Community',    type: 'image', createdAt: '2018-04-09' },
+  { id: 'a18-7',  title: 'Gramakam 2018 — Drama Scene',           imageUrl: '/images/archive/2018/27867306_1987737734573118_7876097761777348687_n.jpg', year: 2018, category: 'Performance',  type: 'image', createdAt: '2018-04-09' },
+  { id: 'a18-8',  title: 'Gramakam 2018 — Evening Show',          imageUrl: '/images/archive/2018/27973259_1987736477906577_3948157211369445839_n.jpg', year: 2018, category: 'Performance',  type: 'image', createdAt: '2018-04-10' },
+  { id: 'a18-9',  title: 'Gramakam 2018 — Festival Scene',        imageUrl: '/images/archive/2018/27972384_775055279358317_8770405322238235323_n.jpg', year: 2018, category: 'Performance',  type: 'image', createdAt: '2018-04-10' },
+  { id: 'a18-10', title: 'Gramakam 2018 — Backstage',             imageUrl: '/images/archive/2018/28056524_735933449951269_3797917077129701159_n.jpg', year: 2018, category: 'Behind the Scenes', type: 'image', createdAt: '2018-04-10' },
+  { id: 'a18-11', title: 'Gramakam 2018 — Workshop',              imageUrl: '/images/archive/2018/27971551_775054812691697_1239931995052317970_n.jpg', year: 2018, category: 'Workshop',     type: 'image', createdAt: '2018-04-11' },
+  { id: 'a18-12', title: 'Gramakam 2018 — Closing Night',         imageUrl: '/images/archive/2018/28055661_775055532691625_4696393427297220956_n.jpg', year: 2018, category: 'Ceremony',     type: 'image', createdAt: '2018-04-11' },
 ];
-const fallbackYears = [2025, 2024, 2023];
+const fallbackYears = [2018, 2017, 2016];
 
 export default function GalleryClient() {
   const [items, setItems] = useState<GalleryItem[]>(fallbackItems);
