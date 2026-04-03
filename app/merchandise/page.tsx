@@ -24,7 +24,7 @@ const products: MerchProduct[] = [
       'Premium cotton t-shirt with the iconic Gramakam festival design. A wearable piece of cultural art.',
     images: ['/images/merch/tshirt2.jpg', '/images/merch/tshirt.jpg'],
     price: 1,
-    sizes: ['S', 'M', 'L', 'XL', 'XXL'],
+    sizes: ['24', '28', '32', '36 (S)', '38 (M)', '40 (L)', '42 (XL)', '44 (XXL)'],
   },
   {
     id: 'cover',
