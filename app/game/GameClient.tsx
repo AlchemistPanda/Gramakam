@@ -248,6 +248,19 @@ export default function GameClient() {
   const handleQuizCorrect = () => {
     // Correct answer: save 1 life, resume game
     setQuizOpen(false);
+
+    // Ensure state is synced with gameRef before resuming
+    console.log('Quiz correct - Current game state:', {
+      score: gameRef.current.score,
+      level: gameRef.current.level,
+      lives: gameRef.current.lives,
+    });
+
+    // Sync React state with gameRef
+    setScore(gameRef.current.score);
+    setLevel(gameRef.current.level);
+    setLives(gameRef.current.lives);
+
     gameRef.current.running = true;
     setTimeout(() => {
       spawnSpotlight();
@@ -261,13 +274,23 @@ export default function GameClient() {
     const newLives = Math.max(0, gameRef.current.lives - 1);
     gameRef.current.lives = newLives;
     setLives(newLives);
+
+    console.log('Quiz incorrect - Current game state:', {
+      score: gameRef.current.score,
+      level: gameRef.current.level,
+      lives: newLives,
+    });
+
     setQuizOpen(false);
 
     if (newLives <= 0) {
       gameRef.current.running = false;
       setTimeout(() => endGame(), 300);
     } else {
-      // Resume game
+      // Resume game - sync state
+      setScore(gameRef.current.score);
+      setLevel(gameRef.current.level);
+
       gameRef.current.running = true;
       setTimeout(() => {
         spawnSpotlight();
