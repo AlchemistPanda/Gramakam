@@ -127,6 +127,10 @@ export interface MerchOrder {
   verifiedAt?: string;
   verifiedBy?: string;        // 'auto' | 'admin'
   rejectedAt?: string;
+  // Razorpay fields
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  paymentMethod?: 'razorpay' | 'upi_manual';
   createdAt: Date | string;
 }
 

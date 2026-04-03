@@ -2,13 +2,15 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowLeft, ArrowRight, Copy, Check } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import type { MerchCartItem } from '@/types';
 import { createMerchOrder } from '@/lib/services';
-import OrderStatus from './OrderStatus';
 
-const MERCH_UPI_VPA = '9446624599@cnrb';
-const MERCH_UPI_NAME = 'Gramakam Merchandise';
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 function generateOrderId(): string {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -24,79 +26,156 @@ interface CheckoutModalProps {
   onOrderPlaced: () => void;
 }
 
-type Step = 'details' | 'payment' | 'status';
+type Step = 'details' | 'paying' | 'success' | 'failed';
 
 export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: CheckoutModalProps) {
   const [step, setStep] = useState<Step>('details');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
-  const [upiRef, setUpiRef] = useState('');
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [orderId, setOrderId] = useState('');
-  const [firestoreId, setFirestoreId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [paymentId, setPaymentId] = useState('');
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // Generate QR when entering payment step
+  // Load Razorpay script
   useEffect(() => {
-    if (step === 'payment' && !qrDataUrl) {
-      import('qrcode').then((QRCode) => {
-        const upiUri = `upi://pay?pa=${MERCH_UPI_VPA}&pn=${encodeURIComponent(MERCH_UPI_NAME)}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Gramakam Merch ${orderId}`)}`;
-        QRCode.toDataURL(upiUri, { width: 220, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
-          .then(setQrDataUrl);
-      });
+    if (typeof window !== 'undefined' && !document.getElementById('razorpay-script')) {
+      const script = document.createElement('script');
+      script.id = 'razorpay-script';
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.head.appendChild(script);
     }
-  }, [step, qrDataUrl, total, orderId]);
+  }, []);
 
   // Reset on open
   useEffect(() => {
     if (open) {
       setStep('details');
-      setUpiRef('');
-      setQrDataUrl(null);
       setOrderId(generateOrderId());
-      setFirestoreId('');
       setIsSubmitting(false);
-      setCopied(false);
+      setErrorMsg('');
+      setPaymentId('');
     }
   }, [open]);
 
-  const handleDetailsSubmit = (e: FormEvent) => {
+  const handleDetailsSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setStep('payment');
-  };
-
-  const handlePaymentSubmit = async () => {
-    if (!upiRef.trim() || upiRef.trim().length < 6) return;
     setIsSubmitting(true);
+    setErrorMsg('');
+
     try {
-      const id = await createMerchOrder({
-        orderId,
-        items: cart,
-        total,
-        customerName: name,
-        customerEmail: email,
-        customerMobile: mobile,
-        upiRef: upiRef.trim(),
-        status: 'pending',
+      // 1. Create Razorpay order on server
+      const res = await fetch('/api/razorpay/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: total,
+          orderId,
+          customerName: name,
+          customerEmail: email,
+          customerMobile: mobile,
+        }),
       });
-      setFirestoreId(id);
-      setStep('status');
-      onOrderPlaced();
-    } catch (err) {
-      console.error('Order creation failed:', err);
+
+      if (!res.ok) {
+        throw new Error('Failed to create payment order');
+      }
+
+      const razorpayOrder = await res.json();
+
+      // 2. Open Razorpay checkout
+      setStep('paying');
+
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: 'Gramakam',
+        description: `Merchandise - ${orderId}`,
+        image: '/images/gramakam-logo-white.png',
+        order_id: razorpayOrder.id,
+        prefill: {
+          name,
+          email,
+          contact: `+91${mobile}`,
+        },
+        theme: {
+          color: '#6B1D1D',
+        },
+        handler: async (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          // 3. Verify payment on server
+          try {
+            const verifyRes = await fetch('/api/razorpay/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(response),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.verified) {
+              // 4. Save order to Firestore as verified
+              await createMerchOrder({
+                orderId,
+                items: cart,
+                total,
+                customerName: name,
+                customerEmail: email,
+                customerMobile: mobile,
+                upiRef: response.razorpay_payment_id,
+                status: 'verified',
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                paymentMethod: 'razorpay',
+                verifiedAt: new Date().toISOString(),
+                verifiedBy: 'auto',
+              });
+
+              setPaymentId(response.razorpay_payment_id);
+              setStep('success');
+              onOrderPlaced();
+            } else {
+              setErrorMsg('Payment verification failed. Please contact support.');
+              setStep('failed');
+            }
+          } catch (err) {
+            console.error('Verification error:', err);
+            setErrorMsg('Payment verification failed. Please contact support.');
+            setStep('failed');
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setStep('details');
+            setIsSubmitting(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+
+      rzp.on('payment.failed', (response: any) => {
+        console.error('Payment failed:', response.error);
+        setErrorMsg(response.error?.description || 'Payment failed. Please try again.');
+        setStep('failed');
+      });
+
+      rzp.open();
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      setErrorMsg(err.message || 'Something went wrong. Please try again.');
+      setStep('details');
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const copyUpi = () => {
-    navigator.clipboard.writeText(MERCH_UPI_VPA);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -107,7 +186,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
-          onClick={() => step !== 'status' && onClose()}
+          onClick={() => step !== 'paying' && onClose()}
         >
           <motion.div
             initial={{ scale: 0.92, opacity: 0 }}
@@ -118,43 +197,21 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                {step === 'payment' && (
-                  <button onClick={() => { setStep('details'); setQrDataUrl(null); }} className="text-gray-400 hover:text-charcoal">
-                    <ArrowLeft size={18} />
-                  </button>
-                )}
-                <h3 className="font-semibold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
-                  {step === 'details' && 'Checkout'}
-                  {step === 'payment' && 'Pay via UPI'}
-                  {step === 'status' && 'Order Placed'}
-                </h3>
-              </div>
-              {step !== 'status' && (
+              <h3 className="font-semibold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
+                {step === 'details' && 'Checkout'}
+                {step === 'paying' && 'Processing Payment...'}
+                {step === 'success' && 'Order Confirmed!'}
+                {step === 'failed' && 'Payment Failed'}
+              </h3>
+              {step !== 'paying' && (
                 <button onClick={onClose} className="text-gray-400 hover:text-charcoal">
                   <X size={20} />
                 </button>
               )}
             </div>
 
-            {/* Step indicator */}
-            <div className="flex items-center gap-2 px-6 pt-4 pb-2">
-              {['details', 'payment', 'status'].map((s, i) => (
-                <div key={s} className="flex items-center gap-2 flex-1">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                    step === s ? 'bg-maroon text-white' :
-                    ['details', 'payment', 'status'].indexOf(step) > i ? 'bg-green-500 text-white' :
-                    'bg-gray-200 text-gray-500'
-                  }`}>
-                    {['details', 'payment', 'status'].indexOf(step) > i ? '✓' : i + 1}
-                  </div>
-                  {i < 2 && <div className={`flex-1 h-0.5 ${['details', 'payment', 'status'].indexOf(step) > i ? 'bg-green-500' : 'bg-gray-200'}`} />}
-                </div>
-              ))}
-            </div>
-
             <div className="p-6">
-              {/* Step 1: Customer Details */}
+              {/* Step 1: Customer Details + Pay */}
               {step === 'details' && (
                 <form onSubmit={handleDetailsSubmit} className="space-y-4">
                   {/* Order summary */}
@@ -214,82 +271,100 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                     </div>
                   </div>
 
-                  <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2">
-                    Continue to Payment <ArrowRight size={16} />
+                  {errorMsg && (
+                    <p className="text-red-500 text-sm bg-red-50 px-4 py-2 rounded-lg">{errorMsg}</p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <><Loader2 size={16} className="animate-spin" /> Creating order...</>
+                    ) : (
+                      <>Pay ₹{total} <ArrowRight size={16} /></>
+                    )}
                   </button>
+
+                  <p className="text-xs text-gray-400 text-center">
+                    Secured by Razorpay. Supports UPI, cards, net banking & wallets.
+                  </p>
                 </form>
               )}
 
-              {/* Step 2: UPI Payment */}
-              {step === 'payment' && (
-                <div className="space-y-5">
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600 mb-1">Amount to pay</p>
-                    <p className="text-3xl font-bold text-maroon">₹{total}</p>
-                    <p className="text-xs text-gray-400 mt-1">Order: {orderId}</p>
-                  </div>
+              {/* Paying state */}
+              {step === 'paying' && (
+                <div className="text-center py-12 space-y-4">
+                  <div className="w-16 h-16 border-4 border-maroon border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-gray-600">Razorpay checkout is open.</p>
+                  <p className="text-gray-400 text-sm">Complete your payment in the popup window.</p>
+                </div>
+              )}
 
-                  {/* QR Code */}
-                  <div className="flex flex-col items-center">
-                    {qrDataUrl ? (
-                      <div className="bg-white border-2 border-gray-100 rounded-xl p-4 shadow-sm">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={qrDataUrl} alt="UPI QR Code" className="w-[200px] h-[200px]" />
-                      </div>
-                    ) : (
-                      <div className="w-[200px] h-[200px] bg-gray-100 rounded-xl animate-pulse" />
-                    )}
-                    <p className="text-xs text-gray-500 mt-2">Scan with any UPI app</p>
+              {/* Success */}
+              {step === 'success' && (
+                <div className="text-center py-8 space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto">
+                    <ShieldCheck size={32} className="text-green-500" />
                   </div>
+                  <h3 className="font-semibold text-charcoal text-lg" style={{ fontFamily: 'var(--font-heading)' }}>
+                    Payment Verified!
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Your payment has been verified and your order is confirmed.
+                  </p>
 
-                  {/* UPI ID */}
-                  <div className="bg-gray-50 rounded-lg p-4 text-center">
-                    <p className="text-xs text-gray-500 mb-1">Or pay to UPI ID</p>
-                    <div className="flex items-center justify-center gap-2">
-                      <code className="text-sm font-mono font-semibold text-charcoal">{MERCH_UPI_VPA}</code>
-                      <button onClick={copyUpi} className="text-maroon hover:text-maroon-dark">
-                        {copied ? <Check size={16} /> : <Copy size={16} />}
-                      </button>
+                  <div className="bg-gray-50 rounded-lg p-4 text-left text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Order ID</span>
+                      <span className="font-mono font-medium text-charcoal">{orderId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Payment ID</span>
+                      <span className="font-mono font-medium text-charcoal text-xs">{paymentId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Amount</span>
+                      <span className="font-semibold text-maroon">₹{total}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Status</span>
+                      <span className="text-green-600 font-medium flex items-center gap-1">
+                        <CheckCircle size={14} /> Verified
+                      </span>
                     </div>
                   </div>
 
-                  {/* UPI Ref Input */}
-                  <div>
-                    <label htmlFor="upi-ref" className="block text-sm font-medium text-charcoal mb-1">
-                      UPI Reference Number *
-                    </label>
-                    <input
-                      id="upi-ref"
-                      type="text"
-                      value={upiRef}
-                      onChange={(e) => setUpiRef(e.target.value.replace(/\D/g, ''))}
-                      placeholder="Enter 12-digit UPI reference number"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none font-mono"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">
-                      Find this in your UPI app → Transaction History → Payment Details
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={handlePaymentSubmit}
-                    disabled={isSubmitting || !upiRef.trim() || upiRef.trim().length < 6}
-                    className="btn-primary w-full disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Placing Order...' : 'I have paid — Place Order'}
+                  <button onClick={onClose} className="btn-secondary mt-2">
+                    Close
                   </button>
                 </div>
               )}
 
-              {/* Step 3: Order Status */}
-              {step === 'status' && firestoreId && (
-                <OrderStatus
-                  orderId={orderId}
-                  firestoreId={firestoreId}
-                  upiRef={upiRef}
-                  total={total}
-                  onClose={onClose}
-                />
+              {/* Failed */}
+              {step === 'failed' && (
+                <div className="text-center py-8 space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+                    <X size={32} className="text-red-500" />
+                  </div>
+                  <h3 className="font-semibold text-charcoal text-lg" style={{ fontFamily: 'var(--font-heading)' }}>
+                    Payment Failed
+                  </h3>
+                  <p className="text-sm text-gray-600">{errorMsg || 'Something went wrong. Please try again.'}</p>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setStep('details'); setErrorMsg(''); }}
+                      className="btn-primary flex-1"
+                    >
+                      Try Again
+                    </button>
+                    <button onClick={onClose} className="btn-secondary flex-1">
+                      Close
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </motion.div>
