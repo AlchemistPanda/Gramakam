@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Trophy, Heart, Zap, Play, RotateCcw, Star, ChevronRight, Loader2 } from 'lucide-react';
 import { submitGameScore, getTopGameScores } from '@/lib/services';
 import { soundManager } from '@/lib/sounds';
-import GameQuiz from './GameQuiz';
+import GameQuiz, { ALL_QUESTIONS, type QuizQuestion } from './GameQuiz';
 import type { GameScore } from '@/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -127,7 +127,9 @@ export default function GameClient() {
   const [shake, setShake] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
-  const [lifeNumber, setLifeNumber] = useState(1); // Which life are we trying to save (1, 2, 3)
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [quizTimePerQuestion, setQuizTimePerQuestion] = useState(10);
+  const usedQuestionIdsRef = useRef<Set<string>>(new Set()); // tracks questions across whole game
 
   // Global leaderboard state
   const [globalScores, setGlobalScores] = useState<GameScore[]>([]);
@@ -229,12 +231,19 @@ export default function GameClient() {
           if (gameRef.current.spawnTimer) clearTimeout(gameRef.current.spawnTimer);
           if (gameRef.current.tickTimer) clearInterval(gameRef.current.tickTimer);
 
-          // Calculate which life is being lost (1st, 2nd, or 3rd)
-          // If 3 lives left: saving 1st life
-          // If 2 lives left: saving 2nd life
-          // If 1 life left: saving 3rd life
+          // 1st life lost → 1 question (10s), 2nd → 2 questions (8s), 3rd → 3 questions (5s)
           const lifeBeingLost = 4 - gameRef.current.lives;
-          setLifeNumber(lifeBeingLost);
+          const questionsNeeded = lifeBeingLost;
+          const timePerQ = lifeBeingLost === 1 ? 10 : lifeBeingLost === 2 ? 8 : 5;
+
+          // Pick unused questions; reset pool if not enough unused ones left
+          const available = ALL_QUESTIONS.filter(q => !usedQuestionIdsRef.current.has(q.id));
+          const pool = available.length >= questionsNeeded ? available : ALL_QUESTIONS;
+          const selected = [...pool].sort(() => Math.random() - 0.5).slice(0, questionsNeeded);
+          selected.forEach(q => usedQuestionIdsRef.current.add(q.id));
+
+          setQuizQuestions(selected);
+          setQuizTimePerQuestion(timePerQ);
           setQuizOpen(true);
         } else {
           gameRef.current.running = false;
@@ -339,6 +348,7 @@ export default function GameClient() {
   // ── Start / End ────────────────────────────────────────────────────────
   const startGame = () => {
     gameRef.current = { running: true, score: 0, lives: 3, level: 1, hits: 0, combo: 0, spawnTimer: null, tickTimer: null };
+    usedQuestionIdsRef.current = new Set(); // reset question tracker for new game
     setScore(0); setLives(3); setLevel(1); setHits(0); setCombo(0);
     setSpotlights([]);
     setPopups([]);
@@ -659,7 +669,8 @@ export default function GameClient() {
       {/* ── Quiz Modal ── */}
       <GameQuiz
         isOpen={quizOpen}
-        lifeNumber={lifeNumber}
+        questions={quizQuestions}
+        timePerQuestion={quizTimePerQuestion}
         onCorrect={handleQuizCorrect}
         onIncorrect={handleQuizIncorrect}
       />

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, XCircle, Gift, Clock } from 'lucide-react';
 import { soundManager } from '@/lib/sounds';
 
-interface QuizQuestion {
+export interface QuizQuestion {
   id: string;
   question: string;
   options: string[];
@@ -12,7 +12,7 @@ interface QuizQuestion {
   explanation: string;
 }
 
-const allQuestions: QuizQuestion[] = [
+export const ALL_QUESTIONS: QuizQuestion[] = [
   {
     id: 'q1',
     question: 'In which year did Gramakam start?',
@@ -50,92 +50,78 @@ const allQuestions: QuizQuestion[] = [
   },
 ];
 
-function getRandomQuestions(count: number): QuizQuestion[] {
-  const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
-}
-
 interface GameQuizProps {
   isOpen: boolean;
-  lifeNumber: number; // 1, 2, or 3
+  questions: QuizQuestion[];     // pre-selected by GameClient, no repeats
+  timePerQuestion: number;        // seconds per question
   onCorrect: () => void;
   onIncorrect: () => void;
 }
 
-export default function GameQuiz({ isOpen, lifeNumber, onCorrect, onIncorrect }: GameQuizProps) {
-  const questionsToAsk = lifeNumber; // 1 question for life 1, 2 for life 2, 3 for life 3
-  const timePerQuestion = lifeNumber === 1 ? 10 : lifeNumber === 2 ? 8 : 5;
-
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+export default function GameQuiz({ isOpen, questions, timePerQuestion, onCorrect, onIncorrect }: GameQuizProps) {
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answered, setAnswered] = useState(false);
   const [timeLeft, setTimeLeft] = useState(timePerQuestion);
-  const [allCorrect, setAllCorrect] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Initialize questions
+  // Reset when quiz opens with new questions
   useEffect(() => {
-    if (isOpen) {
-      const randomQuestions = getRandomQuestions(questionsToAsk);
-      setQuestions(randomQuestions);
-      setCurrentQuestionIndex(0);
+    if (isOpen && questions.length > 0) {
+      setCurrentIndex(0);
       setSelectedAnswer(null);
       setAnswered(false);
       setTimeLeft(timePerQuestion);
-      setAllCorrect(true);
     }
-  }, [isOpen, questionsToAsk, timePerQuestion]);
+  }, [isOpen, questions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Timer countdown
+  // Timer
   useEffect(() => {
     if (!isOpen || answered || questions.length === 0) return;
 
-    const timer = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          // Time's up - treat as incorrect
-          handleAnswer(-1);
+          clearInterval(timerRef.current!);
+          handleAnswer(-1); // time's up = wrong
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [isOpen, answered, questions]);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isOpen, answered, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen || questions.length === 0) return null;
 
-  const question = questions[currentQuestionIndex];
-  const isLastQuestion = currentQuestionIndex === questions.length - 1;
+  const question = questions[currentIndex];
+  const isLastQuestion = currentIndex === questions.length - 1;
+  const isCorrect = selectedAnswer === question.correctAnswer;
 
   const handleAnswer = (optionIndex: number) => {
     if (answered) return;
-
+    if (timerRef.current) clearInterval(timerRef.current);
     setSelectedAnswer(optionIndex);
-    const correct = optionIndex === question.correctAnswer;
-
-    if (!correct) {
-      setAllCorrect(false);
-      soundManager.playQuizIncorrect();
-    } else {
-      soundManager.playQuizCorrect();
-    }
-
     setAnswered(true);
+
+    if (optionIndex === question.correctAnswer) {
+      soundManager.playQuizCorrect();
+    } else {
+      soundManager.playQuizIncorrect();
+    }
   };
 
   const handleContinue = () => {
-    if (isLastQuestion || !allCorrect) {
-      // Quiz ended - either last question or got one wrong
-      if (allCorrect) {
-        onCorrect();
-      } else {
-        onIncorrect();
-      }
+    if (!isCorrect) {
+      // Wrong answer — lose the life immediately, no more questions
+      onIncorrect();
+    } else if (isLastQuestion) {
+      // Answered all questions correctly — save the life
+      onCorrect();
     } else {
-      // Move to next question
-      setCurrentQuestionIndex((prev) => prev + 1);
+      // Correct, more questions remain — move to next
+      setCurrentIndex((prev) => prev + 1);
       setSelectedAnswer(null);
       setAnswered(false);
       setTimeLeft(timePerQuestion);
@@ -152,23 +138,24 @@ export default function GameQuiz({ isOpen, lifeNumber, onCorrect, onIncorrect }:
               <Gift size={20} className="text-white" />
               <h2 className="text-white font-bold text-lg">Save Your Life!</h2>
             </div>
-            <div className="flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full">
+            <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${timeLeft <= 3 ? 'bg-red-500/40' : 'bg-white/20'}`}>
               <Clock size={16} className="text-white" />
-              <span className="text-white font-bold text-sm">{timeLeft}s</span>
+              <span className={`font-bold text-sm ${timeLeft <= 3 ? 'text-red-200' : 'text-white'}`}>{timeLeft}s</span>
             </div>
           </div>
           <p className="text-white/80 text-sm">
-            Question {currentQuestionIndex + 1} of {questions.length}
+            Question {currentIndex + 1} of {questions.length}
           </p>
         </div>
 
         {/* Content */}
         <div className="p-6">
+          {/* Question + timer bar */}
           <div className="mb-6">
             <h3 className="text-white font-semibold text-lg leading-relaxed mb-4">{question.question}</h3>
             <div className="w-full bg-amber-500/20 rounded-lg h-1.5">
               <div
-                className="bg-amber-400 h-1.5 rounded-lg transition-all duration-300"
+                className={`h-1.5 rounded-lg transition-all duration-1000 ${timeLeft <= 3 ? 'bg-red-400' : 'bg-amber-400'}`}
                 style={{ width: `${(timeLeft / timePerQuestion) * 100}%` }}
               />
             </div>
@@ -190,55 +177,53 @@ export default function GameQuiz({ isOpen, lifeNumber, onCorrect, onIncorrect }:
                       ? 'bg-green-500/20 border-2 border-green-500 text-green-300'
                       : answered
                         ? 'bg-white/5 border-2 border-white/10 text-white/40 cursor-not-allowed'
-                        : 'bg-white/10 border-2 border-white/20 text-white hover:bg-white/20 cursor-pointer'
+                        : 'bg-white/10 border-2 border-white/20 text-white hover:bg-white/20 cursor-pointer active:scale-95'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center text-sm font-bold">
+                  <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center text-sm font-bold shrink-0">
                     {String.fromCharCode(65 + index)}
                   </div>
-                  <span>{option}</span>
+                  <span className="flex-1">{option}</span>
                   {answered && selectedAnswer === index && (
-                    index === question.correctAnswer ? (
-                      <CheckCircle size={18} className="ml-auto text-green-400" />
-                    ) : (
-                      <XCircle size={18} className="ml-auto text-red-400" />
-                    )
+                    index === question.correctAnswer
+                      ? <CheckCircle size={18} className="shrink-0 text-green-400" />
+                      : <XCircle size={18} className="shrink-0 text-red-400" />
                   )}
                   {answered && index === question.correctAnswer && selectedAnswer !== index && (
-                    <CheckCircle size={18} className="ml-auto text-green-400" />
+                    <CheckCircle size={18} className="shrink-0 text-green-400" />
                   )}
                 </div>
               </button>
             ))}
           </div>
 
-          {/* Explanation & CTA */}
+          {/* Explanation + CTA */}
           {answered && (
             <>
-              <div className={`mb-6 p-3 rounded-lg ${selectedAnswer === question.correctAnswer ? 'bg-green-500/10 border border-green-500/30' : 'bg-amber-500/10 border border-amber-500/30'}`}>
-                <p className={`text-sm ${selectedAnswer === question.correctAnswer ? 'text-green-300' : 'text-amber-300'}`}>
-                  {question.explanation}
-                </p>
+              <div className={`mb-4 p-3 rounded-lg text-sm ${isCorrect ? 'bg-green-500/10 border border-green-500/30 text-green-300' : 'bg-red-500/10 border border-red-500/30 text-red-300'}`}>
+                {question.explanation}
               </div>
 
               <button
                 onClick={handleContinue}
-                className={`w-full font-bold py-3 rounded-lg transition-all ${
-                  selectedAnswer === question.correctAnswer
-                    ? 'bg-green-500 hover:bg-green-600 text-white'
-                    : 'bg-amber-500 hover:bg-amber-600 text-white'
+                className={`w-full font-bold py-3 rounded-lg transition-all active:scale-95 ${
+                  isCorrect
+                    ? 'bg-green-500 hover:bg-green-400 text-white'
+                    : 'bg-red-500 hover:bg-red-400 text-white'
                 }`}
               >
-                {isLastQuestion || !allCorrect
-                  ? (selectedAnswer === question.correctAnswer ? '🎉 Continue Playing' : 'Back to Game')
-                  : '→ Next Question'}
+                {!isCorrect
+                  ? '😢 Back to Game'
+                  : isLastQuestion
+                    ? '🎉 Life Saved! Continue'
+                    : `→ Next Question (${questions.length - currentIndex - 1} left)`}
               </button>
             </>
           )}
 
           {!answered && (
-            <p className="text-white/40 text-xs text-center">Select an option to continue</p>
+            <p className="text-white/40 text-xs text-center">Select an answer to continue</p>
           )}
         </div>
       </div>
