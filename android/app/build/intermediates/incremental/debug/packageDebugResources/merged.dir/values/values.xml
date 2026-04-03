@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#FDFBF7</color>
+    <color name="ic_launcher_background">@color/primary</color>
+    <color name="primary">#800020</color>
+    <color name="primary_variant">#5C0017</color>
+    <color name="secondary">#D4AF37</color>
+    <color name="status_pending">#E65100</color>
+    <color name="success">#2E7D32</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="text_primary">#2D2323</color>
+    <color name="text_secondary">#7A6F6F</color>
+    <color name="white">#FFFFFF</color>
+    <string name="app_name">Gramakam UPI Monitor</string>
+    <string name="gcm_defaultSenderId" translatable="false">835929251137</string>
+    <string name="google_api_key" translatable="false">AIzaSyCk2CxO74TIe2bhRmtPN5LqOqgMWmdRM1w</string>
+    <string name="google_app_id" translatable="false">1:835929251137:android:a20448ecb0e0571a43d5c0</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyCk2CxO74TIe2bhRmtPN5LqOqgMWmdRM1w</string>
+    <string name="google_storage_bucket" translatable="false">gramakam-2026.firebasestorage.app</string>
+    <string name="project_id" translatable="false">gramakam-2026</string>
+    <style name="Theme.GramakamUPI" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_variant</item>
+        <item name="colorAccent">@color/secondary</item>
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/primary_variant</item>
+    </style>
+</resources>

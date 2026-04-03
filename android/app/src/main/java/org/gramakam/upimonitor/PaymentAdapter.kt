@@ -36,11 +36,13 @@ class PaymentAdapter(private val payments: MutableList<PaymentItem> = mutableLis
         holder.tvAmount.text = "₹${item.amount}"
         holder.tvSender.text = "From: ${item.senderUpi}"
         holder.tvRef.text = "Ref: ${item.upiRef}"
-        holder.tvDatetime.text = "${item.datetime} • ${item.bank}"
-        holder.tvStatus.text = if (item.matched) "Matched" else "Unmatched"
+        holder.tvDatetime.text = "${item.datetime}"
+        
+        holder.tvStatus.text = if (item.matched) "MATCHED" else "UNMATCHED"
         holder.tvStatus.setTextColor(
             if (item.matched) 0xFF2E7D32.toInt() else 0xFFE65100.toInt()
         )
+        // Set background transparency or drawable programmatically if needed
     }
 
     override fun getItemCount() = payments.size

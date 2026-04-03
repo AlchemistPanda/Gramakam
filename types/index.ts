@@ -63,6 +63,16 @@ export interface AdminUser {
   email: string;
 }
 
+// ==================== GAME SCORES ====================
+
+export interface GameScore {
+  id: string;
+  name: string;
+  score: number;
+  level: number;
+  createdAt: Date | string;
+}
+
 // ==================== AWARDS ====================
 
 export interface Award {

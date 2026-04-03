@@ -1,0 +1,41 @@
+org.gramakam.upimonitor.app-lifecycle-viewmodel-savedstate-2.6.2-0 C:\Users\manur\.gradle\caches\8.11.1\transforms\0137f169e2d0b62234705323d912b64d\transformed\lifecycle-viewmodel-savedstate-2.6.2\res
+org.gramakam.upimonitor.app-appcompat-resources-1.7.0-1 C:\Users\manur\.gradle\caches\8.11.1\transforms\074d32b08cc2443bd8634529422daf7a\transformed\appcompat-resources-1.7.0\res
+org.gramakam.upimonitor.app-activity-1.8.0-2 C:\Users\manur\.gradle\caches\8.11.1\transforms\0e4b4de6d70f2d8837d6def8426530a7\transformed\activity-1.8.0\res
+org.gramakam.upimonitor.app-firebase-common-21.0.0-3 C:\Users\manur\.gradle\caches\8.11.1\transforms\1338e484fff63a38120758e98ec18a08\transformed\firebase-common-21.0.0\res
+org.gramakam.upimonitor.app-lifecycle-livedata-core-2.6.2-4 C:\Users\manur\.gradle\caches\8.11.1\transforms\19eb5ff8317d6cbedaf4c1c94df941a9\transformed\lifecycle-livedata-core-2.6.2\res
+org.gramakam.upimonitor.app-cardview-1.0.0-5 C:\Users\manur\.gradle\caches\8.11.1\transforms\1a66644f0387bbc4991cae34a14ba237\transformed\cardview-1.0.0\res
+org.gramakam.upimonitor.app-constraintlayout-2.0.1-6 C:\Users\manur\.gradle\caches\8.11.1\transforms\1c576f3e551bd70571233b14618a4f8b\transformed\constraintlayout-2.0.1\res
+org.gramakam.upimonitor.app-recyclerview-1.4.0-7 C:\Users\manur\.gradle\caches\8.11.1\transforms\311aa3b6a9ade15abf07655e4b4748bf\transformed\recyclerview-1.4.0\res
+org.gramakam.upimonitor.app-core-runtime-2.2.0-8 C:\Users\manur\.gradle\caches\8.11.1\transforms\35774731d8fa675e76c59d846986f4c5\transformed\core-runtime-2.2.0\res
+org.gramakam.upimonitor.app-tracing-1.2.0-9 C:\Users\manur\.gradle\caches\8.11.1\transforms\36aad50d078ac09a84b2fe9884001d17\transformed\tracing-1.2.0\res
+org.gramakam.upimonitor.app-play-services-basement-18.3.0-10 C:\Users\manur\.gradle\caches\8.11.1\transforms\39676af51118509326a10c441be04f33\transformed\play-services-basement-18.3.0\res
+org.gramakam.upimonitor.app-customview-poolingcontainer-1.0.0-11 C:\Users\manur\.gradle\caches\8.11.1\transforms\417cd2bff16fcf471e481fd3134f6c3b\transformed\customview-poolingcontainer-1.0.0\res
+org.gramakam.upimonitor.app-lifecycle-process-2.6.2-12 C:\Users\manur\.gradle\caches\8.11.1\transforms\47e16d6ee93cd4f5362a4d4ed3718496\transformed\lifecycle-process-2.6.2\res
+org.gramakam.upimonitor.app-play-services-base-18.0.1-13 C:\Users\manur\.gradle\caches\8.11.1\transforms\4b80229388ed53dd71cdf0b5d28941ce\transformed\play-services-base-18.0.1\res
+org.gramakam.upimonitor.app-startup-runtime-1.1.1-14 C:\Users\manur\.gradle\caches\8.11.1\transforms\5006556160410d305c7152e64b2d6114\transformed\startup-runtime-1.1.1\res
+org.gramakam.upimonitor.app-core-ktx-1.15.0-15 C:\Users\manur\.gradle\caches\8.11.1\transforms\51848447e92138f72bfabbcf3cf0ef9d\transformed\core-ktx-1.15.0\res
+org.gramakam.upimonitor.app-emoji2-views-helper-1.3.0-16 C:\Users\manur\.gradle\caches\8.11.1\transforms\54925bd89ff6937a45e25e95339e2fd5\transformed\emoji2-views-helper-1.3.0\res
+org.gramakam.upimonitor.app-fragment-1.5.4-17 C:\Users\manur\.gradle\caches\8.11.1\transforms\6460e37d70fff105135affd56d1139bc\transformed\fragment-1.5.4\res
+org.gramakam.upimonitor.app-emoji2-1.3.0-18 C:\Users\manur\.gradle\caches\8.11.1\transforms\69c4280ec6e7f4e60675de33141cb209\transformed\emoji2-1.3.0\res
+org.gramakam.upimonitor.app-savedstate-1.2.1-19 C:\Users\manur\.gradle\caches\8.11.1\transforms\6defea0711dd53efcf1a62b3932f834d\transformed\savedstate-1.2.1\res
+org.gramakam.upimonitor.app-drawerlayout-1.1.1-20 C:\Users\manur\.gradle\caches\8.11.1\transforms\7226223c583a1bcf25cd052e6fd8c97e\transformed\drawerlayout-1.1.1\res
+org.gramakam.upimonitor.app-annotation-experimental-1.4.1-21 C:\Users\manur\.gradle\caches\8.11.1\transforms\9c22f5db1d12bd004f191e05a6b141e2\transformed\annotation-experimental-1.4.1\res
+org.gramakam.upimonitor.app-coordinatorlayout-1.1.0-22 C:\Users\manur\.gradle\caches\8.11.1\transforms\aa1dfafe5a65112fbac425ad879f2412\transformed\coordinatorlayout-1.1.0\res
+org.gramakam.upimonitor.app-viewpager2-1.1.0-beta02-23 C:\Users\manur\.gradle\caches\8.11.1\transforms\b3779914f458e1dedef397c41e18d12f\transformed\viewpager2-1.1.0-beta02\res
+org.gramakam.upimonitor.app-appcompat-1.7.0-24 C:\Users\manur\.gradle\caches\8.11.1\transforms\be290ed7c8d32fb99bd6355470352794\transformed\appcompat-1.7.0\res
+org.gramakam.upimonitor.app-transition-1.5.0-25 C:\Users\manur\.gradle\caches\8.11.1\transforms\c0aa4ec99a67d865ede5c81c71424598\transformed\transition-1.5.0\res
+org.gramakam.upimonitor.app-lifecycle-runtime-2.6.2-26 C:\Users\manur\.gradle\caches\8.11.1\transforms\c44a13fc367cb3a546db764c73395f28\transformed\lifecycle-runtime-2.6.2\res
+org.gramakam.upimonitor.app-swiperefreshlayout-1.1.0-27 C:\Users\manur\.gradle\caches\8.11.1\transforms\cdeb9dacc69f4a04f458cf3a83bfd57b\transformed\swiperefreshlayout-1.1.0\res
+org.gramakam.upimonitor.app-core-1.15.0-28 C:\Users\manur\.gradle\caches\8.11.1\transforms\d0c845cc7298b95da6d01772fd472309\transformed\core-1.15.0\res
+org.gramakam.upimonitor.app-profileinstaller-1.3.1-29 C:\Users\manur\.gradle\caches\8.11.1\transforms\d70df352d15d5d6b797a27d88eb6f458\transformed\profileinstaller-1.3.1\res
+org.gramakam.upimonitor.app-material-1.12.0-30 C:\Users\manur\.gradle\caches\8.11.1\transforms\dfe39a57df774e56f4c031196cad75c7\transformed\material-1.12.0\res
+org.gramakam.upimonitor.app-lifecycle-livedata-2.6.2-31 C:\Users\manur\.gradle\caches\8.11.1\transforms\e021b53955c0f1f322bf69853042683b\transformed\lifecycle-livedata-2.6.2\res
+org.gramakam.upimonitor.app-lifecycle-viewmodel-2.6.2-32 C:\Users\manur\.gradle\caches\8.11.1\transforms\e383fd2cdd848e0215334c124004dea8\transformed\lifecycle-viewmodel-2.6.2\res
+org.gramakam.upimonitor.app-pngs-33 D:\Gramakam 2026\Gramakam website\android\app\build\generated\res\pngs\debug
+org.gramakam.upimonitor.app-res-34 D:\Gramakam 2026\Gramakam website\android\app\build\generated\res\processDebugGoogleServices
+org.gramakam.upimonitor.app-resValues-35 D:\Gramakam 2026\Gramakam website\android\app\build\generated\res\resValues\debug
+org.gramakam.upimonitor.app-packageDebugResources-36 D:\Gramakam 2026\Gramakam website\android\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+org.gramakam.upimonitor.app-packageDebugResources-37 D:\Gramakam 2026\Gramakam website\android\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+org.gramakam.upimonitor.app-debug-38 D:\Gramakam 2026\Gramakam website\android\app\build\intermediates\merged_res\debug\mergeDebugResources
+org.gramakam.upimonitor.app-debug-39 D:\Gramakam 2026\Gramakam website\android\app\src\debug\res
+org.gramakam.upimonitor.app-main-40 D:\Gramakam 2026\Gramakam website\android\app\src\main\res

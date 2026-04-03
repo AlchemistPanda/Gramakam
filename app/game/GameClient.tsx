@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import { Trophy, Heart, Zap, Play, RotateCcw, Star, ChevronRight } from 'lucide-react';
+import { Trophy, Heart, Zap, Play, RotateCcw, Star, ChevronRight, Loader2 } from 'lucide-react';
+import { submitGameScore, getTopGameScores } from '@/lib/services';
+import type { GameScore } from '@/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Spotlight {
@@ -14,21 +16,14 @@ interface Spotlight {
   size: number;     // px radius
 }
 
-interface HighScore {
-  name: string;
-  score: number;
-  level: number;
-  date: string;
-}
-
 type Screen = 'menu' | 'playing' | 'gameover' | 'leaderboard';
 
 // ── Level configuration ────────────────────────────────────────────────────
 function getLevelConfig(level: number) {
   const capped = Math.min(level, 12);
   return {
-    lifetime: Math.max(600, 2400 - capped * 150),       // ms
-    spawnInterval: Math.max(400, 1800 - capped * 110),  // ms between new spotlights
+    lifetime: Math.max(600, 2400 - capped * 150),
+    spawnInterval: Math.max(400, 1800 - capped * 110),
     maxSimultaneous: Math.min(1 + Math.floor(capped / 2), 6),
     hitsToLevel: 8,
     scorePerHit: 10 + (level - 1) * 5,
@@ -37,7 +32,7 @@ function getLevelConfig(level: number) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function randomSpot(existing: Spotlight[], stageW: number, stageH: number) {
-  const MARGIN = 12; // percent
+  const MARGIN = 12;
   const CENTER_X = 50, CENTER_Y = 50, CENTER_AVOID = 14;
   let x = 0, y = 0, tries = 0;
   do {
@@ -51,12 +46,65 @@ function randomSpot(existing: Spotlight[], stageW: number, stageH: number) {
   return { x, y };
 }
 
-function saveHighScores(scores: HighScore[]) {
-  try { localStorage.setItem('gramakam_game_scores', JSON.stringify(scores.slice(0, 10))); } catch {}
+// ── Rank badge ─────────────────────────────────────────────────────────────
+function rankBadge(i: number) {
+  if (i === 0) return '🥇';
+  if (i === 1) return '🥈';
+  if (i === 2) return '🥉';
+  return `${i + 1}.`;
 }
 
-function loadHighScores(): HighScore[] {
-  try { return JSON.parse(localStorage.getItem('gramakam_game_scores') || '[]'); } catch { return []; }
+// ── Leaderboard list ───────────────────────────────────────────────────────
+function LeaderboardList({
+  scores,
+  highlightName,
+  loading,
+}: {
+  scores: GameScore[];
+  highlightName?: string;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-8 text-white/50">
+        <Loader2 size={28} className="animate-spin" />
+        <p className="text-sm">Loading scores…</p>
+      </div>
+    );
+  }
+  if (scores.length === 0) {
+    return <p className="text-white/50 py-6">No scores yet. Be the first!</p>;
+  }
+  return (
+    <div className="w-full space-y-2">
+      {scores.map((entry, i) => {
+        const isHighlight = highlightName && entry.name === highlightName;
+        return (
+          <div
+            key={entry.id}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+              isHighlight
+                ? 'bg-amber-400/30 border border-amber-400/60 scale-[1.02]'
+                : i === 0 ? 'bg-amber-400/20 border border-amber-400/40'
+                : i === 1 ? 'bg-gray-400/10 border border-gray-400/20'
+                : i === 2 ? 'bg-amber-800/20 border border-amber-800/30'
+                : 'bg-white/5'
+            }`}
+          >
+            <span className={`font-bold text-lg w-7 text-center ${i === 0 ? 'text-amber-300' : i < 3 ? 'text-white/70' : 'text-white/30'}`}>
+              {rankBadge(i)}
+            </span>
+            <span className="flex-1 text-left font-medium truncate" style={{ color: isHighlight ? '#fcd34d' : 'white' }}>
+              {entry.name}
+              {isHighlight && <span className="ml-1 text-xs text-amber-300/80">(you)</span>}
+            </span>
+            <span className="text-white/50 text-xs">Lv.{entry.level}</span>
+            <span className="text-amber-300 font-bold">{entry.score}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -69,10 +117,16 @@ export default function GameClient() {
   const [hits, setHits] = useState(0);
   const [combo, setCombo] = useState(0);
   const [popups, setPopups] = useState<{ id: string; x: number; y: number; text: string }[]>([]);
-  const [highScores, setHighScores] = useState<HighScore[]>([]);
   const [playerName, setPlayerName] = useState('');
   const [namePending, setNamePending] = useState(false);
   const [shake, setShake] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Global leaderboard state
+  const [globalScores, setGlobalScores] = useState<GameScore[]>([]);
+  const [scoresLoading, setScoresLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [lastSubmittedName, setLastSubmittedName] = useState('');
 
   const stageRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef({
@@ -86,6 +140,38 @@ export default function GameClient() {
     tickTimer: null as ReturnType<typeof setInterval> | null,
   });
 
+  // ── Fetch global scores ────────────────────────────────────────────────
+  const fetchScores = useCallback(async () => {
+    setScoresLoading(true);
+    try {
+      const scores = await getTopGameScores(10);
+      setGlobalScores(scores);
+    } catch {
+      // silently fail — no scores shown
+    } finally {
+      setScoresLoading(false);
+    }
+  }, []);
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const isTouchDevice = () => {
+      return (
+        (typeof window !== 'undefined' && ('ontouchstart' in window)) ||
+        (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
+      );
+    };
+    setIsMobile(isTouchDevice());
+  }, []);
+
+  useEffect(() => {
+    fetchScores();
+    return () => {
+      if (gameRef.current.spawnTimer) clearTimeout(gameRef.current.spawnTimer);
+      if (gameRef.current.tickTimer) clearInterval(gameRef.current.tickTimer);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Spawn a spotlight ──────────────────────────────────────────────────
   const spawnSpotlight = useCallback(() => {
     if (!gameRef.current.running) return;
@@ -93,13 +179,16 @@ export default function GameClient() {
       const cfg = getLevelConfig(gameRef.current.level);
       if (prev.length >= cfg.maxSimultaneous) return prev;
       const { x, y } = randomSpot(prev, 100, 100);
-      const size = 52 + Math.random() * 24;
+      // Larger spotlights on mobile for easier tapping
+      const baseSize = isMobile ? 70 : 52;
+      const sizeVariance = isMobile ? 20 : 24;
+      const size = baseSize + Math.random() * sizeVariance;
       return [
         ...prev,
         { id: `${Date.now()}-${Math.random()}`, x, y, born: Date.now(), lifetime: cfg.lifetime, size },
       ];
     });
-  }, []);
+  }, [isMobile]);
 
   const scheduleSpawn = useCallback(() => {
     if (!gameRef.current.running) return;
@@ -153,7 +242,6 @@ export default function GameClient() {
 
     setSpotlights((prev) => prev.filter((s) => s.id !== id));
 
-    // Level up
     if (gameRef.current.hits >= cfg.hitsToLevel) {
       gameRef.current.hits = 0;
       gameRef.current.level += 1;
@@ -168,6 +256,7 @@ export default function GameClient() {
     setScore(0); setLives(3); setLevel(1); setHits(0); setCombo(0);
     setSpotlights([]);
     setPopups([]);
+    setLastSubmittedName('');
     setScreen('playing');
     setTimeout(() => {
       spawnSpotlight();
@@ -184,37 +273,39 @@ export default function GameClient() {
     setNamePending(true);
   }, []);
 
-  const submitScore = () => {
+  const submitScore = async () => {
     const name = playerName.trim() || 'Anonymous';
-    const newEntry: HighScore = {
-      name,
-      score: gameRef.current.score,
-      level: gameRef.current.level,
-      date: new Date().toLocaleDateString('en-IN'),
-    };
-    const updated = [...loadHighScores(), newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
-    saveHighScores(updated);
-    setHighScores(updated);
+    setSubmitting(true);
+    try {
+      await submitGameScore({
+        name,
+        score: gameRef.current.score,
+        level: gameRef.current.level,
+      });
+      setLastSubmittedName(name);
+    } catch {
+      // failed silently — still proceed
+    } finally {
+      setSubmitting(false);
+    }
     setNamePending(false);
+    // refresh leaderboard then show it
+    await fetchScores();
     setScreen('leaderboard');
   };
 
-  useEffect(() => {
-    setHighScores(loadHighScores());
-    return () => {
-      if (gameRef.current.spawnTimer) clearTimeout(gameRef.current.spawnTimer);
-      if (gameRef.current.tickTimer) clearInterval(gameRef.current.tickTimer);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const goToLeaderboard = async () => {
+    await fetchScores();
+    setScreen('leaderboard');
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center overflow-hidden">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center overflow-hidden select-none" style={{ touchAction: 'manipulation' }}>
 
       {/* ── MENU ── */}
       {screen === 'menu' && (
-        <div className="flex flex-col items-center gap-8 px-6 py-12 text-center z-10">
-          {/* Stage lamp decoration */}
+        <div className="flex flex-col items-center gap-6 md:gap-8 px-4 md:px-6 py-8 md:py-12 text-center z-10 w-full max-w-sm">
           <div className="text-6xl animate-pulse">🎭</div>
           <div>
             <h1 className="text-4xl md:text-5xl font-bold text-amber-300 mb-2" style={{ fontFamily: 'var(--font-heading)', textShadow: '0 0 30px #fbbf24' }}>
@@ -236,14 +327,15 @@ export default function GameClient() {
           >
             <Play size={22} /> Let the Show Begin!
           </button>
-          {highScores.length > 0 && (
-            <button
-              onClick={() => { setHighScores(loadHighScores()); setScreen('leaderboard'); }}
-              className="text-white/50 hover:text-white text-sm flex items-center gap-1 transition-colors"
-            >
-              <Trophy size={14} /> View Leaderboard
-            </button>
-          )}
+
+          {/* Global leaderboard preview on menu */}
+          <div className="w-full">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <Trophy size={16} className="text-amber-300" />
+              <span className="text-amber-300 text-sm font-semibold uppercase tracking-wider">Global Top 10</span>
+            </div>
+            <LeaderboardList scores={globalScores} loading={scoresLoading} />
+          </div>
         </div>
       )}
 
@@ -289,35 +381,37 @@ export default function GameClient() {
             style={{ background: 'linear-gradient(to bottom, #1a0000 0%, transparent 100%)' }}
           />
 
-          {/* Gramakam logo center */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0 opacity-20">
-            <Image src="/images/gramakam-logo-white.png" alt="" width={130} height={130} />
+          {/* Gramakam logo center with dates */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0 flex flex-col items-center gap-4">
+            <Image src="/images/gramakam-logo-white.png" alt="" width={220} height={220} className="opacity-25" />
+            <p className="text-white/30 text-sm font-semibold tracking-wide">April 18–22</p>
           </div>
 
           {/* HUD */}
-          <div className={`absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 transition-transform ${shake ? 'animate-bounce' : ''}`}>
+          <div className={`absolute top-0 left-0 right-0 z-20 flex items-center justify-between ${isMobile ? 'px-2 py-2 gap-2' : 'px-4 py-3 gap-4'} transition-transform ${shake ? 'animate-bounce' : ''}`}>
             {/* Score */}
-            <div className="bg-black/60 backdrop-blur-sm rounded-xl px-3 py-1.5 text-center">
-              <p className="text-white/50 text-[10px] uppercase tracking-wider">Score</p>
-              <p className="text-amber-300 font-bold text-xl leading-none">{score}</p>
+            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
+              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>Score</p>
+              <p className={`text-amber-300 font-bold leading-none ${isMobile ? 'text-lg' : 'text-xl'}`}>{score}</p>
             </div>
 
-            {/* Level & hits progress */}
-            <div className="bg-black/60 backdrop-blur-sm rounded-xl px-4 py-1.5 text-center">
-              <p className="text-amber-300/70 text-[10px] uppercase tracking-wider">Level {level}</p>
-              <div className="flex gap-1 mt-1">
+            {/* Level - center */}
+            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} text-center flex-grow`}>
+              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[7px]' : 'text-[9px]'}`}>Level</p>
+              <p className={`text-amber-300 font-bold leading-none ${isMobile ? 'text-xl' : 'text-2xl'}`}>{level}</p>
+              <div className={`flex gap-1 justify-center ${isMobile ? 'mt-1' : 'mt-2'}`}>
                 {Array.from({ length: getLevelConfig(level).hitsToLevel }).map((_, i) => (
-                  <div key={i} className={`h-1.5 w-3 rounded-full transition-all ${i < hits % getLevelConfig(level).hitsToLevel ? 'bg-amber-400' : 'bg-white/20'}`} />
+                  <div key={i} className={`${isMobile ? 'h-1 w-2' : 'h-1.5 w-3'} rounded-full transition-all ${i < hits % getLevelConfig(level).hitsToLevel ? 'bg-amber-400' : 'bg-white/20'}`} />
                 ))}
               </div>
             </div>
 
             {/* Lives */}
-            <div className="bg-black/60 backdrop-blur-sm rounded-xl px-3 py-1.5 text-center">
-              <p className="text-white/50 text-[10px] uppercase tracking-wider">Lives</p>
-              <div className="flex gap-1 mt-0.5">
+            <div className={`bg-black/60 backdrop-blur-sm rounded-lg ${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} text-center flex-shrink-0`}>
+              <p className={`text-white/50 uppercase tracking-wider ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>Lives</p>
+              <div className={`flex gap-0.5 mt-${isMobile ? '0.5' : '0.5'}`}>
                 {[0, 1, 2].map((i) => (
-                  <Heart key={i} size={16} className={`transition-all ${i < lives ? 'text-red-400 fill-red-400' : 'text-white/20'}`} />
+                  <Heart key={i} size={isMobile ? 14 : 16} className={`transition-all ${i < lives ? 'text-red-400 fill-red-400' : 'text-white/20'}`} />
                 ))}
               </div>
             </div>
@@ -333,9 +427,7 @@ export default function GameClient() {
           )}
 
           {/* Stage – interactive area */}
-          <div ref={stageRef} className="absolute inset-0 z-10 cursor-crosshair">
-
-            {/* Spotlights */}
+          <div ref={stageRef} className={`absolute inset-0 z-10 ${isMobile ? 'cursor-auto' : 'cursor-crosshair'}`}>
             {spotlights.map((spot) => (
               <SpotlightCircle
                 key={spot.id}
@@ -344,7 +436,6 @@ export default function GameClient() {
               />
             ))}
 
-            {/* Score popups */}
             {popups.map((p) => (
               <div
                 key={p.id}
@@ -366,7 +457,7 @@ export default function GameClient() {
 
       {/* ── GAME OVER ── */}
       {screen === 'gameover' && (
-        <div className="flex flex-col items-center gap-6 px-6 text-center max-w-sm mx-auto">
+        <div className="flex flex-col items-center gap-6 px-6 text-center max-w-sm mx-auto w-full">
           <div className="text-5xl">🎭</div>
           <h2 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-heading)' }}>
             Curtains Down!
@@ -384,78 +475,79 @@ export default function GameClient() {
 
           {namePending ? (
             <div className="w-full space-y-3">
-              <p className="text-white/70 text-sm">Enter your name for the leaderboard</p>
+              <p className="text-white/70 text-sm">Enter your name for the global leaderboard</p>
               <input
                 type="text"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submitScore()}
+                onKeyDown={(e) => e.key === 'Enter' && !submitting && submitScore()}
                 placeholder="Your name"
                 maxLength={20}
                 autoFocus
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center placeholder-white/30 outline-none focus:border-amber-400 transition-colors"
+                disabled={submitting}
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center placeholder-white/30 outline-none focus:border-amber-400 transition-colors disabled:opacity-50"
               />
               <button
                 onClick={submitScore}
-                className="w-full bg-amber-400 hover:bg-amber-300 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
+                disabled={submitting}
+                className="w-full bg-amber-400 hover:bg-amber-300 disabled:opacity-60 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
               >
-                Save Score <ChevronRight size={18} />
+                {submitting ? (
+                  <><Loader2 size={16} className="animate-spin" /> Saving…</>
+                ) : (
+                  <>Save Score <ChevronRight size={18} /></>
+                )}
+              </button>
+              <button
+                onClick={() => { setNamePending(false); goToLeaderboard(); }}
+                disabled={submitting}
+                className="text-white/40 hover:text-white text-sm transition-colors"
+              >
+                Skip &amp; view leaderboard
               </button>
             </div>
           ) : null}
 
-          <div className="flex gap-3 w-full">
-            <button
-              onClick={startGame}
-              className="flex-1 bg-amber-400 hover:bg-amber-300 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-105"
-            >
-              <RotateCcw size={16} /> Play Again
+          {!namePending && (
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={startGame}
+                className="flex-1 bg-amber-400 hover:bg-amber-300 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-105"
+              >
+                <RotateCcw size={16} /> Play Again
+              </button>
+              <button
+                onClick={goToLeaderboard}
+                className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
+              >
+                <Trophy size={16} /> Scores
+              </button>
+            </div>
+          )}
+          {!namePending && (
+            <button onClick={() => setScreen('menu')} className="text-white/40 hover:text-white text-sm transition-colors">
+              Back to Menu
             </button>
-            <button
-              onClick={() => { setHighScores(loadHighScores()); setScreen('leaderboard'); }}
-              className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
-            >
-              <Trophy size={16} /> Scores
-            </button>
-          </div>
-          <button onClick={() => setScreen('menu')} className="text-white/40 hover:text-white text-sm transition-colors">
-            Back to Menu
-          </button>
+          )}
         </div>
       )}
 
       {/* ── LEADERBOARD ── */}
       {screen === 'leaderboard' && (
-        <div className="flex flex-col items-center gap-6 px-6 w-full max-w-sm text-center">
+        <div className="flex flex-col items-center gap-6 px-6 w-full max-w-sm text-center py-10">
           <Trophy size={40} className="text-amber-300" />
-          <h2 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-heading)' }}>
-            Leaderboard
-          </h2>
+          <div>
+            <h2 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-heading)' }}>
+              Global Leaderboard
+            </h2>
+            <p className="text-white/40 text-xs mt-1">Top 10 players worldwide</p>
+          </div>
 
-          {highScores.length === 0 ? (
-            <p className="text-white/50">No scores yet. Be the first!</p>
-          ) : (
-            <div className="w-full space-y-2">
-              {highScores.map((entry, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
-                    i === 0 ? 'bg-amber-400/20 border border-amber-400/40' :
-                    i === 1 ? 'bg-gray-400/10 border border-gray-400/20' :
-                    i === 2 ? 'bg-amber-800/20 border border-amber-800/30' :
-                    'bg-white/5'
-                  }`}
-                >
-                  <span className={`font-bold text-lg w-7 text-center ${i === 0 ? 'text-amber-300' : i < 3 ? 'text-white/70' : 'text-white/30'}`}>
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                  </span>
-                  <span className="flex-1 text-left text-white font-medium truncate">{entry.name}</span>
-                  <span className="text-white/50 text-xs">Lv.{entry.level}</span>
-                  <span className="text-amber-300 font-bold">{entry.score}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <LeaderboardList
+            scores={globalScores}
+            loading={scoresLoading}
+            highlightName={lastSubmittedName || undefined}
+          />
 
           <div className="flex gap-3 w-full">
             <button
@@ -496,7 +588,7 @@ export default function GameClient() {
 
 // ── Spotlight Circle ────────────────────────────────────────────────────────
 function SpotlightCircle({ spot, onHit }: { spot: Spotlight; onHit: (x: number, y: number) => void }) {
-  const [progress, setProgress] = useState(1); // 1 → 0
+  const [progress, setProgress] = useState(1);
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
@@ -519,8 +611,7 @@ function SpotlightCircle({ spot, onHit }: { spot: Spotlight; onHit: (x: number, 
     onHit(spot.x, spot.y);
   };
 
-  // colour fades warm → red as time runs out
-  const hue = Math.round(30 * progress); // 30 (amber) → 0 (red)
+  const hue = Math.round(30 * progress);
   const light = Math.round(55 + 10 * progress);
 
   return (
@@ -550,7 +641,6 @@ function SpotlightCircle({ spot, onHit }: { spot: Spotlight; onHit: (x: number, 
 
       {/* Main light circle */}
       <svg width={r * 2} height={r * 2} style={{ overflow: 'visible', display: 'block' }}>
-        {/* Filled glow */}
         <defs>
           <radialGradient id={`glow-${spot.id}`} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor={`hsl(${hue},100%,${light + 10}%)`} stopOpacity="0.9" />
@@ -558,18 +648,9 @@ function SpotlightCircle({ spot, onHit }: { spot: Spotlight; onHit: (x: number, 
             <stop offset="100%" stopColor={`hsl(${hue},100%,50%)`} stopOpacity="0" />
           </radialGradient>
         </defs>
+        <circle cx={r} cy={r} r={r - 4} fill={`url(#glow-${spot.id})`} />
         <circle
-          cx={r}
-          cy={r}
-          r={r - 4}
-          fill={`url(#glow-${spot.id})`}
-        />
-
-        {/* Countdown ring */}
-        <circle
-          cx={r}
-          cy={r}
-          r={r - 4}
+          cx={r} cy={r} r={r - 4}
           fill="none"
           stroke={`hsl(${hue},100%,${light}%)`}
           strokeWidth={3}
@@ -579,11 +660,8 @@ function SpotlightCircle({ spot, onHit }: { spot: Spotlight; onHit: (x: number, 
           transform={`rotate(-90 ${r} ${r})`}
           style={{ transition: 'stroke 0.1s' }}
         />
-
-        {/* Tap icon */}
         <text
-          x={r}
-          y={r + 5}
+          x={r} y={r + 5}
           textAnchor="middle"
           fontSize={r * 0.55}
           style={{ userSelect: 'none', pointerEvents: 'none' }}

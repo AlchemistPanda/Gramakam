@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="maroon">#800020</color>
-    <color name="maroon_dark">#5C0017</color>
-    <color name="cream">#FFF8DC</color>
-    <color name="charcoal">#1A1A1A</color>
+    <color name="primary">#800020</color> <!-- Deep Maroon -->
+    <color name="primary_variant">#5C0017</color>
+    <color name="secondary">#D4AF37</color> <!-- Gold Accent -->
+    <color name="background">#FDFBF7</color> <!-- Light Creamy Sand -->
+    <color name="surface">#FFFFFF</color>
+    <color name="text_primary">#2D2323</color>
+    <color name="text_secondary">#7A6F6F</color>
+    <color name="success">#2E7D32</color>
+    <color name="status_pending">#E65100</color>
     <color name="white">#FFFFFF</color>
+    <color name="ic_launcher_background">@color/primary</color>
 </resources>

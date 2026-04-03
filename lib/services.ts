@@ -32,6 +32,7 @@ import type {
   SiteConfig,
   MediaItem,
   Award,
+  GameScore,
 } from '@/types';
 
 // Helper to ensure Firebase is ready
@@ -400,4 +401,25 @@ export async function uploadImage(
 export async function deleteImage(path: string): Promise<void> {
   const storageRef = ref(requireStorage(), path);
   await deleteObject(storageRef);
+}
+
+// ==================== GAME SCORES ====================
+
+export async function submitGameScore(data: { name: string; score: number; level: number }): Promise<string> {
+  const ref = await addDoc(collection(requireDb(), 'game_scores'), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getTopGameScores(limitCount = 10): Promise<GameScore[]> {
+  const { limit } = await import('firebase/firestore');
+  const q = query(
+    collection(requireDb(), 'game_scores'),
+    orderBy('score', 'desc'),
+    limit(limitCount)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as GameScore));
 }

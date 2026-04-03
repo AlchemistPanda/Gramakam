@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gcm_defaultSenderId" translatable="false">835929251137</string>
+    <string name="google_api_key" translatable="false">AIzaSyCk2CxO74TIe2bhRmtPN5LqOqgMWmdRM1w</string>
+    <string name="google_app_id" translatable="false">1:835929251137:android:a20448ecb0e0571a43d5c0</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyCk2CxO74TIe2bhRmtPN5LqOqgMWmdRM1w</string>
+    <string name="google_storage_bucket" translatable="false">gramakam-2026.firebasestorage.app</string>
+    <string name="project_id" translatable="false">gramakam-2026</string>
+</resources>

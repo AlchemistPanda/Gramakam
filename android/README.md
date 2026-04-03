@@ -38,42 +38,21 @@ SMS-based UPI payment monitor for the Gramakam merchandise checkout system. Read
 
 ### How It Works
 
-1. **SMS Monitoring**: The app listens for incoming SMS from Kerala Gramin Bank (sender IDs: `*-KGBANK-S`)
-2. **Parsing**: Extracts amount, timestamp, sender UPI, and transaction reference number
-3. **Firebase Push**: Sends parsed payment to Firestore `upi_payments` collection
-4. **Order Matching**: Website auto-verifies orders when a matching payment is found
+1. **SMS Monitoring**: The app runs a **Foreground Service** with a persistent notification to ensure the OS does not kill it. It listens for `KGBANK` SMS credits.
+2. **Hardening**: Uses the `upiRef` as the Firestore document ID. This prevents duplicates even if the same message is processed multiple times.
+3. **Redesigned UI**: A modern "Royal Gramakam" theme with deep maroon and gold accents, featuring a "Live" status indicator.
 
-### SMS Format (Recognized)
+### Features
 
-```
-Dear Customer, Account XXXX061 is credited with INR 240 on 26-03-2026 09:09:40 from sukanyasujith08. UPI Ref. no. 608509887009-Kerala Gramin Bank.
-```
+- **24/7 Monitoring**: Persistent service keeps listening even in standby.
+- **Duplicate Protection**: Transaction-level idempotency via `upiRef`.
+- **Live Status**: Pulsating indicator shows the monitor is active and healthy.
+- **Simulation Mode**: For testing, **long-press the payment count** at the top to simulate a random incoming transaction.
 
-The app filters for:
-- Sender contains `KGBANK` (covers variants: AX-KGBANK-S, BZ-KGBANK-S, AD-KGBANK-S, etc.)
-- Message contains "credited with INR"
-
-### Firebase Configuration
-
-- **Project**: `gramakam-2026`
-- **Collection**: `upi_payments`
-- **Config File**: `app/google-services.json` (auto-downloaded via Firebase CLI)
-
-### App Features
-
-- **Real-time Payment List**: Shows all captured UPI payments with status (matched/unmatched)
-- **Live Firestore Sync**: Updates instantly as payments arrive
-- **Status Indicator**: Shows listening status and SMS permission state
-- **Swipe to Refresh**: Manual refresh of payment list
-
-### Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| App crashes on start | Check `google-services.json` exists in `app/` directory |
-| SMS not captured | Verify app has SMS permissions in Settings → Apps → Permissions |
-| Payments not in Firestore | Check Firebase Firestore rules allow `upi_payments` collection read/write |
-| Slow/no sync | Disable battery optimization for the app in Settings → Battery |
+### Test Simulation
+To test the entire pipeline without a real bank SMS:
+1. Long-press the "0 payment(s) captured" or similar text in the header.
+2. A random transaction will be generated, parsed, and pushed to Firestore.
 
 ### File Structure
 

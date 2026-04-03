@@ -10,7 +10,7 @@ package org.gramakam.upimonitor
 object SmsParser {
 
     private val PATTERN = Regex(
-        """credited with INR\s+([\d,.]+)\s+on\s+([\d\-]+\s+[\d:]+)\s+from\s+(\S+)\.\s+UPI Ref\. no\.\s+(\d+)-(.+)\.""",
+        """credited with INR\s+([\d,.]+)\s+on\s+([\d:\- ]+)\s+from\s+([\w.@-]+)[\s.]+UPI Ref\.\s*no\.\s*(\d+)-(.+?)(?:\s|\.|$)""",
         RegexOption.IGNORE_CASE
     )
 

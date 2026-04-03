@@ -23,9 +23,10 @@ object FirestoreService {
             "matched" to false
         )
         db.collection(COLLECTION)
-            .add(data)
-            .addOnSuccessListener { doc ->
-                Log.d(TAG, "Payment pushed: ${doc.id} — ₹${payment.amount} ref ${payment.upiRef}")
+            .document(payment.upiRef) // Use upiRef as document ID to prevent duplicates
+            .set(data)
+            .addOnSuccessListener {
+                Log.d(TAG, "Payment pushed: ${payment.upiRef} — ₹${payment.amount}")
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to push payment", e)
