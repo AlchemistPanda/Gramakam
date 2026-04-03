@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CheckCircle, XCircle, Gift } from 'lucide-react';
+import { soundManager } from '@/lib/sounds';
 
 interface QuizQuestion {
   id: string;
@@ -71,6 +72,13 @@ export default function GameQuiz({ onCorrect, onIncorrect, isOpen }: GameQuizPro
     const correct = optionIndex === question.correctAnswer;
     setIsCorrect(correct);
     setAnswered(true);
+
+    // Play sound feedback
+    if (correct) {
+      soundManager.playQuizCorrect();
+    } else {
+      soundManager.playQuizIncorrect();
+    }
   };
 
   const handleContinue = () => {

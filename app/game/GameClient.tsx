@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { Trophy, Heart, Zap, Play, RotateCcw, Star, ChevronRight, Loader2 } from 'lucide-react';
 import { submitGameScore, getTopGameScores } from '@/lib/services';
+import { soundManager } from '@/lib/sounds';
 import GameQuiz from './GameQuiz';
 import type { GameScore } from '@/types';
 
@@ -33,10 +34,10 @@ function getLevelConfig(level: number) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function randomSpot(existing: Spotlight[], stageW: number, stageH: number, isMobileDevice: boolean) {
-  // Larger margins to account for spotlight bubble size (radius up to 90px on mobile)
-  const MARGIN_H = 18;
-  const MARGIN_TOP = isMobileDevice ? 22 : 18; // Extra margin at top for mobile HUD
-  const MARGIN_BOTTOM = 18;
+  // Margins for spotlight bubble size (radius up to 67px on mobile, 56px on desktop)
+  const MARGIN_H = 14;
+  const MARGIN_TOP = isMobileDevice ? 18 : 14; // Extra margin at top for mobile HUD
+  const MARGIN_BOTTOM = 14;
   const CENTER_X = 50, CENTER_Y = 50, CENTER_AVOID = 14;
   let x = 0, y = 0, tries = 0;
   do {
@@ -185,9 +186,9 @@ export default function GameClient() {
       const cfg = getLevelConfig(gameRef.current.level);
       if (prev.length >= cfg.maxSimultaneous) return prev;
       const { x, y } = randomSpot(prev, 100, 100, isMobile);
-      // Larger spotlights on mobile for easier tapping
-      const baseSize = isMobile ? 70 : 52;
-      const sizeVariance = isMobile ? 20 : 24;
+      // Spotlights with reduced size
+      const baseSize = isMobile ? 55 : 40;
+      const sizeVariance = isMobile ? 12 : 16;
       const size = baseSize + Math.random() * sizeVariance;
       return [
         ...prev,
@@ -212,6 +213,7 @@ export default function GameClient() {
       const now = Date.now();
       const expired = prev.filter((s) => now - s.born >= s.lifetime);
       if (expired.length > 0) {
+        soundManager.playMiss();
         gameRef.current.combo = 0;
         setCombo(0);
         setShake(true);
@@ -266,6 +268,13 @@ export default function GameClient() {
     setScore(gameRef.current.score);
     setCombo(gameRef.current.combo);
 
+    // Play sound
+    if (multiplier > 1) {
+      soundManager.playCombo();
+    } else {
+      soundManager.playHit();
+    }
+
     const popupText = multiplier > 1 ? `${multiplier}x COMBO! +${pts}` : `+${pts}`;
     const popupId = `${Date.now()}-${Math.random()}`;
     setPopups((prev) => [...prev, { id: popupId, x, y, text: popupText }]);
@@ -276,6 +285,7 @@ export default function GameClient() {
     if (gameRef.current.hits >= cfg.hitsToLevel) {
       gameRef.current.hits = 0;
       gameRef.current.level += 1;
+      soundManager.playLevelUp();
       setLevel(gameRef.current.level);
     }
     setHits(gameRef.current.hits);
@@ -299,6 +309,7 @@ export default function GameClient() {
   const endGame = useCallback(() => {
     if (gameRef.current.spawnTimer) clearTimeout(gameRef.current.spawnTimer);
     if (gameRef.current.tickTimer) clearInterval(gameRef.current.tickTimer);
+    soundManager.playGameOver();
     setSpotlights([]);
     setScreen('gameover');
     setNamePending(true);
