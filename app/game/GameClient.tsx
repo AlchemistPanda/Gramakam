@@ -151,9 +151,12 @@ export default function GameClient() {
   const fetchScores = useCallback(async () => {
     setScoresLoading(true);
     try {
+      console.log('Fetching game scores...');
       const scores = await getTopGameScores(10);
+      console.log('Fetched scores:', scores);
       setGlobalScores(scores);
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch scores:', err);
       // silently fail — no scores shown
     } finally {
       setScoresLoading(false);
@@ -338,14 +341,17 @@ export default function GameClient() {
     const name = playerName.trim() || 'Anonymous';
     setSubmitting(true);
     try {
+      console.log('Submitting score:', { name, score: gameRef.current.score, level: gameRef.current.level });
       await submitGameScore({
         name,
         score: gameRef.current.score,
         level: gameRef.current.level,
       });
+      console.log('Score submitted successfully');
       setLastSubmittedName(name);
-    } catch {
-      // failed silently — still proceed
+    } catch (err) {
+      console.error('Failed to submit score:', err);
+      // still proceed even if submission fails
     } finally {
       setSubmitting(false);
     }
