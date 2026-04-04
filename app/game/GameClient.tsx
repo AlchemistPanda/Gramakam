@@ -133,6 +133,7 @@ export default function GameClient() {
   const [comboAnimatingAt, setComboAnimatingAt] = useState(0);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [lifeLostPrompt, setLifeLostPrompt] = useState(false);
   const usedQuestionIdsRef = useRef<Set<string>>(new Set()); // tracks questions across whole game
 
   // Global leaderboard state
@@ -272,7 +273,11 @@ export default function GameClient() {
 
           setQuizQuestions(selected);
           setQuizTimePerQuestion(timePerQ);
-          setQuizOpen(true);
+          setLifeLostPrompt(true);
+          setTimeout(() => {
+            setLifeLostPrompt(false);
+            setQuizOpen(true);
+          }, 2500);
         } else {
           gameRef.current.running = false;
           setTimeout(() => endGame(), 300);
@@ -590,6 +595,24 @@ export default function GameClient() {
                 <Zap size={16} className="fill-amber-300 text-amber-300 animate-pulse" /> 
                 <span className="text-amber-300">{combo}x COMBO</span>
                 <span className="text-amber-200 font-black text-lg">×{Math.min(combo, 5)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Life lost interstitial — shown before quiz */}
+          {lifeLostPrompt && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none">
+              <div className="bg-black/80 backdrop-blur-sm rounded-3xl border-2 border-red-500/50 px-10 py-8 flex flex-col items-center gap-3 text-center mx-4">
+                <div className="text-5xl animate-bounce">💔</div>
+                <p className="text-red-400 font-bold text-xl">You lost a life!</p>
+                <p className="text-white/70 text-sm leading-relaxed">
+                  But you get a chance to win it back —<br />answer the question correctly!
+                </p>
+                <div className="flex gap-1 mt-1">
+                  {[0, 1, 2].map((i) => (
+                    <Heart key={i} size={16} className={`transition-all ${i < lives ? 'text-red-400 fill-red-400' : 'text-white/20'}`} />
+                  ))}
+                </div>
               </div>
             </div>
           )}
