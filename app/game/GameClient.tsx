@@ -606,27 +606,43 @@ export default function GameClient() {
             </div>
           )}
 
-          {/* Tutorial overlay */}
-          {showTutorial && (
-            <div className="absolute inset-0 z-25 flex flex-col items-center justify-center pointer-events-none">
-              <div className="flex flex-col items-center gap-3 animate-pulse">
-                <div className="relative flex items-center justify-center">
-                  {/* Simulated spotlight glow */}
-                  <div className="w-20 h-20 rounded-full bg-amber-400/30 border-2 border-amber-400/70 flex items-center justify-center shadow-[0_0_40px_rgba(251,191,36,0.6)]">
-                    <span className="text-3xl">🔦</span>
-                  </div>
-                  {/* Animated tap hand */}
-                  <div className="absolute -bottom-6 -right-4 text-3xl" style={{ animation: 'tapBounce 0.7s ease-in-out infinite alternate' }}>
-                    {isMobile ? '👆' : '🖱️'}
-                  </div>
-                </div>
-                <p className="text-white font-bold text-lg mt-4 drop-shadow-lg" style={{ textShadow: '0 0 20px rgba(0,0,0,0.8)' }}>
-                  {isMobile ? 'Tap the spotlight!' : 'Click the spotlight!'}
-                </p>
-                <p className="text-white/60 text-sm">before it fades away</p>
+          {/* Tutorial: arrow + label anchored to the first real spotlight */}
+          {showTutorial && spotlights.length > 0 && (() => {
+            const first = spotlights[0];
+            // Place label above the spotlight; flip to below if too close to top
+            const above = first.y > 25;
+            return (
+              <div
+                className="absolute z-25 pointer-events-none flex flex-col items-center gap-1"
+                style={{
+                  left: `${first.x}%`,
+                  top: `${first.y}%`,
+                  transform: 'translateX(-50%)',
+                }}
+              >
+                {above && (
+                  <>
+                    <p className="text-white font-bold text-sm px-3 py-1 rounded-full bg-black/60 backdrop-blur-sm whitespace-nowrap"
+                      style={{ textShadow: '0 0 10px rgba(0,0,0,0.9)' }}>
+                      {isMobile ? '👆 Tap this!' : '🖱️ Click this!'}
+                    </p>
+                    {/* Arrow pointing down to spotlight */}
+                    <div className="text-amber-300 text-2xl leading-none" style={{ animation: 'tapBounce 0.6s ease-in-out infinite alternate' }}>▼</div>
+                  </>
+                )}
+                {!above && (
+                  <>
+                    {/* Arrow pointing up to spotlight */}
+                    <div className="text-amber-300 text-2xl leading-none" style={{ animation: 'tapBounce 0.6s ease-in-out infinite alternate' }}>▲</div>
+                    <p className="text-white font-bold text-sm px-3 py-1 rounded-full bg-black/60 backdrop-blur-sm whitespace-nowrap"
+                      style={{ textShadow: '0 0 10px rgba(0,0,0,0.9)' }}>
+                      {isMobile ? '👆 Tap this!' : '🖱️ Click this!'}
+                    </p>
+                  </>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Stage – interactive area */}
           <div ref={stageRef} className={`absolute inset-0 z-10 ${isMobile ? 'cursor-auto' : 'cursor-crosshair'}`}>
