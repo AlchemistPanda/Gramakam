@@ -131,6 +131,7 @@ export default function GameClient() {
   const [quizTimePerQuestion, setQuizTimePerQuestion] = useState(10);
   const [isMuted, setIsMuted] = useState(false);
   const [comboAnimatingAt, setComboAnimatingAt] = useState(0);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const usedQuestionIdsRef = useRef<Set<string>>(new Set()); // tracks questions across whole game
 
   // Global leaderboard state
@@ -185,6 +186,29 @@ export default function GameClient() {
       if (gameRef.current.tickTimer) clearInterval(gameRef.current.tickTimer);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Countdown after quiz before resuming game ─────────────────────────
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) return;
+
+    const timer = setTimeout(() => {
+      if (countdown === 1) {
+        // Resume the game! Clear stale spotlights first — they've all expired
+        // during the quiz + countdown period, and the first tick would otherwise
+        // immediately detect them as expired and trigger another quiz.
+        setSpotlights([]);
+        setCountdown(null);
+        gameRef.current.running = true;
+        spawnSpotlight();
+        scheduleSpawn();
+        gameRef.current.tickTimer = setInterval(tick, 80);
+      } else {
+        setCountdown(countdown - 1);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [countdown]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Spawn a spotlight ──────────────────────────────────────────────────
   const spawnSpotlight = useCallback(() => {
@@ -258,10 +282,11 @@ export default function GameClient() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleQuizCorrect = () => {
-    // Correct answer: save 1 life, resume game
+    // Correct answer: save 1 life, show countdown before resuming
     setQuizOpen(false);
+    setCountdown(3);
 
-    // Ensure state is synced with gameRef before resuming
+    // Ensure state is synced with gameRef before pausing
     console.log('Quiz correct - Current game state:', {
       score: gameRef.current.score,
       level: gameRef.current.level,
@@ -272,13 +297,6 @@ export default function GameClient() {
     setScore(gameRef.current.score);
     setLevel(gameRef.current.level);
     setLives(gameRef.current.lives);
-
-    gameRef.current.running = true;
-    setTimeout(() => {
-      spawnSpotlight();
-      scheduleSpawn();
-      gameRef.current.tickTimer = setInterval(tick, 80);
-    }, 300);
   };
 
   const handleQuizIncorrect = () => {
@@ -299,16 +317,12 @@ export default function GameClient() {
       gameRef.current.running = false;
       setTimeout(() => endGame(), 300);
     } else {
-      // Resume game - sync state
+      // Show countdown before resuming
+      setCountdown(3);
+  
+      // Sync state
       setScore(gameRef.current.score);
       setLevel(gameRef.current.level);
-
-      gameRef.current.running = true;
-      setTimeout(() => {
-        spawnSpotlight();
-        scheduleSpawn();
-        gameRef.current.tickTimer = setInterval(tick, 80);
-      }, 300);
     }
   };
 
@@ -571,6 +585,18 @@ export default function GameClient() {
                 <Zap size={16} className="fill-amber-300 text-amber-300 animate-pulse" /> 
                 <span className="text-amber-300">{combo}x COMBO</span>
                 <span className="text-amber-200 font-black text-lg">×{Math.min(combo, 5)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Countdown overlay after quiz */}
+          {countdown !== null && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none">
+              <div className="bg-black/70 backdrop-blur-sm rounded-3xl border-2 border-amber-400/60 px-16 py-10 flex flex-col items-center gap-2">
+                <p className="text-white/60 text-sm uppercase tracking-widest">Get Ready!</p>
+                <p className="text-7xl font-black text-amber-300 animate-pulse">
+                  {countdown > 0 ? countdown : 'START!'}
+                </p>
               </div>
             </div>
           )}

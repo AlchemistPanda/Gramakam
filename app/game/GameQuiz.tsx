@@ -44,9 +44,9 @@ export const ALL_QUESTIONS: QuizQuestion[] = [
   {
     id: 'q5',
     question: 'Who organizes Gramakam?',
-    options: ['Kerala Government', 'IF Creations', 'Thrissur Tourism Board', 'Kerala Arts Academy'],
+    options: ['Kerala Government', 'People of Velur', 'Thrissur Tourism Board', 'Kerala Arts Academy'],
     correctAnswer: 1,
-    explanation: 'Gramakam is organized by IF Creations, dedicated to promoting theatre and cultural arts.',
+    explanation: 'Gramakam is organized by the people of Velur, a community-driven initiative celebrating theatre and cultural arts.',
   },
   {
     id: 'q6',
