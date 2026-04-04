@@ -262,7 +262,7 @@ export default function GameClient() {
           // 1st life lost → 1 question (10s), 2nd → 2 questions (8s), 3rd → 3 questions (5s)
           const lifeBeingLost = 4 - gameRef.current.lives;
           const questionsNeeded = lifeBeingLost;
-          const timePerQ = lifeBeingLost === 1 ? 10 : lifeBeingLost === 2 ? 8 : 5;
+          const timePerQ = 10;
 
           // Pick unused questions; reset pool if not enough unused ones left
           const available = ALL_QUESTIONS.filter(q => !usedQuestionIdsRef.current.has(q.id));
