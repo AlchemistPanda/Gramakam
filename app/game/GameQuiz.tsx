@@ -25,7 +25,7 @@ export const ALL_QUESTIONS: QuizQuestion[] = [
     question: 'What is the edition of Gramakam happening in 2026?',
     options: ['7th Edition', '8th Edition', '9th Edition', '10th Edition'],
     correctAnswer: 2,
-    explanation: 'Gramakam 2026 is the 9th edition of the festival, celebrating its grand return after several years.',
+    explanation: 'Gramakam 2026 is the 9th edition of the festival.',
   },
   {
     id: 'q3',
@@ -56,31 +56,10 @@ export const ALL_QUESTIONS: QuizQuestion[] = [
     explanation: 'Gramakam is a theatre festival celebrating dramatic arts and cultural performances.',
   },
   {
-    id: 'q7',
-    question: 'In which Indian state is Gramakam held?',
-    options: ['Tamil Nadu', 'Karnataka', 'Kerala', 'Andhra Pradesh'],
-    correctAnswer: 2,
-    explanation: 'Gramakam takes place in Kerala, India\'s southern state known for its rich cultural heritage.',
-  },
-  {
-    id: 'q8',
-    question: 'What is special about Velur as a cultural location?',
-    options: ['It is the capital of Kerala', 'It is a historic cultural town', 'It is the largest city in Thrissur', 'It is a new tourist hub'],
-    correctAnswer: 1,
-    explanation: 'Velur is recognized as a historic cultural town in Thrissur district with significant cultural importance.',
-  },
-  {
-    id: 'q9',
-    question: 'Which district of Kerala is Velur located in?',
-    options: ['Ernakulam', 'Thrissur', 'Malappuram', 'Kannur'],
-    correctAnswer: 1,
-    explanation: 'Velur is situated in Thrissur district, a culturally vibrant region of Kerala.',
-  },
-  {
     id: 'q10',
     question: 'How many days does Gramakam 2026 run?',
     options: ['3 days', '4 days', '5 days', '7 days'],
-    correctAnswer: 1,
+    correctAnswer: 2,
     explanation: 'Gramakam 2026 runs for 5 days, from April 18 to April 22.',
   },
   {
@@ -89,34 +68,6 @@ export const ALL_QUESTIONS: QuizQuestion[] = [
     options: ['March', 'April', 'May', 'June'],
     correctAnswer: 1,
     explanation: 'Gramakam 2026 is held in April, specifically from the 18th to the 22nd.',
-  },
-  {
-    id: 'q12',
-    question: 'Is Gramakam an annual festival?',
-    options: ['No, it\'s held every 2 years', 'No, it\'s held every 3 years', 'Yes, it\'s held every year', 'No, it\'s a one-time event'],
-    correctAnswer: 2,
-    explanation: 'Gramakam is an annual festival celebrating theatre and cultural arts every year.',
-  },
-  {
-    id: 'q13',
-    question: 'What does "Spotlight" in this game represent?',
-    options: ['The audience', 'The stage lights', 'The performers', 'The tickets'],
-    correctAnswer: 1,
-    explanation: 'The spotlights represent the theatrical stage lights that illuminate performers during a show.',
-  },
-  {
-    id: 'q14',
-    question: 'How many lives do you start with in the Spotlight game?',
-    options: ['1', '2', '3', '5'],
-    correctAnswer: 2,
-    explanation: 'Players start with 3 lives in the Spotlight game. Missing spotlights costs lives.',
-  },
-  {
-    id: 'q15',
-    question: 'What happens when you get a combo in the Spotlight game?',
-    options: ['You lose points', 'Your score multiplies', 'You gain extra lives', 'The game slows down'],
-    correctAnswer: 1,
-    explanation: 'Combos multiply your score! Successive hits increase the multiplier up to 5x bonus points.',
   },
 ];
 
