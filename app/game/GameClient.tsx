@@ -590,11 +590,11 @@ export default function GameClient() {
 
           {/* Combo banner with multiplier */}
           {combo >= 2 && (
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-              <div className={`bg-gradient-to-r from-amber-500/30 to-red-500/30 border-2 border-amber-400/60 text-white text-sm font-bold px-6 py-2 rounded-full flex items-center gap-2 transition-all transform ${comboAnimatingAt && Date.now() - comboAnimatingAt < 300 ? 'scale-125' : 'scale-100'}`}>
-                <Zap size={16} className="fill-amber-300 text-amber-300 animate-pulse" /> 
-                <span className="text-amber-300">{combo}x COMBO</span>
-                <span className="text-amber-200 font-black text-lg">×{Math.min(combo, 5)}</span>
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+              <div className={`bg-gradient-to-r from-amber-500/15 to-red-500/15 border border-amber-400/30 text-white font-bold rounded-full flex items-center gap-1 transition-all transform backdrop-blur-[2px] ${isMobile ? 'px-3 py-1 text-xs' : 'px-5 py-1.5 text-sm'} ${comboAnimatingAt && Date.now() - comboAnimatingAt < 300 ? 'scale-110' : 'scale-100'}`}>
+                <Zap size={isMobile ? 11 : 14} className="fill-amber-300 text-amber-300" />
+                <span className="text-amber-300">{combo}x</span>
+                <span className={`text-amber-200 font-black ${isMobile ? 'text-xs' : 'text-base'}`}>×{Math.min(combo, 5)}</span>
               </div>
             </div>
           )}
