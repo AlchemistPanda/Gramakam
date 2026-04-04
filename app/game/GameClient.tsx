@@ -132,6 +132,7 @@ export default function GameClient() {
   const [isMuted, setIsMuted] = useState(false);
   const [comboAnimatingAt, setComboAnimatingAt] = useState(0);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
   const usedQuestionIdsRef = useRef<Set<string>>(new Set()); // tracks questions across whole game
 
   // Global leaderboard state
@@ -329,6 +330,7 @@ export default function GameClient() {
   // ── Hit a spotlight ────────────────────────────────────────────────────
   const hitSpotlight = useCallback((id: string, x: number, y: number) => {
     if (!gameRef.current.running) return;
+    setShowTutorial(false); // dismiss tutorial on first hit
     const cfg = getLevelConfig(gameRef.current.level);
 
     gameRef.current.combo += 1;
@@ -374,12 +376,15 @@ export default function GameClient() {
     setSpotlights([]);
     setPopups([]);
     setLastSubmittedName('');
+    setShowTutorial(true);
     setScreen('playing');
     setTimeout(() => {
       spawnSpotlight();
       scheduleSpawn();
       gameRef.current.tickTimer = setInterval(tick, 80);
     }, 300);
+    // Auto-dismiss tutorial after 3 seconds
+    setTimeout(() => setShowTutorial(false), 3000);
   };
 
   const endGame = useCallback(() => {
@@ -440,7 +445,7 @@ export default function GameClient() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center overflow-hidden select-none" style={{ touchAction: 'manipulation' }}>
+    <div className="min-h-[calc(100svh-4rem)] md:min-h-[calc(100svh-5rem)] bg-black flex flex-col items-center justify-center overflow-hidden select-none" style={{ touchAction: 'manipulation' }}>
 
       {/* ── MENU ── */}
       {screen === 'menu' && (
@@ -480,7 +485,7 @@ export default function GameClient() {
 
       {/* ── PLAYING ── */}
       {screen === 'playing' && (
-        <div className="w-full h-screen relative overflow-hidden select-none">
+        <div className="w-full h-[calc(100svh-4rem)] md:h-[calc(100svh-5rem)] relative overflow-hidden select-none">
 
           {/* Stage background */}
           <div
@@ -597,6 +602,28 @@ export default function GameClient() {
                 <p className="text-7xl font-black text-amber-300 animate-pulse">
                   {countdown > 0 ? countdown : 'START!'}
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Tutorial overlay */}
+          {showTutorial && (
+            <div className="absolute inset-0 z-25 flex flex-col items-center justify-center pointer-events-none">
+              <div className="flex flex-col items-center gap-3 animate-pulse">
+                <div className="relative flex items-center justify-center">
+                  {/* Simulated spotlight glow */}
+                  <div className="w-20 h-20 rounded-full bg-amber-400/30 border-2 border-amber-400/70 flex items-center justify-center shadow-[0_0_40px_rgba(251,191,36,0.6)]">
+                    <span className="text-3xl">🔦</span>
+                  </div>
+                  {/* Animated tap hand */}
+                  <div className="absolute -bottom-6 -right-4 text-3xl" style={{ animation: 'tapBounce 0.7s ease-in-out infinite alternate' }}>
+                    {isMobile ? '👆' : '🖱️'}
+                  </div>
+                </div>
+                <p className="text-white font-bold text-lg mt-4 drop-shadow-lg" style={{ textShadow: '0 0 20px rgba(0,0,0,0.8)' }}>
+                  {isMobile ? 'Tap the spotlight!' : 'Click the spotlight!'}
+                </p>
+                <p className="text-white/60 text-sm">before it fades away</p>
               </div>
             </div>
           )}
@@ -773,6 +800,10 @@ export default function GameClient() {
         @keyframes glow-pulse {
           0%, 100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.6); }
           50%      { box-shadow: 0 0 40px rgba(251, 191, 36, 0.9); }
+        }
+        @keyframes tapBounce {
+          0%   { transform: scale(1) translate(0, 0); }
+          100% { transform: scale(1.3) translate(-4px, -6px); }
         }
       `}</style>
     </div>
