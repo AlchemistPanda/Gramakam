@@ -52,7 +52,6 @@ export default function MerchandisePage() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ images: string[]; index: number } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<Record<string, number>>({});
-  const [buyNowItem, setBuyNowItem] = useState<{ product: MerchProduct; quantity: number } | null>(null);
 
   // Auto-rotate carousel every 500ms for products with multiple images
   const rotationRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -124,7 +123,7 @@ export default function MerchandisePage() {
         </AnimatedSection>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
           {products.map((product, index) => {
             const sel = getSelection(product.id, product);
             const currentImg = activeImageIndex[product.id] ?? 0;

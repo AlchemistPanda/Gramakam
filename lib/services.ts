@@ -9,9 +9,7 @@ import {
   deleteDoc,
   query,
   orderBy,
-  where,
   serverTimestamp,
-  runTransaction,
 } from 'firebase/firestore';
 import {
   ref,
@@ -28,7 +26,6 @@ import type {
   MerchPrebook,
   MerchOrder,
   MerchOrderStatus,
-  UpiPayment,
   SiteConfig,
   MediaItem,
   Award,
@@ -297,78 +294,6 @@ export async function deleteMerchOrder(id: string): Promise<void> {
   await deleteDoc(docRef);
 }
 
-// ==================== UPI PAYMENTS ====================
-
-export async function getUpiPayments(): Promise<UpiPayment[]> {
-  const paymentsRef = collection(requireDb(), 'upi_payments');
-  const q = query(paymentsRef, orderBy('capturedAt', 'desc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-    capturedAt: d.data().capturedAt?.toDate?.()?.toISOString() || d.data().capturedAt,
-  })) as UpiPayment[];
-}
-
-// Parses SMS datetime format "DD-MM-YYYY HH:MM:SS" → Date
-function parseSmsDatetime(dt: string): Date | null {
-  // "26-03-2026 09:09:40"
-  const match = dt.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
-  if (!match) return null;
-  const [, dd, mm, yyyy, hh, min, ss] = match;
-  return new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+05:30`);
-}
-
-export async function verifyOrderByUpiRef(
-  orderId: string,
-  upiRef: string,
-  orderTotal: number
-): Promise<boolean> {
-  const database = requireDb();
-  const paymentsRef = collection(database, 'upi_payments');
-  const q = query(
-    paymentsRef,
-    where('upiRef', '==', upiRef),
-    where('matched', '==', false)
-  );
-  const snapshot = await getDocs(q);
-
-  const now = Date.now();
-  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-
-  const matchingPayment = snapshot.docs.find((d) => {
-    const data = d.data();
-    // Check amount
-    if (data.amount < orderTotal) return false;
-    // Check time: payment must be within the last 2 hours
-    const paymentTime = parseSmsDatetime(data.datetime);
-    if (!paymentTime) return true; // if we can't parse, don't block on time
-    return now - paymentTime.getTime() <= TWO_HOURS_MS;
-  });
-  if (!matchingPayment) return false;
-
-  // Atomically link order and payment
-  const orderRef = doc(database, 'merch_orders', orderId);
-  const paymentRef = doc(database, 'upi_payments', matchingPayment.id);
-
-  await runTransaction(database, async (transaction) => {
-    const paymentSnap = await transaction.get(paymentRef);
-    if (paymentSnap.data()?.matched) return; // already matched by another request
-
-    transaction.update(orderRef, {
-      status: 'verified',
-      matchedPaymentId: matchingPayment.id,
-      verifiedAt: new Date().toISOString(),
-      verifiedBy: 'auto',
-    });
-    transaction.update(paymentRef, {
-      matched: true,
-      matchedOrderId: orderId,
-    });
-  });
-
-  return true;
-}
 
 // ==================== SITE CONFIG ====================
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowLeft, ArrowRight, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
+import { X, ArrowRight, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import type { MerchCartItem, DeliveryAddress } from '@/types';
 import { createMerchOrder } from '@/lib/services';
 
