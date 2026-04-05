@@ -111,7 +111,15 @@ export interface MerchCartItem {
   quantity: number;
 }
 
-export type MerchOrderStatus = 'pending' | 'verified' | 'rejected' | 'manual_verified';
+// Fulfillment pipeline: verified → packed → shipped → delivered
+export type MerchOrderStatus =
+  | 'pending'           // legacy / pre-Razorpay
+  | 'verified'          // payment confirmed (new order)
+  | 'packed'            // order packed, ready to ship
+  | 'shipped'           // handed to courier, tracking ID added
+  | 'delivered'         // customer received
+  | 'rejected'          // payment failed / cancelled
+  | 'manual_verified';  // legacy admin-verified
 
 export interface DeliveryAddress {
   line1: string;
@@ -132,6 +140,12 @@ export interface MerchOrder {
   deliveryAddress?: DeliveryAddress;
   upiRef: string;             // UPI reference number entered by customer
   status: MerchOrderStatus;
+  trackingId?: string;        // courier tracking number
+  trackingCarrier?: string;   // courier name (e.g. "India Post", "DTDC")
+  packedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  adminNotes?: string;
   matchedPaymentId?: string;
   verifiedAt?: string;
   verifiedBy?: string;        // 'auto' | 'admin'

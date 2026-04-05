@@ -24,6 +24,15 @@ import {
   ExternalLink,
   Trophy,
   Download,
+  Package,
+  Truck,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Phone,
+  MailIcon,
+  Search,
 } from 'lucide-react';
 import {
   getGalleryItems,
@@ -39,6 +48,7 @@ import {
   getPrebookEntries,
   deletePrebook,
   getMerchOrders,
+  updateMerchOrderStatus,
   deleteMerchOrder,
   getSiteConfig,
   updateSiteConfig,
@@ -56,6 +66,7 @@ import type {
   ContactSubmission,
   MerchPrebook,
   MerchOrder,
+  MerchOrderStatus,
   MediaItem,
   Award,
   DeliveryAddress,
@@ -683,10 +694,23 @@ function MerchPrebooksSubTab() {
   );
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  verified: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
+// ===== MERCH ORDERS — helpers =====
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof CheckCircle }> = {
+  verified:  { label: 'New Order',  color: 'text-blue-700',   bg: 'bg-blue-100',   icon: CreditCard },
+  packed:    { label: 'Packed',     color: 'text-amber-700',  bg: 'bg-amber-100',  icon: Package },
+  shipped:   { label: 'Shipped',    color: 'text-purple-700', bg: 'bg-purple-100', icon: Truck },
+  delivered: { label: 'Delivered',  color: 'text-green-700',  bg: 'bg-green-100',  icon: CheckCircle },
+  rejected:  { label: 'Rejected',   color: 'text-red-700',    bg: 'bg-red-100',    icon: X },
 };
+
+const FULFILLMENT_FLOW: MerchOrderStatus[] = ['verified', 'packed', 'shipped', 'delivered'];
+
+function getNextStatus(current: MerchOrderStatus): MerchOrderStatus | null {
+  const idx = FULFILLMENT_FLOW.indexOf(current);
+  if (idx === -1 || idx >= FULFILLMENT_FLOW.length - 1) return null;
+  return FULFILLMENT_FLOW[idx + 1];
+}
 
 function formatAddress(addr?: DeliveryAddress): string {
   if (!addr) return '';
@@ -698,7 +722,8 @@ function exportOrdersCSV(orders: MerchOrder[]) {
     'Order ID', 'Date', 'Status',
     'Customer Name', 'Email', 'Mobile',
     'Addr Line1', 'Addr Line2', 'City', 'State', 'Pincode',
-    'Items', 'Total', 'UPI Ref', 'Payment Method',
+    'Items', 'Total', 'Payment ID', 'Payment Method',
+    'Tracking Carrier', 'Tracking ID', 'Admin Notes',
   ];
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const rows = orders.map((o) => [
@@ -715,8 +740,11 @@ function exportOrdersCSV(orders: MerchOrder[]) {
     o.deliveryAddress?.pincode ?? '',
     o.items.map((i) => `${i.name}${i.size !== 'N/A' ? ` (${i.size})` : ''} x${i.quantity}`).join('; '),
     String(o.total),
-    o.upiRef,
+    o.razorpayPaymentId ?? o.upiRef ?? '',
     o.paymentMethod ?? '',
+    o.trackingCarrier ?? '',
+    o.trackingId ?? '',
+    o.adminNotes ?? '',
   ].map(escape).join(','));
 
   const csv = [headers.map(escape).join(','), ...rows].join('\n');
@@ -729,10 +757,292 @@ function exportOrdersCSV(orders: MerchOrder[]) {
   URL.revokeObjectURL(url);
 }
 
+// Unique product IDs across all orders
+function getProductIds(orders: MerchOrder[]): string[] {
+  const ids = new Set<string>();
+  orders.forEach((o) => o.items.forEach((i) => ids.add(i.productId)));
+  return Array.from(ids);
+}
+
+// Friendly product names
+const PRODUCT_NAMES: Record<string, string> = {
+  tshirt: 'T-Shirt',
+  slingbag: 'Sling Bag',
+};
+
+// ===== Single order card =====
+function OrderCard({ order, onUpdate, onDelete }: {
+  order: MerchOrder;
+  onUpdate: () => void;
+  onDelete: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [showShipForm, setShowShipForm] = useState(false);
+  const [trackingId, setTrackingId] = useState(order.trackingId ?? '');
+  const [trackingCarrier, setTrackingCarrier] = useState(order.trackingCarrier ?? '');
+  const [notes, setNotes] = useState(order.adminNotes ?? '');
+  const [showNotes, setShowNotes] = useState(false);
+
+  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.verified;
+  const StatusIcon = cfg.icon;
+  const next = getNextStatus(order.status);
+
+  const advanceStatus = async (targetStatus?: MerchOrderStatus) => {
+    const target = targetStatus ?? next;
+    if (!target) return;
+    setUpdating(true);
+    try {
+      const extra: Partial<MerchOrder> = {};
+      if (target === 'packed') extra.packedAt = new Date().toISOString();
+      if (target === 'shipped') {
+        extra.shippedAt = new Date().toISOString();
+        extra.trackingId = trackingId.trim() || undefined;
+        extra.trackingCarrier = trackingCarrier.trim() || undefined;
+      }
+      if (target === 'delivered') extra.deliveredAt = new Date().toISOString();
+      await updateMerchOrderStatus(order.id, target, extra);
+      onUpdate();
+    } catch { alert('Failed to update order.'); }
+    setUpdating(false);
+    setShowShipForm(false);
+  };
+
+  const saveNotes = async () => {
+    setUpdating(true);
+    try {
+      await updateMerchOrderStatus(order.id, order.status, { adminNotes: notes.trim() });
+      onUpdate();
+    } catch { alert('Failed to save notes.'); }
+    setUpdating(false);
+    setShowNotes(false);
+  };
+
+  const copyAddress = () => {
+    const addr = formatAddress(order.deliveryAddress);
+    if (addr) navigator.clipboard.writeText(`${order.customerName}\n${addr}\nPh: +91 ${order.customerMobile}`);
+  };
+
+  return (
+    <div className={`bg-white rounded-xl border shadow-sm transition-all ${expanded ? 'border-maroon/30 shadow-md' : 'border-gray-100'}`}>
+      {/* Compact row */}
+      <div
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className={`w-8 h-8 rounded-full ${cfg.bg} flex items-center justify-center shrink-0`}>
+          <StatusIcon size={14} className={cfg.color} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-xs font-bold text-charcoal">{order.orderId}</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.bg} ${cfg.color}`}>
+              {cfg.label}
+            </span>
+            {order.trackingId && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                {order.trackingCarrier && `${order.trackingCarrier}: `}{order.trackingId}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
+            <span className="font-medium text-charcoal">{order.customerName}</span>
+            <span>₹{order.total}</span>
+            <span>{order.items.map((i) => `${i.name.replace('Gramakam ', '')}${i.size !== 'N/A' ? ` (${i.size})` : ''} ×${i.quantity}`).join(', ')}</span>
+          </div>
+        </div>
+
+        <div className="text-xs text-gray-400 shrink-0 hidden sm:block">{formatDate(order.createdAt)}</div>
+        {expanded ? <ChevronUp size={16} className="text-gray-400 shrink-0" /> : <ChevronDown size={16} className="text-gray-400 shrink-0" />}
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="border-t border-gray-100 px-4 py-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Customer */}
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Customer</p>
+              <p className="text-sm font-medium text-charcoal">{order.customerName}</p>
+              <p className="text-xs text-gray-500 flex items-center gap-1"><Phone size={10} /> +91 {order.customerMobile}</p>
+              <p className="text-xs text-gray-500 flex items-center gap-1"><MailIcon size={10} /> {order.customerEmail}</p>
+            </div>
+
+            {/* Delivery address */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Delivery Address</p>
+                {order.deliveryAddress && (
+                  <button onClick={copyAddress} className="text-gray-400 hover:text-maroon" title="Copy address">
+                    <Copy size={10} />
+                  </button>
+                )}
+              </div>
+              {order.deliveryAddress ? (
+                <div className="text-xs text-gray-600 leading-relaxed">
+                  <p>{order.deliveryAddress.line1}</p>
+                  {order.deliveryAddress.line2 && <p>{order.deliveryAddress.line2}</p>}
+                  <p>{order.deliveryAddress.city}, {order.deliveryAddress.state} — <span className="font-mono">{order.deliveryAddress.pincode}</span></p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-300 italic">No address provided</p>
+              )}
+            </div>
+
+            {/* Items */}
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Items</p>
+              {order.items.map((item, i) => (
+                <div key={i} className="flex justify-between text-xs">
+                  <span className="text-gray-700">{item.name}{item.size !== 'N/A' ? ` (${item.size})` : ''} ×{item.quantity}</span>
+                  <span className="font-medium text-maroon">₹{item.price * item.quantity}</span>
+                </div>
+              ))}
+              <div className="border-t border-gray-100 pt-1 flex justify-between text-xs font-semibold">
+                <span>Total</span>
+                <span className="text-maroon">₹{order.total}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment info */}
+          <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 flex flex-wrap gap-x-6 gap-y-1">
+            <span>Payment: <span className="font-medium text-charcoal">{order.paymentMethod === 'razorpay' ? 'Razorpay' : 'UPI Manual'}</span></span>
+            {order.razorpayPaymentId && <span>Payment ID: <span className="font-mono text-charcoal">{order.razorpayPaymentId}</span></span>}
+            {order.verifiedAt && <span>Verified: {new Date(order.verifiedAt).toLocaleString('en-IN')}</span>}
+            {order.packedAt && <span>Packed: {new Date(order.packedAt).toLocaleString('en-IN')}</span>}
+            {order.shippedAt && <span>Shipped: {new Date(order.shippedAt).toLocaleString('en-IN')}</span>}
+            {order.deliveredAt && <span>Delivered: {new Date(order.deliveredAt).toLocaleString('en-IN')}</span>}
+          </div>
+
+          {/* Tracking info (if shipped) */}
+          {order.trackingId && (
+            <div className="bg-purple-50 rounded-lg p-3 text-xs flex items-center gap-2">
+              <Truck size={14} className="text-purple-600" />
+              <span className="text-purple-700 font-medium">
+                {order.trackingCarrier && `${order.trackingCarrier} — `}Tracking: <span className="font-mono">{order.trackingId}</span>
+              </span>
+            </div>
+          )}
+
+          {/* Admin notes */}
+          {order.adminNotes && !showNotes && (
+            <div className="bg-yellow-50 rounded-lg p-3 text-xs text-yellow-800">
+              <span className="font-semibold">Notes:</span> {order.adminNotes}
+            </div>
+          )}
+
+          {/* Ship form (shown when advancing to shipped) */}
+          {showShipForm && (
+            <div className="bg-purple-50 rounded-lg p-4 space-y-3">
+              <p className="text-xs font-semibold text-purple-800">Enter Shipping Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  placeholder="Carrier (e.g. India Post, DTDC)"
+                  value={trackingCarrier}
+                  onChange={(e) => setTrackingCarrier(e.target.value)}
+                  className="px-3 py-2 text-sm border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Tracking ID"
+                  value={trackingId}
+                  onChange={(e) => setTrackingId(e.target.value)}
+                  className="px-3 py-2 text-sm border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => advanceStatus('shipped')}
+                  disabled={updating}
+                  className="px-4 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {updating ? 'Updating...' : 'Mark as Shipped'}
+                </button>
+                <button onClick={() => setShowShipForm(false)} className="px-4 py-2 text-xs text-gray-500 hover:text-charcoal">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Notes form */}
+          {showNotes && (
+            <div className="space-y-2">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                placeholder="Add admin notes..."
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
+              />
+              <div className="flex gap-2">
+                <button onClick={saveNotes} disabled={updating} className="px-3 py-1.5 bg-charcoal text-white text-xs rounded-lg hover:bg-charcoal/80 disabled:opacity-50">
+                  {updating ? 'Saving...' : 'Save Notes'}
+                </button>
+                <button onClick={() => setShowNotes(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-charcoal">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            {/* Next status action */}
+            {next && !showShipForm && (
+              next === 'shipped' ? (
+                <button
+                  onClick={() => setShowShipForm(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700"
+                >
+                  <Truck size={13} /> Ship Order
+                </button>
+              ) : (
+                <button
+                  onClick={() => advanceStatus()}
+                  disabled={updating}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-maroon text-white text-xs font-semibold rounded-lg hover:bg-maroon-dark disabled:opacity-50"
+                >
+                  {updating ? 'Updating...' : (
+                    <>
+                      {next === 'packed' && <><Package size={13} /> Mark as Packed</>}
+                      {next === 'delivered' && <><CheckCircle size={13} /> Mark Delivered</>}
+                    </>
+                  )}
+                </button>
+              )
+            )}
+
+            {!showNotes && (
+              <button
+                onClick={() => setShowNotes(true)}
+                className="flex items-center gap-1 px-3 py-2 text-xs text-gray-500 hover:text-charcoal border border-gray-200 rounded-lg hover:border-gray-300"
+              >
+                <Edit size={12} /> Notes
+              </button>
+            )}
+
+            <button
+              onClick={() => onDelete(order.id)}
+              className="flex items-center gap-1 px-3 py-2 text-xs text-red-400 hover:text-red-600 border border-red-100 rounded-lg hover:border-red-300 ml-auto"
+            >
+              <Trash2 size={12} /> Delete
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== Main orders sub-tab =====
 function MerchOrdersSubTab() {
   const [orders, setOrders] = useState<MerchOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [itemFilter, setItemFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadOrders = async () => {
     try { setOrders(await getMerchOrders()); } catch {}
@@ -746,129 +1056,146 @@ function MerchOrdersSubTab() {
     try { await deleteMerchOrder(id); await loadOrders(); } catch {}
   };
 
-  const filtered = filter === 'all' ? orders : orders.filter((o) => o.status === filter);
-  const verifiedCount = orders.filter((o) => o.status === 'verified').length;
+  // Counts per status
+  const counts: Record<string, number> = {};
+  orders.forEach((o) => {
+    const key = o.status === 'manual_verified' ? 'verified' : o.status;
+    counts[key] = (counts[key] ?? 0) + 1;
+  });
+
   const totalRevenue = orders
-    .filter((o) => o.status === 'verified')
+    .filter((o) => o.status !== 'rejected' && o.status !== 'pending')
     .reduce((sum, o) => sum + o.total, 0);
 
+  // Unique product IDs for item filter
+  const productIds = getProductIds(orders);
+
+  // Apply filters
+  let filtered = orders;
+  if (statusFilter !== 'all') {
+    filtered = filtered.filter((o) =>
+      statusFilter === 'verified' ? (o.status === 'verified' || o.status === 'manual_verified') : o.status === statusFilter
+    );
+  }
+  if (itemFilter !== 'all') {
+    filtered = filtered.filter((o) => o.items.some((i) => i.productId === itemFilter));
+  }
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter((o) =>
+      o.orderId.toLowerCase().includes(q) ||
+      o.customerName.toLowerCase().includes(q) ||
+      o.customerMobile.includes(q) ||
+      o.trackingId?.toLowerCase().includes(q)
+    );
+  }
+
   return (
-    <div>
+    <div className="space-y-4">
       {/* Stats row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-        <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
-          <p className="text-xl font-bold text-charcoal">{orders.length}</p>
-          <p className="text-xs text-gray-500">Total Orders</p>
-        </div>
-        <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
-          <p className="text-xl font-bold text-green-600">{verifiedCount}</p>
-          <p className="text-xs text-gray-500">Verified</p>
-        </div>
-        <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
-          <p className="text-xl font-bold text-maroon">₹{totalRevenue}</p>
-          <p className="text-xs text-gray-500">Revenue</p>
-        </div>
-      </div>
-
-      {/* Filter bar */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <Filter size={14} className="text-gray-400" />
-        {['all', 'verified', 'rejected'].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-              filter === f ? 'bg-maroon text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-        <button
-          onClick={() => exportOrdersCSV(filtered)}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-charcoal text-white text-xs font-medium hover:bg-charcoal/80 transition-colors"
-        >
-          <Download size={13} /> Export CSV
-        </button>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
-        ) : filtered.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            <CreditCard size={36} className="mx-auto mb-2 text-gray-300" />
-            <p>No orders {filter !== 'all' ? `with status "${filter}"` : 'yet'}.</p>
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        {[
+          { label: 'Total',     value: orders.length,        color: 'text-charcoal' },
+          { label: 'New',       value: counts.verified ?? 0, color: 'text-blue-600' },
+          { label: 'Packed',    value: counts.packed ?? 0,   color: 'text-amber-600' },
+          { label: 'Shipped',   value: counts.shipped ?? 0,  color: 'text-purple-600' },
+          { label: 'Delivered', value: counts.delivered ?? 0, color: 'text-green-600' },
+          { label: 'Revenue',   value: `₹${totalRevenue}`,  color: 'text-maroon' },
+        ].map((s) => (
+          <div key={s.label} className="bg-white rounded-lg p-2.5 border border-gray-100 text-center">
+            <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-gray-500">{s.label}</p>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Order ID</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Delivery Address</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Items</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Total</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">UPI Ref</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((order) => (
-                  <tr key={order.id} className="border-b border-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs font-medium">{order.orderId}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-charcoal">{order.customerName}</p>
-                      <p className="text-xs text-gray-400">+91 {order.customerMobile}</p>
-                      <p className="text-xs text-gray-400">{order.customerEmail}</p>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 max-w-[180px]">
-                      {order.deliveryAddress ? (
-                        <span title={formatAddress(order.deliveryAddress)}>
-                          <span className="block">{order.deliveryAddress.line1}</span>
-                          {order.deliveryAddress.line2 && <span className="block">{order.deliveryAddress.line2}</span>}
-                          <span className="block">{order.deliveryAddress.city}, {order.deliveryAddress.state}</span>
-                          <span className="block font-mono">{order.deliveryAddress.pincode}</span>
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 italic">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">
-                      {order.items.map((item, i) => (
-                        <span key={i}>
-                          {item.name}{item.size !== 'N/A' ? ` (${item.size})` : ''} ×{item.quantity}
-                          {i < order.items.length - 1 ? ', ' : ''}
-                        </span>
-                      ))}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-maroon">₹{order.total}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{order.upiRef}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_BADGE[order.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(order.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleDelete(order.id)}
-                        className="p-1 text-gray-400 hover:text-red-500"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        ))}
+      </div>
+
+      {/* Filter & Search bar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Status filter pills */}
+        <div className="flex items-center gap-1.5 flex-wrap flex-1">
+          <Filter size={13} className="text-gray-400" />
+          {[
+            { key: 'all', label: 'All' },
+            { key: 'verified', label: 'New' },
+            { key: 'packed', label: 'Packed' },
+            { key: 'shipped', label: 'Shipped' },
+            { key: 'delivered', label: 'Delivered' },
+            { key: 'rejected', label: 'Rejected' },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setStatusFilter(f.key)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                statusFilter === f.key ? 'bg-maroon text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {f.label}{f.key !== 'all' && counts[f.key] ? ` (${counts[f.key]})` : ''}
+            </button>
+          ))}
+        </div>
+
+        {/* Item filter */}
+        {productIds.length > 1 && (
+          <div className="flex items-center gap-1.5">
+            <ShoppingBag size={13} className="text-gray-400" />
+            <button
+              onClick={() => setItemFilter('all')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                itemFilter === 'all' ? 'bg-charcoal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Items
+            </button>
+            {productIds.map((pid) => (
+              <button
+                key={pid}
+                onClick={() => setItemFilter(pid)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  itemFilter === pid ? 'bg-charcoal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {PRODUCT_NAMES[pid] ?? pid}
+              </button>
+            ))}
           </div>
         )}
       </div>
+
+      {/* Search + Export */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search orders, name, mobile, tracking..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
+          />
+        </div>
+        <button
+          onClick={() => exportOrdersCSV(filtered)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-charcoal text-white text-xs font-medium hover:bg-charcoal/80 transition-colors shrink-0"
+        >
+          <Download size={13} /> Export CSV ({filtered.length})
+        </button>
+      </div>
+
+      {/* Order cards */}
+      {loading ? (
+        <div className="p-12 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="p-10 text-center text-gray-500 bg-white rounded-xl border border-gray-100">
+          <CreditCard size={36} className="mx-auto mb-2 text-gray-300" />
+          <p>No orders found.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((order) => (
+            <OrderCard key={order.id} order={order} onUpdate={loadOrders} onDelete={handleDelete} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
