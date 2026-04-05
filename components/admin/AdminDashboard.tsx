@@ -19,7 +19,6 @@ import {
   Eye,
   Save,
   CheckCircle,
-  XCircle,
   CreditCard,
   Filter,
   ExternalLink,
@@ -40,9 +39,7 @@ import {
   getPrebookEntries,
   deletePrebook,
   getMerchOrders,
-  updateMerchOrderStatus,
   deleteMerchOrder,
-  getUpiPayments,
   getSiteConfig,
   updateSiteConfig,
   uploadImage,
@@ -59,7 +56,6 @@ import type {
   ContactSubmission,
   MerchPrebook,
   MerchOrder,
-  UpiPayment,
   MediaItem,
   Award,
   DeliveryAddress,
@@ -592,7 +588,7 @@ function CountdownPanel() {
 
 // ===== MERCH PANEL (with sub-tabs) =====
 function MerchPanel() {
-  const [subTab, setSubTab] = useState<'prebooks' | 'orders' | 'payments'>('orders');
+  const [subTab, setSubTab] = useState<'orders' | 'prebooks'>('orders');
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -603,7 +599,6 @@ function MerchPanel() {
         {([
           { id: 'orders' as const, label: 'Orders' },
           { id: 'prebooks' as const, label: 'Pre-bookings' },
-          { id: 'payments' as const, label: 'Payments' },
         ]).map((tab) => (
           <button
             key={tab.id}
@@ -619,9 +614,8 @@ function MerchPanel() {
         ))}
       </div>
 
-      {subTab === 'prebooks' && <MerchPrebooksSubTab />}
       {subTab === 'orders' && <MerchOrdersSubTab />}
-      {subTab === 'payments' && <MerchPaymentsSubTab />}
+      {subTab === 'prebooks' && <MerchPrebooksSubTab />}
     </motion.div>
   );
 }
@@ -690,9 +684,7 @@ function MerchPrebooksSubTab() {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700',
   verified: 'bg-green-100 text-green-700',
-  manual_verified: 'bg-blue-100 text-blue-700',
   rejected: 'bg-red-100 text-red-700',
 };
 
@@ -749,50 +741,24 @@ function MerchOrdersSubTab() {
 
   useEffect(() => { loadOrders(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
-  const handleVerify = async (order: MerchOrder) => {
-    if (!confirm(`Manually verify order ${order.orderId}?`)) return;
-    try {
-      await updateMerchOrderStatus(order.id, 'manual_verified', {
-        verifiedAt: new Date().toISOString(),
-        verifiedBy: 'admin',
-      });
-      await loadOrders();
-    } catch { alert('Failed to verify order.'); }
-  };
-
-  const handleReject = async (order: MerchOrder) => {
-    if (!confirm(`Reject order ${order.orderId}? This cannot be undone.`)) return;
-    try {
-      await updateMerchOrderStatus(order.id, 'rejected', {
-        rejectedAt: new Date().toISOString(),
-      });
-      await loadOrders();
-    } catch { alert('Failed to reject order.'); }
-  };
-
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this order permanently?')) return;
     try { await deleteMerchOrder(id); await loadOrders(); } catch {}
   };
 
   const filtered = filter === 'all' ? orders : orders.filter((o) => o.status === filter);
-  const pendingCount = orders.filter((o) => o.status === 'pending').length;
-  const verifiedCount = orders.filter((o) => o.status === 'verified' || o.status === 'manual_verified').length;
+  const verifiedCount = orders.filter((o) => o.status === 'verified').length;
   const totalRevenue = orders
-    .filter((o) => o.status === 'verified' || o.status === 'manual_verified')
+    .filter((o) => o.status === 'verified')
     .reduce((sum, o) => sum + o.total, 0);
 
   return (
     <div>
       {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
           <p className="text-xl font-bold text-charcoal">{orders.length}</p>
           <p className="text-xs text-gray-500">Total Orders</p>
-        </div>
-        <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
-          <p className="text-xl font-bold text-amber-600">{pendingCount}</p>
-          <p className="text-xs text-gray-500">Pending</p>
         </div>
         <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
           <p className="text-xl font-bold text-green-600">{verifiedCount}</p>
@@ -807,7 +773,7 @@ function MerchOrdersSubTab() {
       {/* Filter bar */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Filter size={14} className="text-gray-400" />
-        {['all', 'pending', 'verified', 'manual_verified', 'rejected'].map((f) => (
+        {['all', 'verified', 'rejected'].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -815,7 +781,7 @@ function MerchOrdersSubTab() {
               filter === f ? 'bg-maroon text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {f === 'all' ? 'All' : f === 'manual_verified' ? 'Manual' : f.charAt(0).toUpperCase() + f.slice(1)}
+            {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
         <button
@@ -883,38 +849,18 @@ function MerchOrdersSubTab() {
                     <td className="px-4 py-3 font-mono text-xs">{order.upiRef}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_BADGE[order.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {order.status === 'manual_verified' ? 'Manual' : order.status}
+                        {order.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(order.createdAt)}</td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        {order.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => handleVerify(order)}
-                              className="p-1 text-green-500 hover:text-green-700"
-                              title="Verify"
-                            >
-                              <CheckCircle size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleReject(order)}
-                              className="p-1 text-red-400 hover:text-red-600"
-                              title="Reject"
-                            >
-                              <XCircle size={16} />
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => handleDelete(order.id)}
-                          className="p-1 text-gray-400 hover:text-red-500"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleDelete(order.id)}
+                        className="p-1 text-gray-400 hover:text-red-500"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -923,75 +869,6 @@ function MerchOrdersSubTab() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function MerchPaymentsSubTab() {
-  const [payments, setPayments] = useState<UpiPayment[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      try { setPayments(await getUpiPayments()); } catch {}
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-        <p className="text-xs text-gray-500">
-          Payments captured by the Android SMS monitor app. These are matched against customer orders automatically.
-        </p>
-      </div>
-      {loading ? (
-        <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
-      ) : payments.length === 0 ? (
-        <div className="p-6 text-center text-gray-500">
-          <CreditCard size={36} className="mx-auto mb-2 text-gray-300" />
-          <p>No UPI payments captured yet.</p>
-          <p className="text-xs mt-1">Payments will appear here once the Android SMS app is running.</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Sender</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">UPI Ref</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Bank</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">SMS Time</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Matched</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Captured</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((p) => (
-                <tr key={p.id} className={`border-b border-gray-50 ${p.matched ? 'bg-green-50/50' : ''}`}>
-                  <td className="px-4 py-3 font-semibold text-maroon">₹{p.amount}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{p.senderUpi}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{p.upiRef}</td>
-                  <td className="px-4 py-3 text-xs text-gray-600">{p.bank}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{p.datetime}</td>
-                  <td className="px-4 py-3">
-                    {p.matched ? (
-                      <span className="text-green-600 text-xs font-medium flex items-center gap-1">
-                        <CheckCircle size={12} /> {p.matchedOrderId ? `→ ${p.matchedOrderId}` : 'Yes'}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">No</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(p.capturedAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }

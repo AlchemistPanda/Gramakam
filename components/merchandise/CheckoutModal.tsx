@@ -42,6 +42,8 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [paymentId, setPaymentId] = useState('');
+  // Snapshot confirmed order details so they survive cart clearing
+  const [confirmedTotal, setConfirmedTotal] = useState(0);
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -158,6 +160,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                 verifiedBy: 'auto',
               });
 
+              setConfirmedTotal(total);
               setPaymentId(response.razorpay_payment_id);
               setStep('success');
               onOrderPlaced();
@@ -414,7 +417,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Amount</span>
-                      <span className="font-semibold text-maroon">₹{total}</span>
+                      <span className="font-semibold text-maroon">₹{confirmedTotal}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Status</span>
