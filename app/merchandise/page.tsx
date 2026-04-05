@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
 import { X, ChevronLeft, ChevronRight, Plus, Minus, ShoppingBag } from 'lucide-react';
@@ -22,34 +22,22 @@ const products: MerchProduct[] = [
     name: 'Gramakam T-Shirt',
     description:
       'Premium cotton t-shirt with the iconic Gramakam festival design. A wearable piece of cultural art.',
-    images: ['/images/merch/tshirt2.jpg', '/images/merch/tshirt.jpg'],
+    images: ['/images/merch/tshirt2.jpg', '/images/merch/tshirt.jpg', '/images/merch/tshirt3.png', '/images/merch/tshirt4.png'],
     price: 1,
     sizes: ['24', '28', '32', '36 (S)', '38 (M)', '40 (L)', '42 (XL)', '44 (XXL)'],
   },
   {
-    id: 'cover',
-    name: 'Gramakam Notebook Cover',
+    id: 'slingbag',
+    name: 'Gramakam Sling Bag',
     description:
-      'Beautifully designed notebook cover featuring traditional Kerala art motifs and Gramakam branding.',
-    images: ['/images/merch/cover.svg'],
+      'A stylish, everyday carry sling bag bearing the Gramakam 2026 festival design. Crafted for comfort and durability, it features a spacious main compartment and an adjustable strap — perfect for the festival and beyond.',
+    images: [
+      '/images/SLINGBAG/SLINGBAG1.png',
+      '/images/SLINGBAG/SLINGBAG2.png',
+      '/images/SLINGBAG/SLINGBAG3.png',
+      '/images/SLINGBAG/SLINGBAG4.png',
+    ],
     price: 1,
-  },
-  {
-    id: 'keychain',
-    name: 'Gramakam Keychain',
-    description:
-      'A unique festival keepsake. Carry a piece of Gramakam wherever you go.',
-    images: ['/images/merch/keychain.svg'],
-    price: 1,
-  },
-  {
-    id: 'hat',
-    name: 'Gramakam Hat',
-    description:
-      'Stylish festival cap with embroidered Gramakam logo. Perfect for sun and style.',
-    images: ['/images/merch/hat.svg'],
-    price: 1,
-    sizes: ['One Size'],
   },
 ];
 
@@ -65,6 +53,23 @@ export default function MerchandisePage() {
   const [lightboxImage, setLightboxImage] = useState<{ images: string[]; index: number } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<Record<string, number>>({});
   const [buyNowItem, setBuyNowItem] = useState<{ product: MerchProduct; quantity: number } | null>(null);
+
+  // Auto-rotate carousel every 500ms for products with multiple images
+  const rotationRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    rotationRef.current = setInterval(() => {
+      setActiveImageIndex((prev) => {
+        const next = { ...prev };
+        products.forEach((p) => {
+          if (p.images.length > 1) {
+            next[p.id] = ((prev[p.id] ?? 0) + 1) % p.images.length;
+          }
+        });
+        return next;
+      });
+    }, 500);
+    return () => { if (rotationRef.current) clearInterval(rotationRef.current); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getSelection = (id: string, product: MerchProduct): Selection =>
     selections[id] ?? { size: product.sizes?.[0] ?? 'N/A', quantity: 1 };
@@ -130,14 +135,21 @@ export default function MerchandisePage() {
                 <div className={`card bg-white h-full flex flex-col transition-shadow duration-300 ${sel.quantity > 0 ? 'ring-2 ring-maroon shadow-lg' : ''}`}>
                   {/* Product Image */}
                   <div className="relative aspect-square bg-gray-100 overflow-hidden group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={product.images[currentImg]}
-                      alt={product.name}
-                      className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
-                      loading="lazy"
-                      onClick={() => openLightbox(product.images, currentImg)}
-                    />
+                    <AnimatePresence mode="wait">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <motion.img
+                        key={currentImg}
+                        src={product.images[currentImg]}
+                        alt={product.name}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="absolute inset-0 w-full h-full object-cover cursor-pointer"
+                        loading="lazy"
+                        onClick={() => openLightbox(product.images, currentImg)}
+                      />
+                    </AnimatePresence>
                     <div
                       className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center cursor-pointer"
                       onClick={() => openLightbox(product.images, currentImg)}
@@ -151,7 +163,7 @@ export default function MerchandisePage() {
                         {product.images.map((_, i) => (
                           <button
                             key={i}
-                            onClick={(e) => { e.stopPropagation(); setActiveImageIndex({ ...activeImageIndex, [product.id]: i }); }}
+                            onClick={(e) => { e.stopPropagation(); setActiveImageIndex((prev) => ({ ...prev, [product.id]: i })); }}
                             className={`w-2 h-2 rounded-full transition-all ${i === currentImg ? 'bg-white scale-125 shadow' : 'bg-white/60'}`}
                           />
                         ))}

@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowLeft, ArrowRight, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
-import type { MerchCartItem } from '@/types';
+import type { MerchCartItem, DeliveryAddress } from '@/types';
 import { createMerchOrder } from '@/lib/services';
 
 declare global {
@@ -33,6 +33,11 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
+  const [addrLine1, setAddrLine1] = useState('');
+  const [addrLine2, setAddrLine2] = useState('');
+  const [addrCity, setAddrCity] = useState('');
+  const [addrState, setAddrState] = useState('Kerala');
+  const [addrPincode, setAddrPincode] = useState('');
   const [orderId, setOrderId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -59,8 +64,21 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
       setIsSubmitting(false);
       setErrorMsg('');
       setPaymentId('');
+      setAddrLine1('');
+      setAddrLine2('');
+      setAddrCity('');
+      setAddrState('Kerala');
+      setAddrPincode('');
     }
   }, [open]);
+
+  const deliveryAddress: DeliveryAddress = {
+    line1: addrLine1.trim(),
+    line2: addrLine2.trim() || undefined,
+    city: addrCity.trim(),
+    state: addrState.trim(),
+    pincode: addrPincode.trim(),
+  };
 
   const handleDetailsSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -130,6 +148,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                 customerName: name,
                 customerEmail: email,
                 customerMobile: mobile,
+                deliveryAddress,
                 upiRef: response.razorpay_payment_id,
                 status: 'verified',
                 razorpayOrderId: response.razorpay_order_id,
@@ -268,6 +287,75 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                         className="w-full px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
                         required
                       />
+                    </div>
+                  </div>
+
+                  {/* Delivery Address */}
+                  <div className="pt-2">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-medium">Delivery Address</p>
+                    <div className="space-y-3">
+                      <div>
+                        <label htmlFor="checkout-addr1" className="block text-sm font-medium text-charcoal mb-1">House / Building / Flat *</label>
+                        <input
+                          id="checkout-addr1"
+                          type="text"
+                          value={addrLine1}
+                          onChange={(e) => setAddrLine1(e.target.value)}
+                          placeholder="e.g. 12/B, Rose Villa"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="checkout-addr2" className="block text-sm font-medium text-charcoal mb-1">Street / Area / Landmark</label>
+                        <input
+                          id="checkout-addr2"
+                          type="text"
+                          value={addrLine2}
+                          onChange={(e) => setAddrLine2(e.target.value)}
+                          placeholder="e.g. Near Govt. School, Velur"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label htmlFor="checkout-city" className="block text-sm font-medium text-charcoal mb-1">City / Town *</label>
+                          <input
+                            id="checkout-city"
+                            type="text"
+                            value={addrCity}
+                            onChange={(e) => setAddrCity(e.target.value)}
+                            placeholder="e.g. Thrissur"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="checkout-pincode" className="block text-sm font-medium text-charcoal mb-1">Pincode *</label>
+                          <input
+                            id="checkout-pincode"
+                            type="text"
+                            value={addrPincode}
+                            onChange={(e) => setAddrPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            placeholder="680123"
+                            pattern="[0-9]{6}"
+                            title="Enter a valid 6-digit pincode"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label htmlFor="checkout-state" className="block text-sm font-medium text-charcoal mb-1">State *</label>
+                        <input
+                          id="checkout-state"
+                          type="text"
+                          value={addrState}
+                          onChange={(e) => setAddrState(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
+                          required
+                        />
+                      </div>
                     </div>
                   </div>
 

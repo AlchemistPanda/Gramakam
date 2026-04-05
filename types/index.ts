@@ -113,6 +113,14 @@ export interface MerchCartItem {
 
 export type MerchOrderStatus = 'pending' | 'verified' | 'rejected' | 'manual_verified';
 
+export interface DeliveryAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
 export interface MerchOrder {
   id: string;
   orderId: string;            // human-readable: "GRM-xxxx"
@@ -121,6 +129,7 @@ export interface MerchOrder {
   customerName: string;
   customerEmail: string;
   customerMobile: string;
+  deliveryAddress?: DeliveryAddress;
   upiRef: string;             // UPI reference number entered by customer
   status: MerchOrderStatus;
   matchedPaymentId?: string;

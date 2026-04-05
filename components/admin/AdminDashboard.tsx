@@ -24,6 +24,7 @@ import {
   Filter,
   ExternalLink,
   Trophy,
+  Download,
 } from 'lucide-react';
 import {
   getGalleryItems,
@@ -61,6 +62,7 @@ import type {
   UpiPayment,
   MediaItem,
   Award,
+  DeliveryAddress,
 } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageCompressor';
@@ -694,6 +696,47 @@ const STATUS_BADGE: Record<string, string> = {
   rejected: 'bg-red-100 text-red-700',
 };
 
+function formatAddress(addr?: DeliveryAddress): string {
+  if (!addr) return '';
+  return [addr.line1, addr.line2, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ');
+}
+
+function exportOrdersCSV(orders: MerchOrder[]) {
+  const headers = [
+    'Order ID', 'Date', 'Status',
+    'Customer Name', 'Email', 'Mobile',
+    'Addr Line1', 'Addr Line2', 'City', 'State', 'Pincode',
+    'Items', 'Total', 'UPI Ref', 'Payment Method',
+  ];
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const rows = orders.map((o) => [
+    o.orderId,
+    typeof o.createdAt === 'string' ? o.createdAt : new Date(o.createdAt as Date).toISOString(),
+    o.status,
+    o.customerName,
+    o.customerEmail,
+    o.customerMobile,
+    o.deliveryAddress?.line1 ?? '',
+    o.deliveryAddress?.line2 ?? '',
+    o.deliveryAddress?.city ?? '',
+    o.deliveryAddress?.state ?? '',
+    o.deliveryAddress?.pincode ?? '',
+    o.items.map((i) => `${i.name}${i.size !== 'N/A' ? ` (${i.size})` : ''} x${i.quantity}`).join('; '),
+    String(o.total),
+    o.upiRef,
+    o.paymentMethod ?? '',
+  ].map(escape).join(','));
+
+  const csv = [headers.map(escape).join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `merch-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function MerchOrdersSubTab() {
   const [orders, setOrders] = useState<MerchOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -762,7 +805,7 @@ function MerchOrdersSubTab() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Filter size={14} className="text-gray-400" />
         {['all', 'pending', 'verified', 'manual_verified', 'rejected'].map((f) => (
           <button
@@ -775,6 +818,12 @@ function MerchOrdersSubTab() {
             {f === 'all' ? 'All' : f === 'manual_verified' ? 'Manual' : f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
+        <button
+          onClick={() => exportOrdersCSV(filtered)}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-charcoal text-white text-xs font-medium hover:bg-charcoal/80 transition-colors"
+        >
+          <Download size={13} /> Export CSV
+        </button>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -792,6 +841,7 @@ function MerchOrdersSubTab() {
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Order ID</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Delivery Address</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Items</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Total</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">UPI Ref</th>
@@ -807,6 +857,19 @@ function MerchOrdersSubTab() {
                     <td className="px-4 py-3">
                       <p className="font-medium text-charcoal">{order.customerName}</p>
                       <p className="text-xs text-gray-400">+91 {order.customerMobile}</p>
+                      <p className="text-xs text-gray-400">{order.customerEmail}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600 max-w-[180px]">
+                      {order.deliveryAddress ? (
+                        <span title={formatAddress(order.deliveryAddress)}>
+                          <span className="block">{order.deliveryAddress.line1}</span>
+                          {order.deliveryAddress.line2 && <span className="block">{order.deliveryAddress.line2}</span>}
+                          <span className="block">{order.deliveryAddress.city}, {order.deliveryAddress.state}</span>
+                          <span className="block font-mono">{order.deliveryAddress.pincode}</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 italic">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600">
                       {order.items.map((item, i) => (
