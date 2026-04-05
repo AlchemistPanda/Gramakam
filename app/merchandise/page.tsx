@@ -67,7 +67,7 @@ export default function MerchandisePage() {
         });
         return next;
       });
-    }, 500);
+    }, 1000);
     return () => { if (rotationRef.current) clearInterval(rotationRef.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
