@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
-import { X, ChevronLeft, ChevronRight, Plus, Minus, ShoppingBag } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Plus, Minus, ShoppingBag, Package } from 'lucide-react';
+import Link from 'next/link';
 import CheckoutModal from '@/components/merchandise/CheckoutModal';
 import type { MerchCartItem } from '@/types';
 
@@ -118,7 +119,13 @@ export default function MerchandisePage() {
             <p className="text-gray-600 max-w-2xl mx-auto">
               Take home a piece of Gramakam. Pick your items below and tap Checkout.
             </p>
-            <div className="w-16 h-0.5 bg-maroon mx-auto mt-6" />
+            <div className="w-16 h-0.5 bg-maroon mx-auto mt-6 mb-4" />
+            <Link
+              href="/track"
+              className="inline-flex items-center gap-1.5 text-xs text-maroon/70 hover:text-maroon transition-colors"
+            >
+              <Package size={13} /> Already ordered? Track your order
+            </Link>
           </div>
         </AnimatedSection>
 

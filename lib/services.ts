@@ -9,6 +9,8 @@ import {
   deleteDoc,
   query,
   orderBy,
+  where,
+  limit,
   serverTimestamp,
 } from 'firebase/firestore';
 import {
@@ -292,6 +294,38 @@ export async function updateMerchOrderStatus(
 export async function deleteMerchOrder(id: string): Promise<void> {
   const docRef = doc(requireDb(), 'merch_orders', id);
   await deleteDoc(docRef);
+}
+
+export async function trackOrder(input: string): Promise<MerchOrder | null> {
+  const db = requireDb();
+  const ref = collection(db, 'merch_orders');
+  const clean = input.trim();
+
+  // Try by orderId first (GRM-xxxx format)
+  const byId = await getDocs(query(ref, where('orderId', '==', clean.toUpperCase()), limit(1)));
+  if (!byId.empty) {
+    const d = byId.docs[0];
+    return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
+  }
+
+  // Try by lowercase orderId (in case user typed lowercase)
+  const byIdLower = await getDocs(query(ref, where('orderId', '==', clean), limit(1)));
+  if (!byIdLower.empty) {
+    const d = byIdLower.docs[0];
+    return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
+  }
+
+  // Try by mobile (last 10 digits, most recent order)
+  const mobile = clean.replace(/\D/g, '').slice(-10);
+  if (mobile.length === 10) {
+    const byMobile = await getDocs(query(ref, where('customerMobile', '==', mobile), orderBy('createdAt', 'desc'), limit(1)));
+    if (!byMobile.empty) {
+      const d = byMobile.docs[0];
+      return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
+    }
+  }
+
+  return null;
 }
 
 
