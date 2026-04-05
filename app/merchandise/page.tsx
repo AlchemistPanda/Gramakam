@@ -119,12 +119,12 @@ export default function MerchandisePage() {
             <p className="text-gray-600 max-w-2xl mx-auto">
               Take home a piece of Gramakam. Pick your items below and tap Checkout.
             </p>
-            <div className="w-16 h-0.5 bg-maroon mx-auto mt-6 mb-4" />
+            <div className="w-16 h-0.5 bg-maroon mx-auto mt-6 mb-6" />
             <Link
               href="/track"
-              className="inline-flex items-center gap-1.5 text-xs text-maroon/70 hover:text-maroon transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-maroon/10 hover:bg-maroon/20 text-maroon font-semibold text-sm rounded-lg border border-maroon/30 hover:border-maroon/60 transition-all"
             >
-              <Package size={13} /> Already ordered? Track your order
+              <Package size={16} /> Track Your Order
             </Link>
           </div>
         </AnimatedSection>
