@@ -1284,20 +1284,30 @@ function OrderCard({ order, onUpdate, onDelete }: {
       if (target === 'delivered') extra.deliveredAt = new Date().toISOString();
       await updateMerchOrderStatus(order.id, target, extra);
 
-      // Send status-change email (fire-and-forget)
+      // Send status-change email and notify admin of result
       if (order.customerEmail && (target === 'packed' || target === 'shipped' || target === 'delivered')) {
-        fetch('/api/status-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: order.customerEmail,
-            customerName: order.customerName,
-            orderId: order.orderId,
-            status: target,
-            trackingCarrier: target === 'shipped' ? trackingCarrier.trim() : undefined,
-            trackingId: target === 'shipped' ? trackingId.trim() : undefined,
-          }),
-        }).catch((err) => console.error('[admin] Status email failed:', err));
+        try {
+          const emailRes = await fetch('/api/status-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: order.customerEmail,
+              customerName: order.customerName,
+              orderId: order.orderId,
+              status: target,
+              trackingCarrier: target === 'shipped' ? trackingCarrier.trim() : undefined,
+              trackingId: target === 'shipped' ? trackingId.trim() : undefined,
+            }),
+          });
+          if (!emailRes.ok) {
+            const errBody = await emailRes.json().catch(() => ({}));
+            console.error('[admin] Status email API error:', emailRes.status, errBody);
+            alert(`Status updated but email failed to send (${errBody.error ?? emailRes.status})`);
+          }
+        } catch (emailErr) {
+          console.error('[admin] Status email network error:', emailErr);
+          alert('Status updated but email could not be sent (network error)');
+        }
       }
 
       onUpdate();
