@@ -1273,6 +1273,12 @@ function OrderCard({ order, onUpdate, onDelete }: {
   const advanceStatus = async (targetStatus?: MerchOrderStatus) => {
     const target = targetStatus ?? next;
     if (!target) return;
+    const LABELS: Partial<Record<MerchOrderStatus, string>> = {
+      packed: 'Packed',
+      shipped: 'Shipped',
+      delivered: 'Delivered',
+    };
+    if (!confirm(`Mark order ${order.orderId} as ${LABELS[target] ?? target}?`)) return;
     setUpdating(true);
     try {
       const extra: Partial<MerchOrder> = {};
