@@ -339,7 +339,7 @@ function toMerchOrder(d: { id: string; data: () => Record<string, unknown> }): M
   return { id: d.id, ...d.data(), createdAt: (d.data().createdAt as { toDate?: () => Date })?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
 }
 
-function sortByDateDesc(docs: { data: () => Record<string, unknown> }[]) {
+function sortByDateDesc(docs: { id: string; data: () => Record<string, unknown> }[]) {
   return docs.sort((a, b) => {
     const at = (a.data().createdAt as { toDate?: () => Date })?.toDate?.()?.getTime() ?? 0;
     const bt = (b.data().createdAt as { toDate?: () => Date })?.toDate?.()?.getTime() ?? 0;
