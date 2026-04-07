@@ -432,9 +432,11 @@ export async function addStockCount(productId: string, quantity: number): Promis
   return runTransaction(database, async (transaction) => {
     const stockRef = doc(database, 'merch_stock', productId);
     const snap = await transaction.get(stockRef);
-    const current = snap.exists() ? (snap.data().count ?? -1) : -1;
+    const existingData = snap.exists() ? snap.data() : {};
+    const current = existingData.count ?? -1;
     const next = current === -1 ? quantity : current + quantity;
-    transaction.set(stockRef, { count: next }, { merge: true });
+    // Preserve all existing fields (sizes, resumedFromOutOfStock, etc.)
+    transaction.set(stockRef, { ...existingData, count: next });
     return next;
   });
 }
@@ -446,14 +448,15 @@ export async function addSizeStock(productId: string, size: string, quantity: nu
   return runTransaction(database, async (transaction) => {
     const stockRef = doc(database, 'merch_stock', productId);
     const snap = await transaction.get(stockRef);
-    const data: StockDoc = snap.exists()
-      ? { count: snap.data().count ?? -1, sizes: snap.data().sizes }
-      : { count: -1 };
-    const current = size in (data.sizes ?? {})
-      ? data.sizes?.[size] ?? -1
-      : (data.count === -1 ? 0 : data.count);
+    const existingData = snap.exists() ? snap.data() : {};
+    const currentSizes = existingData.sizes ?? {};
+    const current = currentSizes[size] ?? -1;
     const next = current === -1 ? quantity : current + quantity;
-    transaction.set(stockRef, { sizes: { [size]: next } }, { merge: true });
+    // Preserve all existing fields and merge sizes properly
+    transaction.set(stockRef, {
+      ...existingData,
+      sizes: { ...currentSizes, [size]: next },
+    });
     return next;
   });
 }
