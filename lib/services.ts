@@ -264,8 +264,20 @@ export async function deletePrebook(id: string): Promise<void> {
 
 export async function createMerchOrder(data: Omit<MerchOrder, 'id' | 'createdAt'>): Promise<string> {
   const ordersRef = collection(requireDb(), 'merch_orders');
+
+  const stripUndefinedDeep = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(stripUndefinedDeep);
+    if (value && typeof value === 'object') {
+      const entries = Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, stripUndefinedDeep(v)]);
+      return Object.fromEntries(entries);
+    }
+    return value;
+  };
+
   const docRef = await addDoc(ordersRef, {
-    ...data,
+    ...(stripUndefinedDeep(data) as Omit<MerchOrder, 'id' | 'createdAt'>),
     createdAt: serverTimestamp(),
   });
   return docRef.id;
