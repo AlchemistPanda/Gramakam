@@ -21,7 +21,20 @@ export default function MerchandisePage() {
     if (typeof window === 'undefined') return {};
     try {
       const saved = localStorage.getItem('gramakam_cart');
-      return saved ? JSON.parse(saved) : {};
+      if (!saved) return {};
+      const parsed = JSON.parse(saved) as Record<string, Selection>;
+      // Migrate old format: keys like "tshirt" with a size field → new "tshirt:size" key
+      const migrated: Record<string, Selection> = {};
+      for (const [key, sel] of Object.entries(parsed)) {
+        if (!sel || !sel.quantity || sel.quantity <= 0) continue;
+        if (!key.includes(':') && sel.size && sel.size !== 'N/A') {
+          // Old format — convert "tshirt" + size:"36 (S)" → "tshirt:36 (S)"
+          migrated[`${key}:${sel.size}`] = sel;
+        } else {
+          migrated[key] = sel;
+        }
+      }
+      return migrated;
     } catch { return {}; }
   });
   const [showCheckout, setShowCheckout] = useState(false);
