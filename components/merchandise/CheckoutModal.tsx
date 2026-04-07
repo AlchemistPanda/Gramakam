@@ -42,20 +42,32 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [paymentId, setPaymentId] = useState('');
+  const [scriptLoaded, setScriptLoaded] = useState(false);
   // Snapshot confirmed order details so they survive cart clearing
   const [confirmedTotal, setConfirmedTotal] = useState(0);
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // Load Razorpay script
+  // Load Razorpay script (with onload tracking so we know when it's ready)
   useEffect(() => {
-    if (typeof window !== 'undefined' && !document.getElementById('razorpay-script')) {
-      const script = document.createElement('script');
-      script.id = 'razorpay-script';
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      document.head.appendChild(script);
+    if (typeof window === 'undefined') return;
+    // Already loaded earlier in the session
+    if (window.Razorpay) {
+      setScriptLoaded(true);
+      return;
     }
+    const existing = document.getElementById('razorpay-script') as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener('load', () => setScriptLoaded(true));
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'razorpay-script';
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => setScriptLoaded(true);
+    script.onerror = () => setScriptLoaded(false);
+    document.head.appendChild(script);
   }, []);
 
   // Reset on open
@@ -88,6 +100,15 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
     setErrorMsg('');
 
     try {
+      // 0. Make sure the Razorpay checkout script is actually available.
+      // If it isn't, don't even try to create an order — the popup wouldn't open.
+      if (typeof window === 'undefined' || !window.Razorpay) {
+        throw new Error(
+          'Payment gateway is still loading. Please wait a moment and try again. ' +
+          'If the issue persists, disable any ad/script blocker and reload the page.'
+        );
+      }
+
       // 1. Create Razorpay order on server
       const res = await fetch('/api/razorpay/create-order', {
         method: 'POST',
@@ -102,14 +123,14 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
       });
 
       if (!res.ok) {
-        throw new Error('Failed to create payment order');
+        throw new Error('Failed to create payment order. Please try again.');
       }
 
       const razorpayOrder = await res.json();
 
-      // 2. Open Razorpay checkout
-      setStep('paying');
-
+      // 2. Build Razorpay checkout options (do NOT switch UI to 'paying' yet —
+      // we only do that once rzp.open() actually fires, otherwise users can get
+      // stuck on the "checkout is open" screen if the popup never appears).
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: razorpayOrder.amount,
@@ -190,7 +211,10 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
         setStep('failed');
       });
 
+      // Open the checkout popup, then flip the UI to 'paying'.
+      // If rzp.open() throws synchronously the catch below resets us cleanly.
       rzp.open();
+      setStep('paying');
     } catch (err: any) {
       console.error('Checkout error:', err);
       setErrorMsg(err.message || 'Something went wrong. Please try again.');
@@ -368,11 +392,13 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
 
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !scriptLoaded}
                     className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {isSubmitting ? (
                       <><Loader2 size={16} className="animate-spin" /> Creating order...</>
+                    ) : !scriptLoaded ? (
+                      <><Loader2 size={16} className="animate-spin" /> Loading payment gateway...</>
                     ) : (
                       <>Pay ₹{total} <ArrowRight size={16} /></>
                     )}
@@ -390,6 +416,16 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                   <div className="w-16 h-16 border-4 border-maroon border-t-transparent rounded-full animate-spin mx-auto" />
                   <p className="text-gray-600">Razorpay checkout is open.</p>
                   <p className="text-gray-400 text-sm">Complete your payment in the popup window.</p>
+                  <p className="text-gray-400 text-xs pt-4">
+                    Don&apos;t see the popup? It may be blocked by your browser.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setStep('details'); setErrorMsg(''); }}
+                    className="text-sm text-maroon hover:underline"
+                  >
+                    Cancel and go back
+                  </button>
                 </div>
               )}
 

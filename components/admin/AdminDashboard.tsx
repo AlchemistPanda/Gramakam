@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
@@ -33,10 +33,13 @@ import {
   Phone,
   MailIcon,
   Search,
+  Upload,
+  Loader2,
 } from 'lucide-react';
 import {
   getGalleryItems,
   addGalleryItem,
+  updateGalleryItem,
   deleteGalleryItem,
   getFeedPosts,
   addFeedPost,
@@ -235,15 +238,31 @@ function OverviewPanel() {
 }
 
 // ===== GALLERY PANEL =====
+type UploadStatus = 'pending' | 'compressing' | 'uploading' | 'done' | 'error';
+interface UploadQueueEntry {
+  id: string;
+  file: File;
+  name: string;
+  status: UploadStatus;
+  note: string;
+}
+
 function GalleryPanel() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState('');
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [category, setCategory] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+
+  // Bulk upload
+  const [showUpload, setShowUpload] = useState(false);
+  const [bulkYear, setBulkYear] = useState(new Date().getFullYear());
+  const [queue, setQueue] = useState<UploadQueueEntry[]>([]);
+  const [running, setRunning] = useState(false);
+
+  // Edit modal
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const loadItems = async () => {
     try {
@@ -253,24 +272,63 @@ function GalleryPanel() {
     setLoading(false);
   };
 
-  useEffect(() => { loadItems(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { loadItems(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleUpload = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!imageFile || !title || !category) return;
-    setUploading(true);
-    try {
-      const compressed = await compressImage(imageFile);
-      const path = `gallery/${Date.now()}_${compressed.name}`;
-      const imageUrl = await uploadImage(compressed, path);
-      await addGalleryItem({ title, imageUrl, year, category, type: 'image' });
-      setShowForm(false);
-      setTitle(''); setCategory(''); setImageFile(null);
-      await loadItems();
-    } catch {
-      alert('Upload failed. Make sure Firebase Storage is configured.');
+  const handleFilePick = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    setQueue(files.map((f) => ({
+      id: `${Date.now()}_${Math.random()}`,
+      file: f,
+      name: f.name.replace(/\.[^.]+$/, ''),
+      status: 'pending',
+      note: formatFileSize(f.size),
+    })));
+  };
+
+  const patchEntry = (id: string, patch: Partial<UploadQueueEntry>) =>
+    setQueue((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+
+  const handleBulkUpload = async () => {
+    if (!queue.length || running) return;
+    setRunning(true);
+    for (const entry of queue) {
+      if (entry.status === 'done') continue;
+      patchEntry(entry.id, { status: 'compressing', note: 'Compressing…' });
+      try {
+        const compressed = await compressImage(entry.file);
+        patchEntry(entry.id, { status: 'uploading', note: `Uploading ${formatFileSize(compressed.size)}…` });
+        const path = `gallery/${bulkYear}/${Date.now()}_${compressed.name}`;
+        const imageUrl = await uploadImage(compressed, path);
+        await addGalleryItem({ title: entry.name, imageUrl, year: bulkYear, category: '', type: 'image' });
+        patchEntry(entry.id, { status: 'done', note: 'Done' });
+      } catch {
+        patchEntry(entry.id, { status: 'error', note: 'Failed' });
+      }
     }
-    setUploading(false);
+    setRunning(false);
+    await loadItems();
+  };
+
+  const allDone = queue.length > 0 && queue.every((e) => e.status === 'done' || e.status === 'error');
+
+  const openEdit = (item: GalleryItem) => {
+    setEditId(item.id);
+    setEditTitle(item.title);
+    setEditCategory(item.category ?? '');
+    setEditDescription(item.description ?? '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editId) return;
+    setSaving(true);
+    try {
+      await updateGalleryItem(editId, { title: editTitle, category: editCategory, description: editDescription });
+      setItems((prev) => prev.map((i) =>
+        i.id === editId ? { ...i, title: editTitle, category: editCategory, description: editDescription } : i
+      ));
+      setEditId(null);
+    } catch { alert('Save failed.'); }
+    setSaving(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -281,30 +339,122 @@ function GalleryPanel() {
     } catch { alert('Delete failed.'); }
   };
 
+  const statusIcon = (s: UploadStatus) => {
+    if (s === 'done') return <CheckCircle size={14} className="text-green-500 shrink-0" />;
+    if (s === 'error') return <X size={14} className="text-red-500 shrink-0" />;
+    if (s === 'compressing' || s === 'uploading') return <Loader2 size={14} className="text-maroon animate-spin shrink-0" />;
+    return <div className="w-3.5 h-3.5 rounded-full bg-gray-300 shrink-0" />;
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      {/* Edit modal */}
+      {editId && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setEditId(null); }}
+        >
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-charcoal">Edit Gallery Item</h3>
+              <button onClick={() => setEditId(null)}><X size={18} className="text-gray-400 hover:text-charcoal" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Title</label>
+                <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Category</label>
+                <input value={editCategory} onChange={(e) => setEditCategory(e.target.value)} placeholder="e.g. Performance, Backstage…" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Description</label>
+                <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={handleSaveEdit} disabled={saving} className="btn-primary text-sm disabled:opacity-50 flex items-center gap-2">
+                <Save size={14} /> {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button onClick={() => setEditId(null)} className="btn-secondary text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h2 className="heading-lg text-charcoal">Gallery Management</h2>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary text-sm flex items-center gap-2">
-          <Plus size={16} /> Upload Image
+        <button
+          onClick={() => { setShowUpload(!showUpload); setQueue([]); }}
+          className="btn-primary text-sm flex items-center gap-2"
+        >
+          <Upload size={16} /> Bulk Upload
         </button>
       </div>
 
-      {showForm && (
+      {showUpload && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-          <h3 className="font-semibold text-charcoal mb-4">Add Gallery Image</h3>
-          <form onSubmit={handleUpload} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="text" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" required />
-            <input type="text" placeholder="Category (e.g., Performance)" value={category} onChange={(e) => setCategory(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" required />
-            <input type="number" placeholder="Year" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" required />
-            <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm" required />
-            <div className="md:col-span-2 flex gap-3">
-              <button type="submit" disabled={uploading} className="btn-primary text-sm disabled:opacity-50">
-                {uploading ? 'Uploading...' : 'Upload'}
-              </button>
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary text-sm">Cancel</button>
+          <h3 className="font-semibold text-charcoal mb-4">Bulk Upload Images</h3>
+          <div className="flex items-end gap-4 mb-4 flex-wrap">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Year <span className="text-red-400">*</span></label>
+              <input
+                type="number"
+                value={bulkYear}
+                onChange={(e) => setBulkYear(parseInt(e.target.value))}
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none"
+              />
             </div>
-          </form>
+            <div className="flex-1 min-w-48">
+              <label className="block text-xs text-gray-500 mb-1">Select images (multiple)</label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFilePick}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-maroon/10 file:text-maroon file:text-sm file:font-medium hover:file:bg-maroon/20 cursor-pointer"
+              />
+            </div>
+          </div>
+
+          {queue.length > 0 && (
+            <div className="border border-gray-100 rounded-lg overflow-hidden mb-4 max-h-52 overflow-y-auto divide-y divide-gray-50">
+              {queue.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-3 px-4 py-2.5">
+                  {statusIcon(entry.status)}
+                  <span className="flex-1 text-sm text-charcoal truncate">{entry.name}</span>
+                  <span className="text-xs text-gray-400 shrink-0">{entry.note}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            {!allDone ? (
+              <button
+                onClick={handleBulkUpload}
+                disabled={!queue.length || running}
+                className="btn-primary text-sm disabled:opacity-50 flex items-center gap-2"
+              >
+                {running
+                  ? <><Loader2 size={14} className="animate-spin" /> Uploading…</>
+                  : <><Upload size={14} /> Upload{queue.length > 0 ? ` ${queue.length} image${queue.length !== 1 ? 's' : ''}` : ''}</>
+                }
+              </button>
+            ) : (
+              <button onClick={() => { setShowUpload(false); setQueue([]); }} className="btn-primary text-sm flex items-center gap-2">
+                <CheckCircle size={14} /> Done
+              </button>
+            )}
+            <button
+              onClick={() => { setShowUpload(false); setQueue([]); }}
+              disabled={running}
+              className="btn-secondary text-sm disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -323,12 +473,17 @@ function GalleryPanel() {
               <div key={item.id} className="relative group rounded-lg overflow-hidden aspect-square">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs gap-1">
-                  <span className="font-medium">{item.title}</span>
-                  <span>{item.year} · {item.category}</span>
-                  <button onClick={() => handleDelete(item.id)} className="mt-2 bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-white text-xs flex items-center gap-1">
-                    <Trash2 size={12} /> Delete
-                  </button>
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs gap-1 p-2">
+                  <span className="font-medium text-center line-clamp-2">{item.title || <span className="italic opacity-60">No title</span>}</span>
+                  <span className="opacity-70">{item.year}{item.category ? ` · ${item.category}` : ''}</span>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => openEdit(item)} className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                      <Edit size={11} /> Edit
+                    </button>
+                    <button onClick={() => handleDelete(item.id)} className="bg-red-500/80 hover:bg-red-600 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                      <Trash2 size={11} /> Del
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

@@ -6,6 +6,7 @@ export interface GalleryItem {
   imageUrl: string;
   year: number;
   category: string;
+  description?: string;
   type: 'image' | 'video';
   videoUrl?: string;
   createdAt: Date | string;

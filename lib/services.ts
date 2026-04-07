@@ -318,9 +318,15 @@ export async function trackOrder(input: string): Promise<MerchOrder | null> {
   // Try by mobile (last 10 digits, most recent order)
   const mobile = clean.replace(/\D/g, '').slice(-10);
   if (mobile.length === 10) {
-    const byMobile = await getDocs(query(ref, where('customerMobile', '==', mobile), orderBy('createdAt', 'desc'), limit(1)));
+    const byMobile = await getDocs(query(ref, where('customerMobile', '==', mobile)));
     if (!byMobile.empty) {
-      const d = byMobile.docs[0];
+      // Sort client-side to avoid requiring a composite Firestore index
+      const sorted = byMobile.docs.sort((a, b) => {
+        const at = a.data().createdAt?.toDate?.()?.getTime() ?? 0;
+        const bt = b.data().createdAt?.toDate?.()?.getTime() ?? 0;
+        return bt - at;
+      });
+      const d = sorted[0];
       return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
     }
   }
