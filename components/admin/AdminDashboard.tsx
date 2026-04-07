@@ -802,6 +802,20 @@ function MerchStockSubTab() {
   // Per-size edit values: { "tshirt::36 (S)": "10", "slingbag": "50" }
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
+  const formatResumedDate = (value: unknown): string => {
+    try {
+      // Supports ISO strings and Firestore Timestamp-like objects.
+      const date =
+        value && typeof value === 'object' && 'toDate' in (value as Record<string, unknown>)
+          ? ((value as { toDate: () => Date }).toDate())
+          : new Date(String(value ?? ''));
+      if (Number.isNaN(date.getTime())) return 'Unknown date';
+      return date.toLocaleDateString('en-IN');
+    } catch {
+      return 'Unknown date';
+    }
+  };
+
   const loadStock = async () => {
     try {
       const docs = await getStockDocs();
@@ -987,7 +1001,7 @@ function MerchStockSubTab() {
                 {hasWarning && (
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[10px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
-                      ⚠ Resumed from out-of-stock on {new Date(doc!.resumedFromOutOfStock!).toLocaleDateString('en-IN')}
+                      ⚠ Resumed from out-of-stock on {formatResumedDate(doc?.resumedFromOutOfStock)}
                     </span>
                     <button
                       onClick={() => handleClearWarning(product.id)}
