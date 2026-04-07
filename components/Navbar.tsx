@@ -10,6 +10,8 @@ const navLinks = [
   { href: '/', label: 'Home' },
   { href: '/about', label: 'About' },
   { href: '/gallery', label: 'Gallery' },
+  { href: '/feed', label: 'Latest Feed' },
+  { href: '/merchandise', label: 'Merchandise' },
   { href: '/awards', label: 'Awards' },
   { href: '/media', label: 'Media & News' },
   { href: '/workshop', label: "Children's Workshop" },
