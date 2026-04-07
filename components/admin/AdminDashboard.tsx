@@ -40,6 +40,7 @@ import {
   getGalleryItems,
   getGalleryHashes,
   hashFile,
+  backfillGallerySizes,
   addGalleryItem,
   updateGalleryItem,
   deleteGalleryItem,
@@ -273,6 +274,10 @@ function GalleryPanel() {
   const [queue, setQueue] = useState<UploadQueueEntry[]>(globalQueue);
   const [running, setRunning] = useState(globalRunning);
 
+  // Backfill sizes
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
+
   // Edit modal
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -399,6 +404,19 @@ function GalleryPanel() {
   const progressPct = queue.length ? Math.round(((done + duplicates + errors) / queue.length) * 100) : 0;
 
   const totalGallerySize = items.reduce((sum, i) => sum + (i.fileSize ?? 0), 0);
+  const missingSizeCount = items.filter((i) => !i.fileSize).length;
+
+  const handleBackfillSizes = async () => {
+    if (backfilling) return;
+    setBackfilling(true);
+    setBackfillProgress({ done: 0, total: 0 });
+    try {
+      await backfillGallerySizes((done, total) => setBackfillProgress({ done, total }));
+      await loadItems();
+    } catch { alert('Backfill failed.'); }
+    setBackfilling(false);
+    setBackfillProgress(null);
+  };
 
   const openEdit = (item: GalleryItem) => {
     setEditId(item.id);
@@ -478,14 +496,34 @@ function GalleryPanel() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h2 className="heading-lg text-charcoal">Gallery Management</h2>
-          {totalGallerySize > 0 && (
-            <p className="text-xs text-gray-400 mt-1">
-              {items.length} images · Total size: <span className="font-medium text-gray-600">{formatFileSize(totalGallerySize)}</span>
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <p className="text-xs text-gray-400">
+              {items.length} images
+              {totalGallerySize > 0 && (
+                <> · Total size: <span className="font-medium text-gray-600">{formatFileSize(totalGallerySize)}</span></>
+              )}
+              {missingSizeCount > 0 && (
+                <span className="text-amber-500 ml-1">· {missingSizeCount} without size data</span>
+              )}
             </p>
-          )}
+            {missingSizeCount > 0 && !backfilling && (
+              <button
+                onClick={handleBackfillSizes}
+                className="text-xs text-maroon hover:underline flex items-center gap-1"
+              >
+                <Download size={11} /> Calculate missing sizes
+              </button>
+            )}
+            {backfilling && backfillProgress && (
+              <span className="text-xs text-maroon flex items-center gap-1">
+                <Loader2 size={11} className="animate-spin" />
+                {backfillProgress.done}/{backfillProgress.total} images…
+              </span>
+            )}
+          </div>
         </div>
         <button onClick={() => setShowUpload(!showUpload)} className="btn-primary text-sm flex items-center gap-2">
           <Upload size={16} /> {running ? 'View Queue' : 'Bulk Upload'}

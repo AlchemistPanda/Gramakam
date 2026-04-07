@@ -18,6 +18,7 @@ import {
   uploadBytes,
   getDownloadURL,
   deleteObject,
+  getMetadata,
 } from 'firebase/storage';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, auth, storage } from './firebase';
@@ -83,6 +84,45 @@ export async function getGalleryHashes(): Promise<Set<string>> {
   const hashes = new Set<string>();
   items.forEach((i) => { if (i.fileHash) hashes.add(i.fileHash); });
   return hashes;
+}
+
+/**
+ * Backfill fileSize for gallery items that don't have it yet.
+ * Extracts the storage path from the Firebase download URL and calls
+ * getMetadata() — no image data is downloaded, just metadata.
+ * Calls onProgress(done, total) after each item.
+ */
+export async function backfillGallerySizes(
+  onProgress: (done: number, total: number) => void
+): Promise<{ updated: number; failed: number }> {
+  const items = await getGalleryItems();
+  const missing = items.filter((i) => !i.fileSize && i.imageUrl);
+  let updated = 0;
+  let failed = 0;
+
+  for (let i = 0; i < missing.length; i++) {
+    const item = missing[i];
+    try {
+      // Extract the storage path from the Firebase download URL
+      // URL format: https://firebasestorage.googleapis.com/v0/b/BUCKET/o/ENCODED_PATH?alt=media&...
+      const url = new URL(item.imageUrl);
+      const pathMatch = url.pathname.match(/\/o\/(.+)/);
+      if (!pathMatch) { failed++; onProgress(i + 1, missing.length); continue; }
+      const storagePath = decodeURIComponent(pathMatch[1]);
+
+      const storageRef = ref(requireStorage(), storagePath);
+      const meta = await getMetadata(storageRef);
+      const size = meta.size;
+
+      await updateGalleryItem(item.id, { fileSize: size });
+      updated++;
+    } catch {
+      failed++;
+    }
+    onProgress(i + 1, missing.length);
+  }
+
+  return { updated, failed };
 }
 
 /** Compute a SHA-1 hex hash of a File (browser-side). */
