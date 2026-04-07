@@ -3,8 +3,6 @@ import { Resend } from 'resend';
 import type { MerchCartItem, DeliveryAddress } from '@/types';
 import { buildOrderEmailHtml } from '@/lib/orderEmail';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 interface OrderEmailPayload {
   to: string;
   customerName: string;
@@ -28,6 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send({
       from: 'Gramakam <orders@gramakam.org>',
       to: payload.to,
