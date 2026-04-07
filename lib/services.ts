@@ -77,6 +77,21 @@ export async function getGalleryYears(): Promise<number[]> {
   return years.sort((a, b) => b - a);
 }
 
+/** Returns the set of all fileHash values already in the gallery — for duplicate detection. */
+export async function getGalleryHashes(): Promise<Set<string>> {
+  const items = await getGalleryItems();
+  const hashes = new Set<string>();
+  items.forEach((i) => { if (i.fileHash) hashes.add(i.fileHash); });
+  return hashes;
+}
+
+/** Compute a SHA-1 hex hash of a File (browser-side). */
+export async function hashFile(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-1', buffer);
+  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 export async function addGalleryItem(
   item: Omit<GalleryItem, 'id' | 'createdAt'>
 ): Promise<string> {

@@ -38,6 +38,8 @@ import {
 } from 'lucide-react';
 import {
   getGalleryItems,
+  getGalleryHashes,
+  hashFile,
   addGalleryItem,
   updateGalleryItem,
   deleteGalleryItem,
@@ -244,24 +246,32 @@ function OverviewPanel() {
 }
 
 // ===== GALLERY PANEL =====
-type UploadStatus = 'pending' | 'compressing' | 'uploading' | 'done' | 'error';
+type UploadStatus = 'pending' | 'hashing' | 'duplicate' | 'compressing' | 'uploading' | 'done' | 'error' | 'cancelled';
+
 interface UploadQueueEntry {
   id: string;
   file: File;
   name: string;
   status: UploadStatus;
   note: string;
+  originalSize: number;
+  compressedSize?: number;
+  hash?: string;
 }
+
+// Global upload state — persists across panel re-renders so queue survives tab switches
+let globalQueue: UploadQueueEntry[] = [];
+let globalRunning = false;
+let globalAbort = false;
+let globalYear = new Date().getFullYear();
 
 function GalleryPanel() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Bulk upload
   const [showUpload, setShowUpload] = useState(false);
-  const [bulkYear, setBulkYear] = useState(new Date().getFullYear());
-  const [queue, setQueue] = useState<UploadQueueEntry[]>([]);
-  const [running, setRunning] = useState(false);
+  const [bulkYear, setBulkYear] = useState(globalYear);
+  const [queue, setQueue] = useState<UploadQueueEntry[]>(globalQueue);
+  const [running, setRunning] = useState(globalRunning);
 
   // Edit modal
   const [editId, setEditId] = useState<string | null>(null);
@@ -270,52 +280,125 @@ function GalleryPanel() {
   const [editDescription, setEditDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const syncQueue = (next: UploadQueueEntry[]) => { globalQueue = next; setQueue([...next]); };
+  const patchEntry = (id: string, patch: Partial<UploadQueueEntry>) => {
+    globalQueue = globalQueue.map((e) => e.id === id ? { ...e, ...patch } : e);
+    setQueue([...globalQueue]);
+  };
+
   const loadItems = async () => {
-    try {
-      const data = await getGalleryItems();
-      setItems(data);
-    } catch { /* Firebase not configured */ }
+    try { setItems(await getGalleryItems()); } catch {}
     setLoading(false);
   };
 
   useEffect(() => { loadItems(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleFilePick = (e: ChangeEvent<HTMLInputElement>) => {
+  // Sync running state from global on mount (if upload was in progress)
+  useEffect(() => { setRunning(globalRunning); }, []);
+
+  const handleFilePick = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    setQueue(files.map((f) => ({
+    if (!files.length) return;
+
+    // New picks are ADDED to the queue (scheduled), not replacing it
+    const newEntries: UploadQueueEntry[] = files.map((f) => ({
       id: `${Date.now()}_${Math.random()}`,
       file: f,
       name: f.name.replace(/\.[^.]+$/, ''),
-      status: 'pending',
+      status: 'pending' as UploadStatus,
       note: formatFileSize(f.size),
-    })));
+      originalSize: f.size,
+    }));
+    syncQueue([...globalQueue, ...newEntries]);
+    // Reset input so same files can be re-added after clearing
+    e.target.value = '';
   };
 
-  const patchEntry = (id: string, patch: Partial<UploadQueueEntry>) =>
-    setQueue((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-
   const handleBulkUpload = async () => {
-    if (!queue.length || running) return;
+    if (!globalQueue.length || globalRunning) return;
+    globalRunning = true;
+    globalAbort = false;
+    globalYear = bulkYear;
     setRunning(true);
-    for (const entry of queue) {
-      if (entry.status === 'done') continue;
-      patchEntry(entry.id, { status: 'compressing', note: 'Compressing…' });
+
+    // Fetch existing hashes once before the loop
+    let existingHashes: Set<string> = new Set();
+    try { existingHashes = await getGalleryHashes(); } catch {}
+
+    for (const entry of globalQueue) {
+      if (globalAbort) {
+        // Mark remaining pending as cancelled
+        if (entry.status === 'pending') patchEntry(entry.id, { status: 'cancelled', note: 'Cancelled' });
+        continue;
+      }
+      if (entry.status === 'done' || entry.status === 'duplicate' || entry.status === 'cancelled') continue;
+
       try {
+        // Hash for duplicate detection
+        patchEntry(entry.id, { status: 'hashing', note: 'Checking duplicate…' });
+        const hash = await hashFile(entry.file);
+        if (existingHashes.has(hash)) {
+          patchEntry(entry.id, { status: 'duplicate', note: 'Duplicate — skipped', hash });
+          continue;
+        }
+
+        // Compress
+        patchEntry(entry.id, { status: 'compressing', note: 'Compressing…', hash });
         const compressed = await compressImage(entry.file);
-        patchEntry(entry.id, { status: 'uploading', note: `Uploading ${formatFileSize(compressed.size)}…` });
+
+        // Upload
+        patchEntry(entry.id, { status: 'uploading', note: `Uploading ${formatFileSize(compressed.size)}…`, compressedSize: compressed.size });
         const path = `gallery/${bulkYear}/${Date.now()}_${compressed.name}`;
         const imageUrl = await uploadImage(compressed, path);
-        await addGalleryItem({ title: entry.name, imageUrl, year: bulkYear, category: '', type: 'image' });
-        patchEntry(entry.id, { status: 'done', note: 'Done' });
+        await addGalleryItem({
+          title: entry.name, imageUrl, year: bulkYear,
+          category: '', type: 'image',
+          fileSize: compressed.size,
+          originalSize: entry.originalSize,
+          fileHash: hash,
+        });
+
+        // Track hash so subsequent duplicates in the same batch are caught
+        existingHashes.add(hash);
+        patchEntry(entry.id, { status: 'done', note: `Done · ${formatFileSize(compressed.size)}`, compressedSize: compressed.size });
       } catch {
         patchEntry(entry.id, { status: 'error', note: 'Failed' });
       }
     }
+
+    globalRunning = false;
     setRunning(false);
     await loadItems();
   };
 
-  const allDone = queue.length > 0 && queue.every((e) => e.status === 'done' || e.status === 'error');
+  const handleCancel = () => {
+    globalAbort = true;
+    // Mark all pending immediately
+    globalQueue = globalQueue.map((e) =>
+      e.status === 'pending' ? { ...e, status: 'cancelled' as UploadStatus, note: 'Cancelled' } : e
+    );
+    setQueue([...globalQueue]);
+  };
+
+  const handleClearQueue = () => {
+    if (globalRunning) return;
+    globalQueue = [];
+    setQueue([]);
+  };
+
+  const removeEntry = (id: string) => {
+    if (globalRunning) return;
+    syncQueue(globalQueue.filter((e) => e.id !== id));
+  };
+
+  const done = queue.filter((e) => e.status === 'done').length;
+  const duplicates = queue.filter((e) => e.status === 'duplicate').length;
+  const errors = queue.filter((e) => e.status === 'error').length;
+  const pending = queue.filter((e) => e.status === 'pending').length;
+  const allSettled = queue.length > 0 && queue.every((e) => ['done', 'error', 'duplicate', 'cancelled'].includes(e.status));
+  const progressPct = queue.length ? Math.round(((done + duplicates + errors) / queue.length) * 100) : 0;
+
+  const totalGallerySize = items.reduce((sum, i) => sum + (i.fileSize ?? 0), 0);
 
   const openEdit = (item: GalleryItem) => {
     setEditId(item.id);
@@ -339,27 +422,32 @@ function GalleryPanel() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this gallery item?')) return;
-    try {
-      await deleteGalleryItem(id);
-      await loadItems();
-    } catch { alert('Delete failed.'); }
+    try { await deleteGalleryItem(id); await loadItems(); } catch { alert('Delete failed.'); }
   };
 
   const statusIcon = (s: UploadStatus) => {
     if (s === 'done') return <CheckCircle size={14} className="text-green-500 shrink-0" />;
+    if (s === 'duplicate') return <Copy size={14} className="text-amber-500 shrink-0" />;
     if (s === 'error') return <X size={14} className="text-red-500 shrink-0" />;
-    if (s === 'compressing' || s === 'uploading') return <Loader2 size={14} className="text-maroon animate-spin shrink-0" />;
+    if (s === 'cancelled') return <X size={14} className="text-gray-400 shrink-0" />;
+    if (s === 'hashing' || s === 'compressing' || s === 'uploading') return <Loader2 size={14} className="text-maroon animate-spin shrink-0" />;
     return <div className="w-3.5 h-3.5 rounded-full bg-gray-300 shrink-0" />;
+  };
+
+  const statusBg = (s: UploadStatus) => {
+    if (s === 'done') return 'bg-green-50';
+    if (s === 'duplicate') return 'bg-amber-50';
+    if (s === 'error') return 'bg-red-50';
+    if (s === 'cancelled') return 'bg-gray-50';
+    if (s === 'hashing' || s === 'compressing' || s === 'uploading') return 'bg-blue-50';
+    return '';
   };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Edit modal */}
       {editId && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setEditId(null); }}
-        >
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditId(null); }}>
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-charcoal">Edit Gallery Item</h3>
@@ -389,81 +477,137 @@ function GalleryPanel() {
         </div>
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="heading-lg text-charcoal">Gallery Management</h2>
-        <button
-          onClick={() => { setShowUpload(!showUpload); setQueue([]); }}
-          className="btn-primary text-sm flex items-center gap-2"
-        >
-          <Upload size={16} /> Bulk Upload
+        <div>
+          <h2 className="heading-lg text-charcoal">Gallery Management</h2>
+          {totalGallerySize > 0 && (
+            <p className="text-xs text-gray-400 mt-1">
+              {items.length} images · Total size: <span className="font-medium text-gray-600">{formatFileSize(totalGallerySize)}</span>
+            </p>
+          )}
+        </div>
+        <button onClick={() => setShowUpload(!showUpload)} className="btn-primary text-sm flex items-center gap-2">
+          <Upload size={16} /> {running ? 'View Queue' : 'Bulk Upload'}
         </button>
       </div>
 
+      {/* Upload panel */}
       {showUpload && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-          <h3 className="font-semibold text-charcoal mb-4">Bulk Upload Images</h3>
-          <div className="flex items-end gap-4 mb-4 flex-wrap">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-charcoal">Bulk Upload Queue</h3>
+            {running && (
+              <span className="flex items-center gap-1.5 text-xs text-maroon font-medium">
+                <Loader2 size={12} className="animate-spin" /> Uploading…
+              </span>
+            )}
+          </div>
+
+          {/* Year + file picker */}
+          <div className="flex items-end gap-4 flex-wrap">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Year <span className="text-red-400">*</span></label>
+              <label className="block text-xs text-gray-500 mb-1">Year</label>
               <input
                 type="number"
                 value={bulkYear}
-                onChange={(e) => setBulkYear(parseInt(e.target.value))}
-                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none"
+                onChange={(e) => { const y = parseInt(e.target.value); setBulkYear(y); globalYear = y; }}
+                disabled={running}
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none disabled:opacity-50"
               />
             </div>
             <div className="flex-1 min-w-48">
-              <label className="block text-xs text-gray-500 mb-1">Select images (multiple)</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Add images {queue.length > 0 && <span className="text-maroon">(adds to queue)</span>}
+              </label>
               <input
-                type="file"
-                accept="image/*"
-                multiple
+                type="file" accept="image/*" multiple
                 onChange={handleFilePick}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-maroon/10 file:text-maroon file:text-sm file:font-medium hover:file:bg-maroon/20 cursor-pointer"
               />
             </div>
           </div>
 
+          {/* Progress bar */}
           {queue.length > 0 && (
-            <div className="border border-gray-100 rounded-lg overflow-hidden mb-4 max-h-52 overflow-y-auto divide-y divide-gray-50">
+            <div>
+              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                <span>{done} done · {duplicates} duplicate{duplicates !== 1 ? 's' : ''} skipped · {errors} failed · {pending} pending</span>
+                <span>{progressPct}%</span>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-maroon rounded-full transition-all duration-300"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Queue list */}
+          {queue.length > 0 && (
+            <div className="border border-gray-100 rounded-lg overflow-hidden max-h-64 overflow-y-auto divide-y divide-gray-50">
               {queue.map((entry) => (
-                <div key={entry.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div key={entry.id} className={`flex items-center gap-3 px-4 py-2.5 ${statusBg(entry.status)}`}>
                   {statusIcon(entry.status)}
                   <span className="flex-1 text-sm text-charcoal truncate">{entry.name}</span>
+                  <span className="text-xs text-gray-400 shrink-0 hidden sm:block">
+                    {formatFileSize(entry.originalSize)}
+                    {entry.compressedSize && entry.compressedSize !== entry.originalSize && (
+                      <span className="text-green-600 ml-1">→ {formatFileSize(entry.compressedSize)}</span>
+                    )}
+                  </span>
                   <span className="text-xs text-gray-400 shrink-0">{entry.note}</span>
+                  {!running && entry.status !== 'done' && (
+                    <button onClick={() => removeEntry(entry.id)} className="shrink-0 text-gray-300 hover:text-red-400 transition-colors ml-1">
+                      <X size={12} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           )}
 
-          <div className="flex gap-3">
-            {!allDone ? (
+          {/* Action buttons */}
+          <div className="flex gap-3 flex-wrap">
+            {!allSettled ? (
               <button
                 onClick={handleBulkUpload}
-                disabled={!queue.length || running}
+                disabled={!queue.filter((e) => e.status === 'pending').length || running}
                 className="btn-primary text-sm disabled:opacity-50 flex items-center gap-2"
               >
                 {running
                   ? <><Loader2 size={14} className="animate-spin" /> Uploading…</>
-                  : <><Upload size={14} /> Upload{queue.length > 0 ? ` ${queue.length} image${queue.length !== 1 ? 's' : ''}` : ''}</>
+                  : <><Upload size={14} /> Upload {pending} image{pending !== 1 ? 's' : ''}</>
                 }
               </button>
             ) : (
-              <button onClick={() => { setShowUpload(false); setQueue([]); }} className="btn-primary text-sm flex items-center gap-2">
+              <button onClick={() => { setShowUpload(false); handleClearQueue(); }} className="btn-primary text-sm flex items-center gap-2">
                 <CheckCircle size={14} /> Done
               </button>
             )}
-            <button
-              onClick={() => { setShowUpload(false); setQueue([]); }}
-              disabled={running}
-              className="btn-secondary text-sm disabled:opacity-50"
-            >
-              Cancel
-            </button>
+
+            {running ? (
+              <button onClick={handleCancel} className="btn-secondary text-sm text-red-500 border-red-200 hover:border-red-400 flex items-center gap-2">
+                <X size={14} /> Cancel remaining
+              </button>
+            ) : (
+              <>
+                {queue.length > 0 && !allSettled && (
+                  <button onClick={handleClearQueue} className="btn-secondary text-sm flex items-center gap-2">
+                    <Trash2 size={14} /> Clear queue
+                  </button>
+                )}
+                <button onClick={() => setShowUpload(false)} className="btn-secondary text-sm">
+                  Close
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
 
+      {/* Gallery grid */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
@@ -482,6 +626,7 @@ function GalleryPanel() {
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs gap-1 p-2">
                   <span className="font-medium text-center line-clamp-2">{item.title || <span className="italic opacity-60">No title</span>}</span>
                   <span className="opacity-70">{item.year}{item.category ? ` · ${item.category}` : ''}</span>
+                  {item.fileSize && <span className="opacity-50">{formatFileSize(item.fileSize)}</span>}
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => openEdit(item)} className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded flex items-center gap-1 transition-colors">
                       <Edit size={11} /> Edit

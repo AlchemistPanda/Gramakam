@@ -32,6 +32,9 @@ jest.mock('@/lib/services', () => ({
     if (stockDoc.sizes?.[size] !== undefined) return stockDoc.sizes[size];
     return stockDoc.count ?? -1;
   }),
+  decrementStock: jest.fn().mockResolvedValue(true),
+  restoreStock: jest.fn().mockResolvedValue(undefined),
+  createMerchOrder: jest.fn().mockResolvedValue('mock-doc-id'),
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -48,6 +51,12 @@ const validCustomer = {
   customerName: 'Test User',
   customerEmail: 'test@example.com',
   customerMobile: '9876543210',
+  deliveryAddress: {
+    line1: '12 Test St',
+    city: 'Thrissur',
+    state: 'Kerala',
+    pincode: '680001',
+  },
 };
 
 const validItems = [{ productId: 'tshirt', size: '38 (M)', quantity: 1 }];

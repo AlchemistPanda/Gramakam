@@ -10,6 +10,9 @@ export interface GalleryItem {
   type: 'image' | 'video';
   videoUrl?: string;
   createdAt: Date | string;
+  fileSize?: number;       // compressed size in bytes
+  originalSize?: number;   // original file size in bytes
+  fileHash?: string;       // SHA-1 of original file for duplicate detection
 }
 
 export interface FeedPost {
