@@ -267,21 +267,30 @@ describe('POST /api/razorpay/create-order', () => {
       expect(body.serverTotal).toBe(expectedTotal);
     });
 
-    it('LOOPHOLE: duplicate productId entries are summed independently (no per-product cap)', async () => {
+    it('rejects duplicate productId entries whose combined qty exceeds 10 (fixed loophole)', async () => {
       const { POST } = await import('@/app/api/razorpay/create-order/route');
-      // Sending same product twice, each with qty=10 — API doesn't deduplicate
       const res = await POST(makeReq({
         ...validCustomer,
         items: [
           { productId: 'tshirt', size: '38 (M)', quantity: 10 },
-          { productId: 'tshirt', size: '40 (L)', quantity: 10 },
+          { productId: 'tshirt', size: '40 (L)', quantity: 1 },  // combined = 11 → rejected
         ],
       }));
-      // Both entries are valid individually; combined qty=20 is not blocked
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
       const body = await res.json();
-      const { PRODUCT_MAP } = await import('@/lib/products');
-      expect(body.serverTotal).toBe(PRODUCT_MAP.get('tshirt')!.price * 20);
+      expect(body.error).toMatch(/maximum 10 units/i);
+    });
+
+    it('allows different products each at qty=10 (different productIds are independent)', async () => {
+      const { POST } = await import('@/app/api/razorpay/create-order/route');
+      const res = await POST(makeReq({
+        ...validCustomer,
+        items: [
+          { productId: 'tshirt', size: '38 (M)', quantity: 10 },
+          { productId: 'slingbag', size: 'N/A', quantity: 10 },
+        ],
+      }));
+      expect(res.status).toBe(200);
     });
 
     it('calls Razorpay with amount in paise', async () => {

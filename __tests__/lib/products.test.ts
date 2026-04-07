@@ -124,15 +124,15 @@ describe('computeCartTotal', () => {
       expect(result).toBe(tshirtPrice * 3);
     });
 
-    it('LOOPHOLE: two entries of same product each with qty=10 → 20x price accepted', () => {
+    it('computeCartTotal itself accepts duplicate rows (lib has no cross-row check)', () => {
       const tshirtPrice = PRODUCT_MAP.get('tshirt')!.price;
       const result = computeCartTotal([
         { productId: 'tshirt', quantity: 10 },
         { productId: 'tshirt', quantity: 10 },
       ]);
-      // Each row is valid (qty=10), no cross-row check → total = 20 * price passes
+      // The lib function just sums; the per-product cap is enforced in the API layer
+      // (create-order route now aggregates and rejects combined qty > 10)
       expect(result).toBe(tshirtPrice * 20);
-      // NOTE: This is a known loophole — the API doesn't deduplicate cart entries
     });
   });
 });

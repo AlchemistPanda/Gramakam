@@ -37,6 +37,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Aggregate quantities per productId — prevent bypassing the per-row cap
+    // by sending the same product multiple times (e.g. two rows of qty=10).
+    const qtyPerProduct = new Map<string, number>();
+    for (const item of items) {
+      const combined = (qtyPerProduct.get(item.productId) ?? 0) + item.quantity;
+      if (combined > 10) {
+        const product = PRODUCT_MAP.get(item.productId);
+        return NextResponse.json(
+          { error: `Maximum 10 units per product (${product?.name ?? item.productId})` },
+          { status: 400 }
+        );
+      }
+      qtyPerProduct.set(item.productId, combined);
+    }
+
     const amount = computeCartTotal(items);
     if (amount === null || amount < 1) {
       return NextResponse.json({ error: 'Invalid cart total' }, { status: 400 });
@@ -66,11 +81,13 @@ export async function POST(req: NextRequest) {
               );
             }
 
-            // Check if this item was recently resumed from out-of-stock (within 7 days)
+            // Check if this item was recently resumed from out-of-stock (within 7 days).
+            // Upper-bound check (resumedAt <= now) prevents a future timestamp from flagging forever.
             if (stockDoc.resumedFromOutOfStock) {
               const resumedAt = new Date(stockDoc.resumedFromOutOfStock).getTime();
-              const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-              if (resumedAt > sevenDaysAgo) {
+              const now = Date.now();
+              const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+              if (resumedAt > sevenDaysAgo && resumedAt <= now) {
                 const product = PRODUCT_MAP.get(item.productId);
                 const sizeLabel = item.size && item.size !== 'N/A' ? ` (${item.size})` : '';
                 stockWarningItems.push(`${product?.name ?? item.productId}${sizeLabel}`);

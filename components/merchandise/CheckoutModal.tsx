@@ -178,11 +178,13 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
               //    If this fails, the webhook will still catch it — show success to user
               //    because payment IS captured by Razorpay regardless.
               try {
-                // Decrement stock first
+                // Decrement stock — track success so webhook knows whether to retry
+                let stockDeducted = false;
                 try {
-                  await decrementStock(cart.map((i) => ({ productId: i.productId, size: i.size !== 'N/A' ? i.size : undefined, quantity: i.quantity })));
+                  const ok = await decrementStock(cart.map((i) => ({ productId: i.productId, size: i.size !== 'N/A' ? i.size : undefined, quantity: i.quantity })));
+                  stockDeducted = ok !== false;
                 } catch (stockErr) {
-                  console.error('[checkout] Stock decrement failed (non-blocking):', stockErr);
+                  console.error('[checkout] Stock decrement failed — webhook will retry:', stockErr);
                 }
 
                 await updateMerchOrderByOrderId(serverOrderId, {
@@ -191,7 +193,8 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                   razorpayPaymentId: response.razorpay_payment_id,
                   verifiedAt: new Date().toISOString(),
                   verifiedBy: 'auto',
-                  stockDeducted: true,
+                  stockDeducted,
+                  ...(stockDeducted ? {} : { stockDeductionFailed: true }),
                 });
               } catch (updateErr) {
                 // Payment succeeded but Firestore update failed.

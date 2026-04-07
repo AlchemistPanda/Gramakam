@@ -1538,8 +1538,36 @@ function MerchOrdersSubTab() {
   useEffect(() => { loadOrders(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this order permanently?')) return;
-    try { await deleteMerchOrder(id); await loadOrders(); } catch {}
+    const order = orders.find((o) => o.id === id);
+    if (!order) return;
+
+    // Restore stock only when the order actually consumed inventory
+    const needsRestore =
+      (order as MerchOrder & { stockDeducted?: boolean }).stockDeducted === true &&
+      order.status !== 'rejected' &&
+      order.status !== 'pending';
+
+    const confirmMsg = needsRestore
+      ? 'Delete this order permanently? Stock will be restored for the items.'
+      : 'Delete this order permanently?';
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      if (needsRestore) {
+        const { restoreStock } = await import('@/lib/services');
+        await restoreStock(
+          order.items.map((i) => ({
+            productId: i.productId,
+            size: i.size !== 'N/A' ? i.size : undefined,
+            quantity: i.quantity,
+          }))
+        );
+      }
+      await deleteMerchOrder(id);
+      await loadOrders();
+    } catch {
+      alert('Failed to delete order.');
+    }
   };
 
   // Counts per status

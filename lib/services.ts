@@ -475,6 +475,30 @@ export async function decrementStock(items: { productId: string; size?: string; 
 }
 
 
+/** Restore stock for deleted/cancelled orders. Inverse of decrementStock. */
+export async function restoreStock(items: { productId: string; size?: string; quantity: number }[]): Promise<void> {
+  const { runTransaction } = await import('firebase/firestore');
+  const database = requireDb();
+
+  await runTransaction(database, async (transaction) => {
+    for (const item of items) {
+      const stockRef = doc(database, 'merch_stock', item.productId);
+      const snap = await transaction.get(stockRef);
+      if (!snap.exists()) continue; // no stock doc → unlimited, nothing to restore
+      const data: StockDoc = {
+        count: snap.data().count ?? -1,
+        sizes: snap.data().sizes,
+      };
+      if (item.size && data.sizes && item.size in data.sizes && data.sizes[item.size] !== -1) {
+        transaction.update(stockRef, { [`sizes.${item.size}`]: data.sizes[item.size] + item.quantity });
+      } else if (data.count !== -1) {
+        transaction.update(stockRef, { count: data.count + item.quantity });
+      }
+      // -1 (unlimited) stocks are never touched
+    }
+  });
+}
+
 // ==================== SITE CONFIG ====================
 
 export async function getSiteConfig(): Promise<SiteConfig | null> {
