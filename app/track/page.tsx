@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, FormEvent, useRef } from 'react';
+import { useState, FormEvent, useRef, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Package, Truck, CheckCircle, CreditCard,
@@ -45,13 +46,27 @@ function copyToClipboard(text: string) {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function TrackPage() {
+function TrackPageContent() {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<MerchOrder | null | 'not_found'>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-search if orderId is provided in URL
+  useEffect(() => {
+    const orderId = searchParams.get('orderId');
+    if (orderId) {
+      setQuery(orderId);
+      setLoading(true);
+      trackOrder(orderId)
+        .then((result) => setOrder(result ?? 'not_found'))
+        .catch(() => setError('Something went wrong. Please try again.'))
+        .finally(() => setLoading(false));
+    }
+  }, [searchParams]);
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -402,5 +417,14 @@ export default function TrackPage() {
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+// Wrap with Suspense boundary for useSearchParams
+export default function TrackPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-charcoal" />}>
+      <TrackPageContent />
+    </Suspense>
   );
 }

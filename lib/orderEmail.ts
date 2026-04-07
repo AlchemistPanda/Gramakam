@@ -96,7 +96,7 @@ export function buildOrderEmailHtml(data: OrderEmailData): string {
 
       <!-- Track order CTA -->
       <div style="text-align:center;margin-top:28px">
-        <a href="https://gramakam.org/track" style="display:inline-block;background:#6B1D1D;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Track Your Order</a>
+        <a href="https://gramakam.org/track?orderId=${data.orderId}" style="display:inline-block;background:#6B1D1D;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Track Your Order</a>
       </div>
 
       <p style="margin:24px 0 0;font-size:12px;color:#999;text-align:center;line-height:1.5">
@@ -177,7 +177,7 @@ export function buildStatusEmailHtml(data: StatusEmailData): string {
 
       <!-- Track order CTA -->
       <div style="text-align:center;margin-top:28px">
-        <a href="https://gramakam.org/track" style="display:inline-block;background:${cfg.color};color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Track Your Order</a>
+        <a href="https://gramakam.org/track?orderId=${data.orderId}" style="display:inline-block;background:${cfg.color};color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Track Your Order</a>
       </div>
 
       <p style="margin:24px 0 0;font-size:12px;color:#999;text-align:center;line-height:1.5">
