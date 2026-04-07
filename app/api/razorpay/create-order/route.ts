@@ -140,6 +140,18 @@ export async function POST(req: NextRequest) {
       key_secret: process.env.RAZORPAY_KEY_SECRET,
     });
 
+    // Enrich items with canonical product name & price from server-side catalog
+    const enrichedItems = items.map((item: { productId: string; size?: string; quantity: number }) => {
+      const product = PRODUCT_MAP.get(item.productId)!;
+      return {
+        productId: item.productId,
+        name: product.name,
+        price: product.price,
+        size: item.size ?? 'N/A',
+        quantity: item.quantity,
+      };
+    });
+
     let order;
     try {
       order = await razorpay.orders.create({
@@ -156,7 +168,7 @@ export async function POST(req: NextRequest) {
 
       await createMerchOrder({
         orderId,
-        items,
+        items: enrichedItems,
         total: amount,
         customerName,
         customerEmail,

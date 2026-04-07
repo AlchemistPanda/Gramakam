@@ -1219,7 +1219,7 @@ function exportOrdersCSV(orders: MerchOrder[]) {
     o.deliveryAddress?.city ?? '',
     o.deliveryAddress?.state ?? '',
     o.deliveryAddress?.pincode ?? '',
-    o.items.map((i) => `${i.name}${i.size !== 'N/A' ? ` (${i.size})` : ''} x${i.quantity}`).join('; '),
+    o.items.map((i) => `${i.name ?? i.productId ?? '?'}${i.size !== 'N/A' ? ` (${i.size})` : ''} x${i.quantity}`).join('; '),
     String(o.total),
     o.razorpayPaymentId ?? o.upiRef ?? '',
     o.paymentMethod ?? '',
@@ -1352,7 +1352,7 @@ function OrderCard({ order, onUpdate, onDelete }: {
           <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
             <span className="font-medium text-charcoal">{order.customerName}</span>
             <span>₹{order.total}</span>
-            <span>{order.items.map((i) => `${i.name.replace('Gramakam ', '')}${i.size !== 'N/A' ? ` (${i.size})` : ''} ×${i.quantity}`).join(', ')}</span>
+            <span>{order.items.map((i) => `${(i.name ?? i.productId ?? '?').replace('Gramakam ', '')}${i.size !== 'N/A' ? ` (${i.size})` : ''} ×${i.quantity}`).join(', ')}</span>
           </div>
         </div>
 
@@ -1398,8 +1398,8 @@ function OrderCard({ order, onUpdate, onDelete }: {
               <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Items</p>
               {order.items.map((item, i) => (
                 <div key={i} className="flex justify-between text-xs">
-                  <span className="text-gray-700">{item.name}{item.size !== 'N/A' ? ` (${item.size})` : ''} ×{item.quantity}</span>
-                  <span className="font-medium text-maroon">₹{item.price * item.quantity}</span>
+                  <span className="text-gray-700">{item.name ?? item.productId ?? '?'}{item.size !== 'N/A' ? ` (${item.size})` : ''} ×{item.quantity}</span>
+                  <span className="font-medium text-maroon">₹{(item.price ?? 0) * item.quantity}</span>
                 </div>
               ))}
               <div className="border-t border-gray-100 pt-1 flex justify-between text-xs font-semibold">
