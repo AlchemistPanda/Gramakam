@@ -75,8 +75,9 @@ export async function POST(req: NextRequest) {
         if (!orderData.stockDeducted) {
           try {
             const { decrementStock } = await import('@/lib/services');
-            const items = (orderData.items || []).map((i: { productId: string; quantity: number }) => ({
+            const items = (orderData.items || []).map((i: { productId: string; size?: string; quantity: number }) => ({
               productId: i.productId,
+              size: i.size && i.size !== 'N/A' ? i.size : undefined,
               quantity: i.quantity,
             }));
             await decrementStock(items);

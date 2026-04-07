@@ -43,27 +43,44 @@ export async function POST(req: NextRequest) {
     }
 
     // Check stock availability (read-only — actual decrement happens on payment verification)
+    // Also check for recently-resumed-from-out-of-stock flagging
+    const stockWarningItems: string[] = [];
     try {
       const { db } = await import('@/lib/firebase');
       if (db) {
         const { doc: firestoreDoc, getDoc: firestoreGetDoc } = await import('firebase/firestore');
+        const { getEffectiveSizeStock } = await import('@/lib/services');
         for (const item of items) {
           const stockSnap = await firestoreGetDoc(firestoreDoc(db, 'merch_stock', item.productId));
           if (stockSnap.exists()) {
-            const stockCount = stockSnap.data().count ?? -1;
-            if (stockCount !== -1 && stockCount < item.quantity) {
+            const stockData = stockSnap.data();
+            const stockDoc = { count: stockData.count ?? -1, sizes: stockData.sizes, resumedFromOutOfStock: stockData.resumedFromOutOfStock };
+            const effective = getEffectiveSizeStock(stockDoc, item.size);
+
+            if (effective !== -1 && effective < item.quantity) {
               const product = PRODUCT_MAP.get(item.productId);
+              const sizeLabel = item.size && item.size !== 'N/A' ? ` (${item.size})` : '';
               return NextResponse.json(
-                { error: `${product?.name ?? item.productId} is out of stock (only ${stockCount} left)` },
+                { error: `${product?.name ?? item.productId}${sizeLabel} is out of stock (only ${effective} left)` },
                 { status: 400 }
               );
+            }
+
+            // Check if this item was recently resumed from out-of-stock (within 7 days)
+            if (stockDoc.resumedFromOutOfStock) {
+              const resumedAt = new Date(stockDoc.resumedFromOutOfStock).getTime();
+              const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+              if (resumedAt > sevenDaysAgo) {
+                const product = PRODUCT_MAP.get(item.productId);
+                const sizeLabel = item.size && item.size !== 'N/A' ? ` (${item.size})` : '';
+                stockWarningItems.push(`${product?.name ?? item.productId}${sizeLabel}`);
+              }
             }
           }
         }
       }
     } catch (stockErr) {
       console.error('[create-order] Stock check failed (proceeding anyway):', stockErr);
-      // Don't block the order if stock check fails — better to oversell than lose a sale
     }
 
     // Generate order ID server-side
@@ -105,6 +122,8 @@ export async function POST(req: NextRequest) {
       currency: order.currency,
       orderId,       // send server-generated ID back to client
       serverTotal: amount,
+      stockWarning: stockWarningItems.length > 0,
+      stockWarningItems: stockWarningItems.length > 0 ? stockWarningItems : undefined,
     });
   } catch (error: unknown) {
     console.error('[create-order] Razorpay order creation failed:', error);

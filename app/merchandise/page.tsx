@@ -8,7 +8,7 @@ import Link from 'next/link';
 import CheckoutModal from '@/components/merchandise/CheckoutModal';
 import type { MerchCartItem } from '@/types';
 import { PRODUCTS as products, type Product } from '@/lib/products';
-import { getStockCounts } from '@/lib/services';
+import { getStockDocs, type StockDoc } from '@/lib/services';
 
 // Per-product selection state: { size, quantity }
 interface Selection {
@@ -27,12 +27,12 @@ export default function MerchandisePage() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ images: string[]; index: number } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<Record<string, number>>({});
-  const [stockCounts, setStockCounts] = useState<Record<string, number>>({});
+  const [stockDocs, setStockDocs] = useState<Record<string, StockDoc>>({});
 
   // Fetch live stock counts from Firestore
   useEffect(() => {
-    getStockCounts()
-      .then(setStockCounts)
+    getStockDocs()
+      .then(setStockDocs)
       .catch(() => {}); // if it fails, everything shows as available
   }, []);
 
@@ -68,7 +68,7 @@ export default function MerchandisePage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getSelection = (id: string, product: Product): Selection =>
-    selections[id] ?? { size: product.sizes?.[0] ?? 'N/A', quantity: 1 };
+    selections[id] ?? { size: product.sizes?.[0] ?? 'N/A', quantity: 0 };
 
   const setSize = (id: string, product: Product, size: string) => {
     const sel = getSelection(id, product);
@@ -93,13 +93,24 @@ export default function MerchandisePage() {
   const totalAmount = cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
   // Stock helpers
-  const getStock = (productId: string): number => {
-    // If no stock doc exists in Firestore, use product.stock (-1 = unlimited)
-    if (productId in stockCounts) return stockCounts[productId];
-    return products.find((p) => p.id === productId)?.stock ?? -1;
+  const getProductStock = (productId: string): number => {
+    const doc = stockDocs[productId];
+    if (!doc) return products.find((p) => p.id === productId)?.stock ?? -1;
+    return doc.count;
   };
-  const isOutOfStock = (productId: string): boolean => {
-    const s = getStock(productId);
+  const getSizeStock = (productId: string, size: string): number => {
+    const doc = stockDocs[productId];
+    if (!doc) return -1;
+    if (doc.count === 0) return 0; // product paused
+    if (doc.sizes && size in doc.sizes) return doc.sizes[size];
+    return doc.count; // fall back to product-level
+  };
+  const isProductOutOfStock = (productId: string): boolean => {
+    const s = getProductStock(productId);
+    return s !== -1 && s <= 0;
+  };
+  const isSizeOutOfStock = (productId: string, size: string): boolean => {
+    const s = getSizeStock(productId, size);
     return s !== -1 && s <= 0;
   };
 
@@ -112,7 +123,9 @@ export default function MerchandisePage() {
 
   const buyNow = (product: Product) => {
     const sel = getSelection(product.id, product);
-    setSelections({ [product.id]: sel });
+    // If quantity is 0, treat as 1 for direct buy
+    const buyQty = sel.quantity > 0 ? sel.quantity : 1;
+    setSelections({ [product.id]: { ...sel, quantity: buyQty } });
     setShowCheckout(true);
   };
 
@@ -187,16 +200,12 @@ export default function MerchandisePage() {
                         {sel.quantity}
                       </div>
                     )}
-                    {isOutOfStock(product.id) && (
+                    {isProductOutOfStock(product.id) && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                         <span className="bg-red-600 text-white text-sm font-bold px-4 py-2 rounded-lg">Out of Stock</span>
                       </div>
                     )}
-                    {!isOutOfStock(product.id) && getStock(product.id) > 0 && getStock(product.id) <= 10 && (
-                      <div className="absolute top-2 left-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow">
-                        Only {getStock(product.id)} left
-                      </div>
-                    )}
+
                   </div>
 
                   {/* Product Info */}
@@ -212,19 +221,25 @@ export default function MerchandisePage() {
                       <div className="mb-4">
                         <p className="text-xs text-gray-500 mb-2 font-medium">Select Size</p>
                         <div className="flex gap-1.5 flex-wrap">
-                          {product.sizes!.map((size) => (
-                            <button
-                              key={size}
-                              onClick={() => setSize(product.id, product, size)}
-                              className={`px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all ${
-                                sel.size === size
-                                  ? 'bg-maroon text-white border-maroon'
-                                  : 'bg-white text-charcoal border-gray-300 hover:border-maroon'
-                              }`}
-                            >
-                              {size}
-                            </button>
-                          ))}
+                          {product.sizes!.map((size) => {
+                            const sizeOos = isSizeOutOfStock(product.id, size);
+                            return (
+                              <button
+                                key={size}
+                                onClick={() => !sizeOos && setSize(product.id, product, size)}
+                                disabled={sizeOos}
+                                className={`px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all ${
+                                  sizeOos
+                                    ? 'bg-gray-100 text-gray-300 border-gray-200 line-through cursor-not-allowed'
+                                    : sel.size === size
+                                      ? 'bg-maroon text-white border-maroon'
+                                      : 'bg-white text-charcoal border-gray-300 hover:border-maroon'
+                                }`}
+                              >
+                                {size}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -251,7 +266,7 @@ export default function MerchandisePage() {
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => setQty(product.id, product, -1)}
-                          disabled={sel.quantity <= 1}
+                          disabled={sel.quantity <= 0}
                           className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors text-lg font-bold"
                         >
                           <Minus size={16} />
@@ -270,10 +285,10 @@ export default function MerchandisePage() {
                     {/* Buy Now Button */}
                     <button
                       onClick={() => buyNow(product)}
-                      disabled={isOutOfStock(product.id)}
+                      disabled={isProductOutOfStock(product.id) || (hasMultipleSizes && isSizeOutOfStock(product.id, sel.size))}
                       className="w-full bg-maroon hover:bg-maroon-dark text-white font-bold py-3 rounded-lg transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
                     >
-                      {isOutOfStock(product.id) ? 'Out of Stock' : 'Buy Now'}
+                      {isProductOutOfStock(product.id) ? 'Out of Stock' : (hasMultipleSizes && isSizeOutOfStock(product.id, sel.size)) ? 'Size Out of Stock' : 'Buy Now'}
                     </button>
                   </div>
                 </div>
@@ -320,7 +335,7 @@ export default function MerchandisePage() {
           setSelections({});
           try { localStorage.removeItem('gramakam_cart'); } catch {}
           // Refresh stock counts
-          getStockCounts().then(setStockCounts).catch(() => {});
+          getStockDocs().then(setStockDocs).catch(() => {});
         }}
       />
 

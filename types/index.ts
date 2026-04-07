@@ -153,6 +153,8 @@ export interface MerchOrder {
   rejectedAt?: string;
   rejectionReason?: string;
   stockDeducted?: boolean;
+  stockWarning?: boolean;       // true if order placed while item was recently out of stock
+  stockWarningItems?: string[]; // which items were flagged
   // Razorpay fields
   razorpayOrderId?: string;
   razorpayPaymentId?: string;

@@ -137,6 +137,8 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
         status: 'pending',
         razorpayOrderId: razorpayOrder.id,
         paymentMethod: 'razorpay',
+        stockWarning: razorpayOrder.stockWarning || false,
+        stockWarningItems: razorpayOrder.stockWarningItems,
       });
 
       // 3. Build Razorpay checkout options
@@ -178,7 +180,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
               try {
                 // Decrement stock first
                 try {
-                  await decrementStock(cart.map((i) => ({ productId: i.productId, quantity: i.quantity })));
+                  await decrementStock(cart.map((i) => ({ productId: i.productId, size: i.size !== 'N/A' ? i.size : undefined, quantity: i.quantity })));
                 } catch (stockErr) {
                   console.error('[checkout] Stock decrement failed (non-blocking):', stockErr);
                 }

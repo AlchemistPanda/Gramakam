@@ -64,6 +64,10 @@ import {
   deleteAward,
   getStockCounts,
   setStockCount,
+  getStockDocs,
+  setStockDoc,
+  setSizeStock,
+  type StockDoc,
 } from '@/lib/services';
 import { PRODUCTS } from '@/lib/products';
 import type {
@@ -793,20 +797,30 @@ function MerchPanel() {
 
 // ===== Stock management sub-tab =====
 function MerchStockSubTab() {
-  const [stockCounts, setStockCounts] = useState<Record<string, number>>({});
+  const [stockDocs, setStockDocs] = useState<Record<string, StockDoc>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  // Per-size edit values: { "tshirt::36 (S)": "10", "slingbag": "50" }
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
   const loadStock = async () => {
     try {
-      const counts = await getStockCounts();
-      setStockCounts(counts);
+      const docs = await getStockDocs();
+      setStockDocs(docs);
       // Initialize edit values
       const vals: Record<string, string> = {};
       PRODUCTS.forEach((p) => {
-        const count = counts[p.id] ?? p.stock;
-        vals[p.id] = count === -1 ? '' : String(count);
+        const doc = docs[p.id];
+        if (p.sizes && p.sizes.length > 0) {
+          // Per-size values
+          p.sizes.forEach((size) => {
+            const sizeCount = doc?.sizes?.[size] ?? doc?.count ?? -1;
+            vals[`${p.id}::${size}`] = sizeCount === -1 ? '' : String(sizeCount);
+          });
+        } else {
+          const count = doc?.count ?? -1;
+          vals[p.id] = count === -1 ? '' : String(count);
+        }
       });
       setEditValues(vals);
     } catch {}
@@ -815,12 +829,46 @@ function MerchStockSubTab() {
 
   useEffect(() => { loadStock(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
-  const getEffectiveStock = (productId: string): number => {
-    if (productId in stockCounts) return stockCounts[productId];
-    return PRODUCTS.find((p) => p.id === productId)?.stock ?? -1;
+  const getProductStatus = (productId: string): 'paused' | 'unlimited' | 'limited' => {
+    const doc = stockDocs[productId];
+    if (!doc) return 'unlimited';
+    if (doc.count === 0) return 'paused';
+    // Check if all sizes are unlimited
+    const product = PRODUCTS.find((p) => p.id === productId);
+    if (product?.sizes && doc.sizes) {
+      const allUnlimited = product.sizes.every((s) => (doc.sizes?.[s] ?? doc.count) === -1);
+      if (allUnlimited && doc.count === -1) return 'unlimited';
+      return 'limited';
+    }
+    return doc.count === -1 ? 'unlimited' : 'limited';
   };
 
-  const handleSaveStock = async (productId: string) => {
+  const handleSaveSizeStock = async (productId: string, size: string) => {
+    const key = `${productId}::${size}`;
+    const val = editValues[key]?.trim();
+    const count = val === '' ? -1 : parseInt(val, 10);
+    if (val !== '' && (isNaN(count) || count < 0)) {
+      alert('Enter a valid number (0 or more), or leave empty for unlimited.');
+      return;
+    }
+    setSaving(key);
+    try {
+      await setSizeStock(productId, size, count);
+      setStockDocs((prev) => ({
+        ...prev,
+        [productId]: {
+          ...prev[productId],
+          count: prev[productId]?.count ?? -1,
+          sizes: { ...prev[productId]?.sizes, [size]: count },
+        },
+      }));
+    } catch {
+      alert('Failed to update stock.');
+    }
+    setSaving(null);
+  };
+
+  const handleSaveProductStock = async (productId: string) => {
     const val = editValues[productId]?.trim();
     const count = val === '' ? -1 : parseInt(val, 10);
     if (val !== '' && (isNaN(count) || count < 0)) {
@@ -830,33 +878,61 @@ function MerchStockSubTab() {
     setSaving(productId);
     try {
       await setStockCount(productId, count);
-      setStockCounts((prev) => ({ ...prev, [productId]: count }));
+      setStockDocs((prev) => ({
+        ...prev,
+        [productId]: { ...prev[productId], count },
+      }));
     } catch {
       alert('Failed to update stock.');
     }
     setSaving(null);
   };
 
-  const handlePauseSelling = async (productId: string) => {
-    setSaving(productId);
+  const handlePauseAll = async (productId: string) => {
+    setSaving(productId + '_pause');
     try {
-      await setStockCount(productId, 0);
-      setStockCounts((prev) => ({ ...prev, [productId]: 0 }));
-      setEditValues((prev) => ({ ...prev, [productId]: '0' }));
+      await setStockDoc(productId, { count: 0 });
+      setStockDocs((prev) => ({
+        ...prev,
+        [productId]: { ...prev[productId], count: 0 },
+      }));
     } catch {
       alert('Failed to pause selling.');
     }
     setSaving(null);
   };
 
-  const handleResumeSelling = async (productId: string) => {
-    setSaving(productId);
+  const handleResumeAll = async (productId: string) => {
+    setSaving(productId + '_resume');
     try {
-      await setStockCount(productId, -1);
-      setStockCounts((prev) => ({ ...prev, [productId]: -1 }));
-      setEditValues((prev) => ({ ...prev, [productId]: '' }));
+      // Set count to -1 (unlimited) and record the resume timestamp
+      await setStockDoc(productId, { count: -1, resumedFromOutOfStock: new Date().toISOString() });
+      setStockDocs((prev) => ({
+        ...prev,
+        [productId]: { ...prev[productId], count: -1, resumedFromOutOfStock: new Date().toISOString() },
+      }));
     } catch {
       alert('Failed to resume selling.');
+    }
+    setSaving(null);
+  };
+
+  const handleClearWarning = async (productId: string) => {
+    setSaving(productId + '_clear');
+    try {
+      const { doc: firestoreDoc, updateDoc: firestoreUpdateDoc, deleteField } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      if (db) {
+        const ref = firestoreDoc(db, 'merch_stock', productId);
+        await firestoreUpdateDoc(ref, { resumedFromOutOfStock: deleteField() });
+        setStockDocs((prev) => {
+          const updated = { ...prev[productId] };
+          delete updated.resumedFromOutOfStock;
+          return { ...prev, [productId]: updated };
+        });
+      }
+    } catch {
+      alert('Failed to clear warning.');
     }
     setSaving(null);
   };
@@ -870,95 +946,147 @@ function MerchStockSubTab() {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
         <p className="font-semibold mb-1">How Stock Works</p>
         <ul className="list-disc ml-5 space-y-1 text-xs text-blue-700">
-          <li><strong>Unlimited</strong> — leave stock empty. Product is always available.</li>
-          <li><strong>Set stock count</strong> — enter a number. Decrements automatically when a payment is verified.</li>
-          <li><strong>Pause selling</strong> — sets stock to 0. Product shows "Out of Stock" to customers.</li>
+          <li><strong>Unlimited</strong> — leave stock empty. That size/product is always available.</li>
+          <li><strong>Set stock</strong> — enter a number per size. Decrements when payment is verified.</li>
+          <li><strong>Pause All</strong> — pauses entire product. Shows "Out of Stock" to customers.</li>
+          <li><strong>Resume</strong> — resumes selling. Orders placed after resume are <span className="text-orange-600 font-bold">flagged</span> so you know they came after a stock-out.</li>
         </ul>
       </div>
 
       {PRODUCTS.map((product) => {
-        const stock = getEffectiveStock(product.id);
-        const isPaused = stock === 0;
-        const isUnlimited = stock === -1;
+        const status = getProductStatus(product.id);
+        const doc = stockDocs[product.id];
+        const hasSizes = product.sizes && product.sizes.length > 0;
+        const hasWarning = !!doc?.resumedFromOutOfStock;
 
         return (
           <div
             key={product.id}
-            className={`bg-white rounded-xl border shadow-sm p-5 ${isPaused ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}
+            className={`bg-white rounded-xl border shadow-sm p-5 ${status === 'paused' ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}
           >
-            <div className="flex items-start gap-4">
-              {/* Product image */}
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+            {/* Product header */}
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
               </div>
-
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold text-charcoal">{product.name}</h3>
                   <span className="text-sm text-gray-500">₹{product.price}</span>
-                  {isPaused && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 uppercase">
-                      Selling Paused
-                    </span>
+                  {status === 'paused' && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 uppercase">Selling Paused</span>
                   )}
-                  {isUnlimited && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-600 uppercase">
-                      Unlimited
-                    </span>
-                  )}
-                  {!isPaused && !isUnlimited && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                      stock <= 10 ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
-                    }`}>
-                      {stock} in stock
-                    </span>
+                  {status === 'unlimited' && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-600 uppercase">Unlimited</span>
                   )}
                 </div>
-
-                {/* Stock input row */}
-                <div className="flex items-center gap-3 mt-3">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-500 shrink-0">Stock count:</label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="∞ unlimited"
-                      value={editValues[product.id] ?? ''}
-                      onChange={(e) => setEditValues((prev) => ({ ...prev, [product.id]: e.target.value }))}
-                      className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
-                    />
+                {hasWarning && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
+                      ⚠ Resumed from out-of-stock on {new Date(doc!.resumedFromOutOfStock!).toLocaleDateString('en-IN')}
+                    </span>
                     <button
-                      onClick={() => handleSaveStock(product.id)}
-                      disabled={saving === product.id}
-                      className="px-3 py-2 bg-charcoal text-white text-xs font-semibold rounded-lg hover:bg-charcoal/80 disabled:opacity-50"
+                      onClick={() => handleClearWarning(product.id)}
+                      disabled={saving !== null}
+                      className="text-[10px] text-gray-400 hover:text-charcoal underline"
                     >
-                      {saving === product.id ? <Loader2 size={12} className="animate-spin" /> : <><Save size={12} /> Save</>}
+                      Clear
                     </button>
                   </div>
-
-                  <div className="ml-auto flex gap-2">
-                    {!isPaused ? (
-                      <button
-                        onClick={() => handlePauseSelling(product.id)}
-                        disabled={saving === product.id}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                      >
-                        <X size={12} /> Pause Selling
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleResumeSelling(product.id)}
-                        disabled={saving === product.id}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-green-200 text-green-600 hover:bg-green-50 disabled:opacity-50"
-                      >
-                        <CheckCircle size={12} /> Resume Selling
-                      </button>
-                    )}
-                  </div>
-                </div>
+                )}
+              </div>
+              <div className="flex gap-2 shrink-0">
+                {status !== 'paused' ? (
+                  <button
+                    onClick={() => handlePauseAll(product.id)}
+                    disabled={saving !== null}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    <X size={12} /> Pause All
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleResumeAll(product.id)}
+                    disabled={saving !== null}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-green-200 text-green-600 hover:bg-green-50 disabled:opacity-50"
+                  >
+                    <CheckCircle size={12} /> Resume All
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* Per-size stock (for products with sizes) */}
+            {hasSizes && status !== 'paused' && (
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs text-gray-500 font-medium mb-3 uppercase tracking-wider">Stock per Size</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {product.sizes!.map((size) => {
+                    const key = `${product.id}::${size}`;
+                    const sizeStock = doc?.sizes?.[size] ?? doc?.count ?? -1;
+                    const sizeOos = sizeStock === 0;
+                    return (
+                      <div
+                        key={size}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${sizeOos ? 'border-red-200 bg-red-50/50' : 'border-gray-100 bg-gray-50/50'}`}
+                      >
+                        <span className={`text-sm font-semibold w-20 ${sizeOos ? 'text-red-600' : 'text-charcoal'}`}>{size}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="∞"
+                          value={editValues[key] ?? ''}
+                          onChange={(e) => setEditValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                          className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-2 focus:ring-maroon outline-none text-center"
+                        />
+                        <button
+                          onClick={() => handleSaveSizeStock(product.id, size)}
+                          disabled={saving === key}
+                          className="px-2 py-1.5 bg-charcoal text-white text-[10px] font-semibold rounded-md hover:bg-charcoal/80 disabled:opacity-50"
+                        >
+                          {saving === key ? <Loader2 size={10} className="animate-spin" /> : 'Save'}
+                        </button>
+                        {sizeStock !== -1 && (
+                          <span className={`text-[10px] font-bold ${sizeOos ? 'text-red-500' : sizeStock <= 5 ? 'text-orange-500' : 'text-gray-400'}`}>
+                            {sizeOos ? 'OOS' : `${sizeStock} left`}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Single stock input for products without sizes */}
+            {!hasSizes && status !== 'paused' && (
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-3">
+                  <label className="text-xs text-gray-500 shrink-0">Stock count:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="∞ unlimited"
+                    value={editValues[product.id] ?? ''}
+                    onChange={(e) => setEditValues((prev) => ({ ...prev, [product.id]: e.target.value }))}
+                    className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
+                  />
+                  <button
+                    onClick={() => handleSaveProductStock(product.id)}
+                    disabled={saving === product.id}
+                    className="px-3 py-2 bg-charcoal text-white text-xs font-semibold rounded-lg hover:bg-charcoal/80 disabled:opacity-50"
+                  >
+                    {saving === product.id ? <Loader2 size={12} className="animate-spin" /> : <><Save size={12} /> Save</>}
+                  </button>
+                  {doc && doc.count !== -1 && (
+                    <span className={`text-xs font-bold ${doc.count === 0 ? 'text-red-500' : doc.count <= 10 ? 'text-orange-500' : 'text-gray-400'}`}>
+                      {doc.count === 0 ? 'Out of Stock' : `${doc.count} in stock`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
@@ -1195,6 +1323,11 @@ function OrderCard({ order, onUpdate, onDelete }: {
             {order.trackingId && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
                 {order.trackingCarrier && `${order.trackingCarrier}: `}{order.trackingId}
+              </span>
+            )}
+            {order.stockWarning && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-600 border border-orange-200" title={order.stockWarningItems?.join(', ')}>
+                ⚠ Post-restock
               </span>
             )}
           </div>

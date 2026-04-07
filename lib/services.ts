@@ -362,51 +362,99 @@ export async function trackOrder(input: string): Promise<MerchOrder | null> {
 
 // ==================== STOCK MANAGEMENT ====================
 // Stock is stored in Firestore `merch_stock` collection.
-// Each doc has id = productId, fields: { count: number }
-// count = -1 means unlimited.
+// Each doc has id = productId, fields:
+//   count: number (-1 = unlimited, 0 = paused)
+//   sizes?: Record<string, number> — per-size stock for sized products (-1 = unlimited per size)
+//   resumedFromOutOfStock?: string — ISO timestamp set when admin resumes from paused
 
-export async function getStockCounts(): Promise<Record<string, number>> {
+export interface StockDoc {
+  count: number;
+  sizes?: Record<string, number>;
+  resumedFromOutOfStock?: string;
+}
+
+export async function getStockDocs(): Promise<Record<string, StockDoc>> {
   const ref = collection(requireDb(), 'merch_stock');
   const snap = await getDocs(ref);
-  const counts: Record<string, number> = {};
+  const docs: Record<string, StockDoc> = {};
   snap.docs.forEach((d) => {
-    counts[d.id] = d.data().count ?? -1;
+    docs[d.id] = {
+      count: d.data().count ?? -1,
+      sizes: d.data().sizes ?? undefined,
+      resumedFromOutOfStock: d.data().resumedFromOutOfStock ?? undefined,
+    };
   });
+  return docs;
+}
+
+// Legacy compat — returns just counts
+export async function getStockCounts(): Promise<Record<string, number>> {
+  const docs = await getStockDocs();
+  const counts: Record<string, number> = {};
+  for (const [id, doc] of Object.entries(docs)) {
+    counts[id] = doc.count;
+  }
   return counts;
 }
 
-export async function setStockCount(productId: string, count: number): Promise<void> {
+export async function setStockDoc(productId: string, data: Partial<StockDoc>): Promise<void> {
   const docRef = doc(requireDb(), 'merch_stock', productId);
-  const { setDoc } = await import('firebase/firestore');
-  await setDoc(docRef, { count }, { merge: true });
+  const { setDoc: firestoreSetDoc } = await import('firebase/firestore');
+  await firestoreSetDoc(docRef, data, { merge: true });
+}
+
+export async function setStockCount(productId: string, count: number): Promise<void> {
+  await setStockDoc(productId, { count });
+}
+
+export async function setSizeStock(productId: string, size: string, count: number): Promise<void> {
+  const docRef = doc(requireDb(), 'merch_stock', productId);
+  const { setDoc: firestoreSetDoc } = await import('firebase/firestore');
+  await firestoreSetDoc(docRef, { sizes: { [size]: count } }, { merge: true });
+}
+
+/** Get effective stock for a specific product+size. Returns -1 for unlimited, 0+ for count. */
+export function getEffectiveSizeStock(stockDoc: StockDoc | undefined, size?: string): number {
+  if (!stockDoc) return -1; // no stock doc → unlimited
+  if (stockDoc.count === 0) return 0; // product paused
+  if (size && stockDoc.sizes && size in stockDoc.sizes) {
+    return stockDoc.sizes[size];
+  }
+  return stockDoc.count; // fall back to product-level count
 }
 
 /** Decrement stock for purchased items. Returns true if stock was sufficient. */
-export async function decrementStock(items: { productId: string; quantity: number }[]): Promise<boolean> {
+export async function decrementStock(items: { productId: string; size?: string; quantity: number }[]): Promise<boolean> {
   const { runTransaction } = await import('firebase/firestore');
   const database = requireDb();
 
   return runTransaction(database, async (transaction) => {
-    // Read all stock docs
-    const reads: { productId: string; quantity: number; ref: ReturnType<typeof doc>; current: number }[] = [];
+    const reads: { productId: string; size?: string; quantity: number; ref: ReturnType<typeof doc>; data: StockDoc }[] = [];
     for (const item of items) {
       const stockRef = doc(database, 'merch_stock', item.productId);
       const snap = await transaction.get(stockRef);
-      const current = snap.exists() ? (snap.data().count ?? -1) : -1;
-      reads.push({ productId: item.productId, quantity: item.quantity, ref: stockRef, current });
+      const data: StockDoc = snap.exists()
+        ? { count: snap.data().count ?? -1, sizes: snap.data().sizes, resumedFromOutOfStock: snap.data().resumedFromOutOfStock }
+        : { count: -1 };
+      reads.push({ productId: item.productId, size: item.size, quantity: item.quantity, ref: stockRef, data });
     }
 
-    // Check if all have sufficient stock
+    // Check sufficiency
     for (const r of reads) {
-      if (r.current !== -1 && r.current < r.quantity) {
-        return false; // insufficient stock
+      const effective = getEffectiveSizeStock(r.data, r.size);
+      if (effective !== -1 && effective < r.quantity) {
+        return false;
       }
     }
 
     // Decrement
     for (const r of reads) {
-      if (r.current !== -1) {
-        transaction.update(r.ref, { count: r.current - r.quantity });
+      if (r.size && r.data.sizes && r.size in r.data.sizes && r.data.sizes[r.size] !== -1) {
+        // Decrement per-size stock
+        transaction.update(r.ref, { [`sizes.${r.size}`]: r.data.sizes[r.size] - r.quantity });
+      } else if (r.data.count !== -1) {
+        // Decrement product-level stock
+        transaction.update(r.ref, { count: r.data.count - r.quantity });
       }
     }
 
