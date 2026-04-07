@@ -957,6 +957,23 @@ function OrderCard({ order, onUpdate, onDelete }: {
       }
       if (target === 'delivered') extra.deliveredAt = new Date().toISOString();
       await updateMerchOrderStatus(order.id, target, extra);
+
+      // Send status-change email (fire-and-forget)
+      if (order.customerEmail && (target === 'packed' || target === 'shipped' || target === 'delivered')) {
+        fetch('/api/status-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: order.customerEmail,
+            customerName: order.customerName,
+            orderId: order.orderId,
+            status: target,
+            trackingCarrier: target === 'shipped' ? trackingCarrier.trim() : undefined,
+            trackingId: target === 'shipped' ? trackingId.trim() : undefined,
+          }),
+        }).catch((err) => console.error('[admin] Status email failed:', err));
+      }
+
       onUpdate();
     } catch { alert('Failed to update order.'); }
     setUpdating(false);

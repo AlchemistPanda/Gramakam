@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     if (!webhookSecret) {
-      console.error('RAZORPAY_WEBHOOK_SECRET not configured');
+      console.error('[webhook] RAZORPAY_WEBHOOK_SECRET not configured');
       return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
     }
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       .digest('hex');
 
     if (expectedSignature !== signature) {
-      console.error('Webhook signature mismatch');
+      console.error('[webhook] Signature mismatch — possible tampered request');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       // Lazily import Firebase to avoid build-time issues
       const { db } = await import('@/lib/firebase');
       if (!db) {
-        console.error('Firebase not configured — cannot process webhook');
+        console.error('[webhook] Firebase not configured — cannot process webhook for order:', razorpayOrderId);
         return NextResponse.json({ error: 'DB not configured' }, { status: 500 });
       }
 
@@ -67,8 +67,26 @@ export async function POST(req: NextRequest) {
           upiRef: razorpayPaymentId,
           verifiedAt: new Date().toISOString(),
           verifiedBy: 'webhook',
+          stockDeducted: true,
         });
-        console.log(`Webhook: verified order ${orderDoc.id} via payment ${razorpayPaymentId}`);
+        console.log(`[webhook] ✓ Verified order ${orderData.orderId} (doc: ${orderDoc.id}) via payment ${razorpayPaymentId}`);
+
+        // Decrement stock for verified payment (only if client didn't already do it)
+        if (!orderData.stockDeducted) {
+          try {
+            const { decrementStock } = await import('@/lib/services');
+            const items = (orderData.items || []).map((i: { productId: string; quantity: number }) => ({
+              productId: i.productId,
+              quantity: i.quantity,
+            }));
+            await decrementStock(items);
+            console.log(`[webhook] ✓ Stock decremented for order ${orderData.orderId}`);
+          } catch (stockErr) {
+            console.error(`[webhook] Stock decrement failed for order ${orderData.orderId}:`, stockErr);
+          }
+        } else {
+          console.log(`[webhook] Stock already deducted for order ${orderData.orderId}, skipping`);
+        }
 
         // Send confirmation email (webhook-recovered payment)
         if (process.env.RESEND_API_KEY && orderData.customerEmail) {
@@ -88,14 +106,14 @@ export async function POST(req: NextRequest) {
                 deliveryAddress: orderData.deliveryAddress,
               }),
             });
-            console.log(`Webhook: confirmation email sent to ${orderData.customerEmail}`);
+            console.log(`[webhook] ✓ Confirmation email sent to ${orderData.customerEmail} for order ${orderData.orderId}`);
           } catch (emailErr) {
-            console.error('Webhook: email send failed:', emailErr);
+            console.error('[webhook] Email send failed for order:', orderData.orderId, emailErr);
           }
         }
       } else {
         // Order may already be verified by the client handler — that's fine
-        console.log(`Webhook: no pending order found for razorpay order ${razorpayOrderId}`);
+        console.log(`[webhook] No pending order found for razorpay order ${razorpayOrderId} (likely already verified by client)`);
       }
 
       return NextResponse.json({ status: 'ok' });
@@ -104,7 +122,7 @@ export async function POST(req: NextRequest) {
     // Acknowledge other events without processing
     return NextResponse.json({ status: 'ignored' });
   } catch (error: unknown) {
-    console.error('Webhook processing failed:', error);
+    console.error('[webhook] Processing failed:', error);
     return NextResponse.json({ error: 'Webhook failed' }, { status: 500 });
   }
 }

@@ -8,6 +8,7 @@ export interface Product {
   images: string[];
   price: number;
   sizes?: string[];
+  stock: number; // total units available (-1 = unlimited)
 }
 
 export const PRODUCTS: Product[] = [
@@ -19,6 +20,7 @@ export const PRODUCTS: Product[] = [
     images: ['/images/merch/tshirt2.jpg', '/images/merch/tshirt.jpg', '/images/merch/tshirt3.png', '/images/merch/tshirt4.png'],
     price: 1,
     sizes: ['24', '28', '32', '36 (S)', '38 (M)', '40 (L)', '42 (XL)', '44 (XXL)'],
+    stock: -1, // unlimited for now — set to actual count before launch
   },
   {
     id: 'slingbag',
@@ -32,6 +34,7 @@ export const PRODUCTS: Product[] = [
       '/images/SLINGBAG/SLINGBAG4.png',
     ],
     price: 1,
+    stock: -1, // unlimited for now
   },
 ];
 

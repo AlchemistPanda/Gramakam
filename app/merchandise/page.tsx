@@ -8,6 +8,7 @@ import Link from 'next/link';
 import CheckoutModal from '@/components/merchandise/CheckoutModal';
 import type { MerchCartItem } from '@/types';
 import { PRODUCTS as products, type Product } from '@/lib/products';
+import { getStockCounts } from '@/lib/services';
 
 // Per-product selection state: { size, quantity }
 interface Selection {
@@ -16,10 +17,38 @@ interface Selection {
 }
 
 export default function MerchandisePage() {
-  const [selections, setSelections] = useState<Record<string, Selection>>({});
+  const [selections, setSelections] = useState<Record<string, Selection>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const saved = localStorage.getItem('gramakam_cart');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
   const [showCheckout, setShowCheckout] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ images: string[]; index: number } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<Record<string, number>>({});
+  const [stockCounts, setStockCounts] = useState<Record<string, number>>({});
+
+  // Fetch live stock counts from Firestore
+  useEffect(() => {
+    getStockCounts()
+      .then(setStockCounts)
+      .catch(() => {}); // if it fails, everything shows as available
+  }, []);
+
+  // Persist cart to localStorage on every change
+  useEffect(() => {
+    try {
+      const nonEmpty = Object.fromEntries(
+        Object.entries(selections).filter(([, s]) => s.quantity > 0)
+      );
+      if (Object.keys(nonEmpty).length > 0) {
+        localStorage.setItem('gramakam_cart', JSON.stringify(nonEmpty));
+      } else {
+        localStorage.removeItem('gramakam_cart');
+      }
+    } catch { /* localStorage not available */ }
+  }, [selections]);
 
   // Auto-rotate carousel every 500ms for products with multiple images
   const rotationRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -62,6 +91,17 @@ export default function MerchandisePage() {
 
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
   const totalAmount = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
+  // Stock helpers
+  const getStock = (productId: string): number => {
+    // If no stock doc exists in Firestore, use product.stock (-1 = unlimited)
+    if (productId in stockCounts) return stockCounts[productId];
+    return products.find((p) => p.id === productId)?.stock ?? -1;
+  };
+  const isOutOfStock = (productId: string): boolean => {
+    const s = getStock(productId);
+    return s !== -1 && s <= 0;
+  };
 
   const openLightbox = (images: string[], index: number) => setLightboxImage({ images, index });
   const navigateLightbox = (dir: number) => {
@@ -147,6 +187,16 @@ export default function MerchandisePage() {
                         {sel.quantity}
                       </div>
                     )}
+                    {isOutOfStock(product.id) && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="bg-red-600 text-white text-sm font-bold px-4 py-2 rounded-lg">Out of Stock</span>
+                      </div>
+                    )}
+                    {!isOutOfStock(product.id) && getStock(product.id) > 0 && getStock(product.id) <= 10 && (
+                      <div className="absolute top-2 left-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow">
+                        Only {getStock(product.id)} left
+                      </div>
+                    )}
                   </div>
 
                   {/* Product Info */}
@@ -220,9 +270,10 @@ export default function MerchandisePage() {
                     {/* Buy Now Button */}
                     <button
                       onClick={() => buyNow(product)}
-                      className="w-full bg-maroon hover:bg-maroon-dark text-white font-bold py-3 rounded-lg transition-all duration-300 hover:scale-105"
+                      disabled={isOutOfStock(product.id)}
+                      className="w-full bg-maroon hover:bg-maroon-dark text-white font-bold py-3 rounded-lg transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
                     >
-                      Buy Now
+                      {isOutOfStock(product.id) ? 'Out of Stock' : 'Buy Now'}
                     </button>
                   </div>
                 </div>
@@ -265,7 +316,12 @@ export default function MerchandisePage() {
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         cart={cart}
-        onOrderPlaced={() => setSelections({})}
+        onOrderPlaced={() => {
+          setSelections({});
+          try { localStorage.removeItem('gramakam_cart'); } catch {}
+          // Refresh stock counts
+          getStockCounts().then(setStockCounts).catch(() => {});
+        }}
       />
 
       {/* Image Lightbox */}

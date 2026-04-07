@@ -151,6 +151,8 @@ export interface MerchOrder {
   verifiedAt?: string;
   verifiedBy?: string;        // 'auto' | 'admin'
   rejectedAt?: string;
+  rejectionReason?: string;
+  stockDeducted?: boolean;
   // Razorpay fields
   razorpayOrderId?: string;
   razorpayPaymentId?: string;

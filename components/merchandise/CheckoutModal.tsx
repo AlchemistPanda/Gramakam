@@ -4,7 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import type { MerchCartItem, DeliveryAddress } from '@/types';
-import { createMerchOrder, updateMerchOrderByOrderId } from '@/lib/services';
+import { createMerchOrder, updateMerchOrderByOrderId, decrementStock } from '@/lib/services';
 
 declare global {
   interface Window {
@@ -173,13 +173,33 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
 
             if (verifyData.verified) {
               // 5. Update existing order to verified
-              await updateMerchOrderByOrderId(serverOrderId, {
-                upiRef: response.razorpay_payment_id,
-                status: 'verified',
-                razorpayPaymentId: response.razorpay_payment_id,
-                verifiedAt: new Date().toISOString(),
-                verifiedBy: 'auto',
-              });
+              //    If this fails, the webhook will still catch it — show success to user
+              //    because payment IS captured by Razorpay regardless.
+              try {
+                // Decrement stock first
+                try {
+                  await decrementStock(cart.map((i) => ({ productId: i.productId, quantity: i.quantity })));
+                } catch (stockErr) {
+                  console.error('[checkout] Stock decrement failed (non-blocking):', stockErr);
+                }
+
+                await updateMerchOrderByOrderId(serverOrderId, {
+                  upiRef: response.razorpay_payment_id,
+                  status: 'verified',
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  verifiedAt: new Date().toISOString(),
+                  verifiedBy: 'auto',
+                  stockDeducted: true,
+                });
+              } catch (updateErr) {
+                // Payment succeeded but Firestore update failed.
+                // The webhook will reconcile this — log for debugging.
+                console.error('[checkout] Firestore update failed after verified payment. Webhook will reconcile.', {
+                  orderId: serverOrderId,
+                  paymentId: response.razorpay_payment_id,
+                  error: updateErr,
+                });
+              }
 
               // 6. Send order confirmation email (fire-and-forget)
               fetch('/api/order-email', {
@@ -194,19 +214,36 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                   paymentId: response.razorpay_payment_id,
                   deliveryAddress,
                 }),
-              }).catch((err) => console.error('Email send failed:', err));
+              }).catch((err) => console.error('[checkout] Email send failed:', err));
 
               setConfirmedTotal(serverTotal);
               setPaymentId(response.razorpay_payment_id);
               setStep('success');
               onOrderPlaced();
             } else {
-              setErrorMsg('Payment verification failed. Please contact support.');
+              // Signature mismatch — payment may still have been captured.
+              // Webhook will reconcile if payment was actually captured.
+              console.error('[checkout] Payment verification failed (signature mismatch)', {
+                orderId: serverOrderId,
+                razorpayOrderId: response.razorpay_order_id,
+              });
+              setErrorMsg(
+                'Payment verification failed. If money was deducted, it will be reconciled automatically. ' +
+                'Contact support with Order ID: ' + serverOrderId
+              );
               setStep('failed');
             }
           } catch (err) {
-            console.error('Verification error:', err);
-            setErrorMsg('Payment verification failed. Please contact support.');
+            // Network error during verification — payment may still be captured.
+            // Webhook is the safety net here.
+            console.error('[checkout] Verification network error. Webhook will reconcile if payment captured.', {
+              orderId: serverOrderId,
+              error: err,
+            });
+            setErrorMsg(
+              'Could not verify payment due to a network issue. If money was deducted, ' +
+              'your order will be confirmed automatically. Order ID: ' + serverOrderId
+            );
             setStep('failed');
           }
         },
@@ -221,14 +258,27 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
       const rzp = new window.Razorpay(options);
 
       rzp.on('payment.failed', async (response: any) => {
-        console.error('Payment failed:', response.error);
-        // Mark order as rejected
+        console.error('[checkout] Payment failed:', {
+          orderId: serverOrderId,
+          code: response.error?.code,
+          description: response.error?.description,
+          reason: response.error?.reason,
+          source: response.error?.source,
+          step: response.error?.step,
+        });
+        // Mark order as rejected (best-effort — if this fails, admin can see it's still pending)
         try {
           await updateMerchOrderByOrderId(serverOrderId, {
             status: 'rejected',
             rejectedAt: new Date().toISOString(),
+            rejectionReason: response.error?.description || 'Payment failed',
           });
-        } catch (_) { /* best-effort */ }
+        } catch (rejectErr) {
+          console.error('[checkout] Failed to mark order as rejected:', {
+            orderId: serverOrderId,
+            error: rejectErr,
+          });
+        }
         setErrorMsg(response.error?.description || 'Payment failed. Please try again.');
         setStep('failed');
       });
@@ -237,7 +287,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
       rzp.open();
       setStep('paying');
     } catch (err: any) {
-      console.error('Checkout error:', err);
+      console.error('[checkout] Pre-payment error:', err);
       setErrorMsg(err.message || 'Something went wrong. Please try again.');
       setStep('details');
     } finally {

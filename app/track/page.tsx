@@ -105,7 +105,7 @@ export default function TrackPage() {
             Track Your Order
           </h1>
           <p className="text-gray-400 text-sm max-w-md mx-auto">
-            Enter your Order ID (GRM-xxxxxx) or the mobile number used at checkout.
+            Enter your Order ID (GRM-xxxxxx), mobile number, or email used at checkout.
           </p>
         </motion.div>
 
@@ -124,7 +124,7 @@ export default function TrackPage() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="GRM-abc123  or  9876543210"
+                placeholder="GRM-abc123  or  9876543210  or  email"
                 className="flex-1 bg-transparent px-4 py-4 text-cream placeholder-gray-600 text-sm outline-none"
                 autoComplete="off"
                 autoFocus

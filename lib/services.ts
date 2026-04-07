@@ -327,6 +327,20 @@ export async function trackOrder(input: string): Promise<MerchOrder | null> {
     return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
   }
 
+  // Try by email (most recent order)
+  if (clean.includes('@')) {
+    const byEmail = await getDocs(query(ref, where('customerEmail', '==', clean.toLowerCase())));
+    if (!byEmail.empty) {
+      const sorted = byEmail.docs.sort((a, b) => {
+        const at = a.data().createdAt?.toDate?.()?.getTime() ?? 0;
+        const bt = b.data().createdAt?.toDate?.()?.getTime() ?? 0;
+        return bt - at;
+      });
+      const d = sorted[0];
+      return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
+    }
+  }
+
   // Try by mobile (last 10 digits, most recent order)
   const mobile = clean.replace(/\D/g, '').slice(-10);
   if (mobile.length === 10) {
@@ -344,6 +358,60 @@ export async function trackOrder(input: string): Promise<MerchOrder | null> {
   }
 
   return null;
+}
+
+// ==================== STOCK MANAGEMENT ====================
+// Stock is stored in Firestore `merch_stock` collection.
+// Each doc has id = productId, fields: { count: number }
+// count = -1 means unlimited.
+
+export async function getStockCounts(): Promise<Record<string, number>> {
+  const ref = collection(requireDb(), 'merch_stock');
+  const snap = await getDocs(ref);
+  const counts: Record<string, number> = {};
+  snap.docs.forEach((d) => {
+    counts[d.id] = d.data().count ?? -1;
+  });
+  return counts;
+}
+
+export async function setStockCount(productId: string, count: number): Promise<void> {
+  const docRef = doc(requireDb(), 'merch_stock', productId);
+  const { setDoc } = await import('firebase/firestore');
+  await setDoc(docRef, { count }, { merge: true });
+}
+
+/** Decrement stock for purchased items. Returns true if stock was sufficient. */
+export async function decrementStock(items: { productId: string; quantity: number }[]): Promise<boolean> {
+  const { runTransaction } = await import('firebase/firestore');
+  const database = requireDb();
+
+  return runTransaction(database, async (transaction) => {
+    // Read all stock docs
+    const reads: { productId: string; quantity: number; ref: ReturnType<typeof doc>; current: number }[] = [];
+    for (const item of items) {
+      const stockRef = doc(database, 'merch_stock', item.productId);
+      const snap = await transaction.get(stockRef);
+      const current = snap.exists() ? (snap.data().count ?? -1) : -1;
+      reads.push({ productId: item.productId, quantity: item.quantity, ref: stockRef, current });
+    }
+
+    // Check if all have sufficient stock
+    for (const r of reads) {
+      if (r.current !== -1 && r.current < r.quantity) {
+        return false; // insufficient stock
+      }
+    }
+
+    // Decrement
+    for (const r of reads) {
+      if (r.current !== -1) {
+        transaction.update(r.ref, { count: r.current - r.quantity });
+      }
+    }
+
+    return true;
+  });
 }
 
 

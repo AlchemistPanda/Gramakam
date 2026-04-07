@@ -42,12 +42,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid cart total' }, { status: 400 });
     }
 
+    // Check stock availability (read-only — actual decrement happens on payment verification)
+    try {
+      const { db } = await import('@/lib/firebase');
+      if (db) {
+        const { doc: firestoreDoc, getDoc: firestoreGetDoc } = await import('firebase/firestore');
+        for (const item of items) {
+          const stockSnap = await firestoreGetDoc(firestoreDoc(db, 'merch_stock', item.productId));
+          if (stockSnap.exists()) {
+            const stockCount = stockSnap.data().count ?? -1;
+            if (stockCount !== -1 && stockCount < item.quantity) {
+              const product = PRODUCT_MAP.get(item.productId);
+              return NextResponse.json(
+                { error: `${product?.name ?? item.productId} is out of stock (only ${stockCount} left)` },
+                { status: 400 }
+              );
+            }
+          }
+        }
+      }
+    } catch (stockErr) {
+      console.error('[create-order] Stock check failed (proceeding anyway):', stockErr);
+      // Don't block the order if stock check fails — better to oversell than lose a sale
+    }
+
     // Generate order ID server-side
     const orderId = generateOrderId();
 
     // Validate env vars are set
     if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      console.error('Razorpay credentials not configured');
+      console.error('[create-order] Razorpay credentials not configured');
       return NextResponse.json(
         { error: 'Payment service not configured' },
         { status: 500 }
@@ -73,6 +97,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    console.log('[create-order] ✓ Order created:', orderId, 'razorpay:', order.id, 'amount:', amount, 'customer:', customerEmail);
+
     return NextResponse.json({
       id: order.id,
       amount: order.amount,
@@ -80,8 +106,8 @@ export async function POST(req: NextRequest) {
       orderId,       // send server-generated ID back to client
       serverTotal: amount,
     });
-  } catch (error: any) {
-    console.error('Razorpay order creation failed:', error);
+  } catch (error: unknown) {
+    console.error('[create-order] Razorpay order creation failed:', error);
     return NextResponse.json(
       { error: 'Failed to create payment order' },
       { status: 500 }
