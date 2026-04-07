@@ -55,12 +55,12 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden lg:flex items-center gap-3">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`hover:text-maroon transition-colors duration-300 font-medium text-sm uppercase tracking-wider ${scrolled ? 'text-charcoal' : 'text-white/90 hover:text-white'}`}
+                className={`hover:text-maroon transition-colors duration-300 font-medium text-xs uppercase tracking-wide px-2 py-1 rounded ${scrolled ? 'text-charcoal' : 'text-white/90 hover:text-white'}`}
               >
                 {link.label}
               </Link>
