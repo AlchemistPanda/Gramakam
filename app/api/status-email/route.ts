@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-      console.error('[status-email] Resend error:', error);
-      return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
+      console.error('[status-email] Resend error:', JSON.stringify(error));
+      return NextResponse.json({ error: `Resend: ${error.message ?? JSON.stringify(error)}` }, { status: 500 });
     }
 
     console.log(`[status-email] ✓ Sent ${status} email for ${orderId} to ${to}`);
