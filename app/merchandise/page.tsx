@@ -23,18 +23,23 @@ export default function MerchandisePage() {
       const saved = localStorage.getItem('gramakam_cart');
       if (!saved) return {};
       const parsed = JSON.parse(saved) as Record<string, Selection>;
-      // Migrate old format: keys like "tshirt" with a size field → new "tshirt:size" key
-      const migrated: Record<string, Selection> = {};
+      // Only keep new-format keys (e.g. "tshirt:36 (S)" or "slingbag")
+      // Discard old-format keys like "tshirt" that have a size field
+      const valid: Record<string, Selection> = {};
       for (const [key, sel] of Object.entries(parsed)) {
         if (!sel || !sel.quantity || sel.quantity <= 0) continue;
-        if (!key.includes(':') && sel.size && sel.size !== 'N/A') {
-          // Old format — convert "tshirt" + size:"36 (S)" → "tshirt:36 (S)"
-          migrated[`${key}:${sel.size}`] = sel;
+        if (!key.includes(':') && sel.size && sel.size !== 'N/A') continue; // old format — discard
+        valid[key] = sel;
+      }
+      // If we dropped entries, clean up localStorage
+      if (Object.keys(valid).length !== Object.keys(parsed).length) {
+        if (Object.keys(valid).length > 0) {
+          localStorage.setItem('gramakam_cart', JSON.stringify(valid));
         } else {
-          migrated[key] = sel;
+          localStorage.removeItem('gramakam_cart');
         }
       }
-      return migrated;
+      return valid;
     } catch { return {}; }
   });
   const [showCheckout, setShowCheckout] = useState(false);
