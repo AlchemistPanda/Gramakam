@@ -164,10 +164,10 @@ export default function ContactPage() {
                 <div className="flex items-center gap-3">
                   <Mail size={20} className="text-maroon shrink-0" />
                   <a
-                    href="mailto:info@gramakam.com"
+                    href="mailto:Ifcreationsvelur@gmail.com"
                     className="text-gray-600 hover:text-maroon transition-colors"
                   >
-                    info@gramakam.com
+                    Ifcreationsvelur@gmail.com
                   </a>
                 </div>
               </div>

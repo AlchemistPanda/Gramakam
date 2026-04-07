@@ -101,7 +101,7 @@ export function buildOrderEmailHtml(data: OrderEmailData): string {
 
       <p style="margin:24px 0 0;font-size:12px;color:#999;text-align:center;line-height:1.5">
         Questions? Reply to this email or contact us at
-        <a href="mailto:ifcreations@gramakam.org" style="color:#6B1D1D">ifcreations@gramakam.org</a>
+        <a href="mailto:Ifcreationsvelur@gmail.com" style="color:#6B1D1D">Ifcreationsvelur@gmail.com</a>
       </p>
     </div>
 
@@ -182,7 +182,7 @@ export function buildStatusEmailHtml(data: StatusEmailData): string {
 
       <p style="margin:24px 0 0;font-size:12px;color:#999;text-align:center;line-height:1.5">
         Questions? Contact us at
-        <a href="mailto:ifcreations@gramakam.org" style="color:#6B1D1D">ifcreations@gramakam.org</a>
+        <a href="mailto:Ifcreationsvelur@gmail.com" style="color:#6B1D1D">Ifcreationsvelur@gmail.com</a>
       </p>
     </div>
 

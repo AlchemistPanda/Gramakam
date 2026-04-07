@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send({
-      from: 'Gramakam <orders@gramakam.org>',
+      from: 'Gramakam <Ifcreationsvelur@gmail.com>',
       to,
       subject: subjectMap[status],
       html: buildStatusEmailHtml({ customerName, orderId, status, trackingCarrier, trackingId }),

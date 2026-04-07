@@ -469,8 +469,8 @@ function TrackPageContent() {
                 className="text-center text-xs text-gray-600"
               >
                 Need help? Contact us at{' '}
-                <a href="mailto:ifcreations@gramakam.org" className="text-maroon/70 hover:text-maroon transition-colors">
-                  ifcreations@gramakam.org
+                <a href="mailto:Ifcreationsvelur@gmail.com" className="text-maroon/70 hover:text-maroon transition-colors">
+                  Ifcreationsvelur@gmail.com
                 </a>
               </motion.p>
             </motion.div>

@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
             const resend = new Resend(process.env.RESEND_API_KEY);
             const { buildOrderEmailHtml } = await import('@/lib/orderEmail');
             await resend.emails.send({
-              from: 'Gramakam <orders@gramakam.org>',
+              from: 'Gramakam <Ifcreationsvelur@gmail.com>',
               to: orderData.customerEmail,
               subject: `Order Confirmed – ${orderData.orderId} | Gramakam Merch`,
               html: buildOrderEmailHtml({
