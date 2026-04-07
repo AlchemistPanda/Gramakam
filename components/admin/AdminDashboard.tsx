@@ -62,11 +62,10 @@ import {
   getAwards,
   addAward,
   deleteAward,
-  getStockCounts,
-  setStockCount,
   getStockDocs,
   setStockDoc,
-  setSizeStock,
+  addStockCount,
+  addSizeStock,
   type StockDoc,
 } from '@/lib/services';
 import { PRODUCTS } from '@/lib/products';
@@ -846,22 +845,24 @@ function MerchStockSubTab() {
   const handleSaveSizeStock = async (productId: string, size: string) => {
     const key = `${productId}::${size}`;
     const val = editValues[key]?.trim();
-    const count = val === '' ? -1 : parseInt(val, 10);
-    if (val !== '' && (isNaN(count) || count < 0)) {
-      alert('Enter a valid number (0 or more), or leave empty for unlimited.');
+    const quantity = val === '' ? 0 : parseInt(val, 10);
+    if (isNaN(quantity) || quantity < 0) {
+      alert('Enter a valid number to add to this size.');
       return;
     }
+    if (quantity === 0) return;
     setSaving(key);
     try {
-      await setSizeStock(productId, size, count);
+      const next = await addSizeStock(productId, size, quantity);
       setStockDocs((prev) => ({
         ...prev,
         [productId]: {
           ...prev[productId],
           count: prev[productId]?.count ?? -1,
-          sizes: { ...prev[productId]?.sizes, [size]: count },
+          sizes: { ...prev[productId]?.sizes, [size]: next },
         },
       }));
+      setEditValues((prev) => ({ ...prev, [key]: '' }));
     } catch {
       alert('Failed to update stock.');
     }
@@ -870,18 +871,20 @@ function MerchStockSubTab() {
 
   const handleSaveProductStock = async (productId: string) => {
     const val = editValues[productId]?.trim();
-    const count = val === '' ? -1 : parseInt(val, 10);
-    if (val !== '' && (isNaN(count) || count < 0)) {
-      alert('Enter a valid number (0 or more), or leave empty for unlimited.');
+    const quantity = val === '' ? 0 : parseInt(val, 10);
+    if (isNaN(quantity) || quantity < 0) {
+      alert('Enter a valid number to add to stock.');
       return;
     }
+    if (quantity === 0) return;
     setSaving(productId);
     try {
-      await setStockCount(productId, count);
+      const next = await addStockCount(productId, quantity);
       setStockDocs((prev) => ({
         ...prev,
-        [productId]: { ...prev[productId], count },
+        [productId]: { ...prev[productId], count: next },
       }));
+      setEditValues((prev) => ({ ...prev, [productId]: '' }));
     } catch {
       alert('Failed to update stock.');
     }
@@ -947,7 +950,7 @@ function MerchStockSubTab() {
         <p className="font-semibold mb-1">How Stock Works</p>
         <ul className="list-disc ml-5 space-y-1 text-xs text-blue-700">
           <li><strong>Unlimited</strong> — leave stock empty. That size/product is always available.</li>
-          <li><strong>Set stock</strong> — enter a number per size. Decrements when payment is verified.</li>
+          <li><strong>Add stock</strong> — enter the newly arrived quantity. The dashboard adds it to the current stock.</li>
           <li><strong>Pause All</strong> — pauses entire product. Shows "Out of Stock" to customers.</li>
           <li><strong>Resume</strong> — resumes selling. Orders placed after resume are <span className="text-orange-600 font-bold">flagged</span> so you know they came after a stock-out.</li>
         </ul>
@@ -1035,7 +1038,7 @@ function MerchStockSubTab() {
                         <input
                           type="number"
                           min="0"
-                          placeholder="∞"
+                          placeholder="Add"
                           value={editValues[key] ?? ''}
                           onChange={(e) => setEditValues((prev) => ({ ...prev, [key]: e.target.value }))}
                           className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-2 focus:ring-maroon outline-none text-center"
@@ -1049,7 +1052,7 @@ function MerchStockSubTab() {
                         </button>
                         {sizeStock !== -1 && (
                           <span className={`text-[10px] font-bold ${sizeOos ? 'text-red-500' : sizeStock <= 5 ? 'text-orange-500' : 'text-gray-400'}`}>
-                            {sizeOos ? 'OOS' : `${sizeStock} left`}
+                            {sizeOos ? 'OOS' : `${sizeStock} in stock`}
                           </span>
                         )}
                       </div>
@@ -1063,11 +1066,11 @@ function MerchStockSubTab() {
             {!hasSizes && status !== 'paused' && (
               <div className="border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-gray-500 shrink-0">Stock count:</label>
+                  <label className="text-xs text-gray-500 shrink-0">Add stock:</label>
                   <input
                     type="number"
                     min="0"
-                    placeholder="∞ unlimited"
+                    placeholder="Add"
                     value={editValues[product.id] ?? ''}
                     onChange={(e) => setEditValues((prev) => ({ ...prev, [product.id]: e.target.value }))}
                     className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
@@ -1544,8 +1547,7 @@ function MerchOrdersSubTab() {
     // Restore stock only when the order actually consumed inventory
     const needsRestore =
       (order as MerchOrder & { stockDeducted?: boolean }).stockDeducted === true &&
-      order.status !== 'rejected' &&
-      order.status !== 'pending';
+      ((order.status !== 'rejected' && order.status !== 'pending') || (order.status === 'pending' && !(order as MerchOrder & { stockRestored?: boolean }).stockRestored));
 
     const confirmMsg = needsRestore
       ? 'Delete this order permanently? Stock will be restored for the items.'

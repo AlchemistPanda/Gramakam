@@ -425,6 +425,39 @@ export async function setSizeStock(productId: string, size: string, count: numbe
   await firestoreSetDoc(docRef, { sizes: { [size]: count } }, { merge: true });
 }
 
+export async function addStockCount(productId: string, quantity: number): Promise<number> {
+  const { runTransaction } = await import('firebase/firestore');
+  const database = requireDb();
+
+  return runTransaction(database, async (transaction) => {
+    const stockRef = doc(database, 'merch_stock', productId);
+    const snap = await transaction.get(stockRef);
+    const current = snap.exists() ? (snap.data().count ?? -1) : -1;
+    const next = current === -1 ? quantity : current + quantity;
+    transaction.set(stockRef, { count: next }, { merge: true });
+    return next;
+  });
+}
+
+export async function addSizeStock(productId: string, size: string, quantity: number): Promise<number> {
+  const { runTransaction } = await import('firebase/firestore');
+  const database = requireDb();
+
+  return runTransaction(database, async (transaction) => {
+    const stockRef = doc(database, 'merch_stock', productId);
+    const snap = await transaction.get(stockRef);
+    const data: StockDoc = snap.exists()
+      ? { count: snap.data().count ?? -1, sizes: snap.data().sizes }
+      : { count: -1 };
+    const current = size in (data.sizes ?? {})
+      ? data.sizes?.[size] ?? -1
+      : (data.count === -1 ? 0 : data.count);
+    const next = current === -1 ? quantity : current + quantity;
+    transaction.set(stockRef, { sizes: { [size]: next } }, { merge: true });
+    return next;
+  });
+}
+
 /** Get effective stock for a specific product+size. Returns -1 for unlimited, 0+ for count. */
 export function getEffectiveSizeStock(stockDoc: StockDoc | undefined, size?: string): number {
   if (!stockDoc) return -1; // no stock doc → unlimited

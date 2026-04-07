@@ -4,7 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import type { MerchCartItem, DeliveryAddress } from '@/types';
-import { createMerchOrder, updateMerchOrderByOrderId, decrementStock } from '@/lib/services';
+import { restoreStock, updateMerchOrderByOrderId } from '@/lib/services';
 
 declare global {
   interface Window {
@@ -110,6 +110,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
           customerName: name,
           customerEmail: email,
           customerMobile: mobile,
+          deliveryAddress,
         }),
       });
 
@@ -123,23 +124,47 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
       const serverTotal: number = razorpayOrder.serverTotal;
       setOrderId(serverOrderId);
 
-      // 2. Persist a "pending" order in Firestore BEFORE opening Razorpay.
-      //    This ensures we have a record even if the browser closes mid-payment.
-      await createMerchOrder({
-        orderId: serverOrderId,
-        items: cart,
-        total: serverTotal,
-        customerName: name,
-        customerEmail: email,
-        customerMobile: mobile,
-        deliveryAddress,
-        upiRef: '',
-        status: 'pending',
-        razorpayOrderId: razorpayOrder.id,
-        paymentMethod: 'razorpay',
-        stockWarning: razorpayOrder.stockWarning || false,
-        stockWarningItems: razorpayOrder.stockWarningItems,
-      });
+      let paymentFinalized = false;
+      let reservationReleased = false;
+
+      const releaseReservation = async (reason: string, markRejected: boolean) => {
+        if (reservationReleased || paymentFinalized) return;
+        reservationReleased = true;
+
+        try {
+          await restoreStock(cart.map((i) => ({
+            productId: i.productId,
+            size: i.size !== 'N/A' ? i.size : undefined,
+            quantity: i.quantity,
+          })));
+        } catch (restoreErr) {
+          console.error('[checkout] Failed to restore reserved stock:', {
+            orderId: serverOrderId,
+            error: restoreErr,
+          });
+        }
+
+        try {
+          await updateMerchOrderByOrderId(serverOrderId, {
+            stockDeducted: false,
+            stockReserved: false,
+            stockRestored: true,
+            stockRestoredAt: new Date().toISOString(),
+            ...(markRejected
+              ? {
+                  status: 'rejected',
+                  rejectedAt: new Date().toISOString(),
+                  rejectionReason: reason,
+                }
+              : {}),
+          });
+        } catch (releaseErr) {
+          console.error('[checkout] Failed to persist reservation release:', {
+            orderId: serverOrderId,
+            error: releaseErr,
+          });
+        }
+      };
 
       // 3. Build Razorpay checkout options
       const options = {
@@ -174,27 +199,20 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
             const verifyData = await verifyRes.json();
 
             if (verifyData.verified) {
+              paymentFinalized = true;
               // 5. Update existing order to verified
               //    If this fails, the webhook will still catch it — show success to user
               //    because payment IS captured by Razorpay regardless.
               try {
-                // Decrement stock — track success so webhook knows whether to retry
-                let stockDeducted = false;
-                try {
-                  const ok = await decrementStock(cart.map((i) => ({ productId: i.productId, size: i.size !== 'N/A' ? i.size : undefined, quantity: i.quantity })));
-                  stockDeducted = ok !== false;
-                } catch (stockErr) {
-                  console.error('[checkout] Stock decrement failed — webhook will retry:', stockErr);
-                }
-
                 await updateMerchOrderByOrderId(serverOrderId, {
                   upiRef: response.razorpay_payment_id,
                   status: 'verified',
                   razorpayPaymentId: response.razorpay_payment_id,
                   verifiedAt: new Date().toISOString(),
                   verifiedBy: 'auto',
-                  stockDeducted,
-                  ...(stockDeducted ? {} : { stockDeductionFailed: true }),
+                  stockDeducted: true,
+                  stockReserved: false,
+                  stockRestored: false,
                 });
               } catch (updateErr) {
                 // Payment succeeded but Firestore update failed.
@@ -254,6 +272,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
         },
         modal: {
           ondismiss: () => {
+            releaseReservation('Checkout cancelled before payment', true).catch(() => {});
             setStep('details');
             setIsSubmitting(false);
           },
@@ -271,19 +290,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
           source: response.error?.source,
           step: response.error?.step,
         });
-        // Mark order as rejected (best-effort — if this fails, admin can see it's still pending)
-        try {
-          await updateMerchOrderByOrderId(serverOrderId, {
-            status: 'rejected',
-            rejectedAt: new Date().toISOString(),
-            rejectionReason: response.error?.description || 'Payment failed',
-          });
-        } catch (rejectErr) {
-          console.error('[checkout] Failed to mark order as rejected:', {
-            orderId: serverOrderId,
-            error: rejectErr,
-          });
-        }
+        await releaseReservation(response.error?.description || 'Payment failed', true);
         setErrorMsg(response.error?.description || 'Payment failed. Please try again.');
         setStep('failed');
       });

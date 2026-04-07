@@ -67,6 +67,8 @@ export async function POST(req: NextRequest) {
           upiRef: razorpayPaymentId,
           verifiedAt: new Date().toISOString(),
           verifiedBy: 'webhook',
+          stockReserved: false,
+          stockRestored: false,
           stockDeducted: true,
         });
         console.log(`[webhook] ✓ Verified order ${orderData.orderId} (doc: ${orderDoc.id}) via payment ${razorpayPaymentId}`);

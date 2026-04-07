@@ -12,11 +12,15 @@ function generateOrderId(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { items, customerName, customerEmail, customerMobile } = await req.json();
+    const { items, customerName, customerEmail, customerMobile, deliveryAddress } = await req.json();
 
     // Validate customer fields
     if (!customerName || !customerEmail || !customerMobile) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (!deliveryAddress?.line1 || !deliveryAddress?.city || !deliveryAddress?.state || !deliveryAddress?.pincode) {
+      return NextResponse.json({ error: 'Missing delivery address' }, { status: 400 });
     }
 
     // Validate cart items exist and compute total from server-side prices
@@ -103,8 +107,25 @@ export async function POST(req: NextRequest) {
     // Generate order ID server-side
     const orderId = generateOrderId();
 
+    // Reserve stock before opening Razorpay so concurrent buyers cannot oversell inventory.
+    const normalizedItems = items.map((item: { productId: string; size?: string; quantity: number }) => ({
+      productId: item.productId,
+      size: item.size && item.size !== 'N/A' ? item.size : undefined,
+      quantity: item.quantity,
+    }));
+
+    const { decrementStock, restoreStock, createMerchOrder } = await import('@/lib/services');
+    const reserved = await decrementStock(normalizedItems);
+    if (!reserved) {
+      return NextResponse.json(
+        { error: 'Some items just went out of stock. Please review your cart and try again.' },
+        { status: 409 }
+      );
+    }
+
     // Validate env vars are set
     if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      await restoreStock(normalizedItems);
       console.error('[create-order] Razorpay credentials not configured');
       return NextResponse.json(
         { error: 'Payment service not configured' },
@@ -119,17 +140,43 @@ export async function POST(req: NextRequest) {
       key_secret: process.env.RAZORPAY_KEY_SECRET,
     });
 
-    const order = await razorpay.orders.create({
-      amount: Math.round(amount * 100), // Razorpay expects paise
-      currency: 'INR',
-      receipt: orderId,
-      notes: {
+    let order;
+    try {
+      order = await razorpay.orders.create({
+        amount: Math.round(amount * 100), // Razorpay expects paise
+        currency: 'INR',
+        receipt: orderId,
+        notes: {
+          customerName,
+          customerEmail,
+          customerMobile,
+          orderId,
+        },
+      });
+
+      await createMerchOrder({
+        orderId,
+        items,
+        total: amount,
         customerName,
         customerEmail,
         customerMobile,
-        orderId,
-      },
-    });
+        deliveryAddress,
+        upiRef: '',
+        status: 'pending',
+        razorpayOrderId: order.id,
+        paymentMethod: 'razorpay',
+        stockDeducted: true,
+        stockReserved: true,
+        stockReservedAt: new Date().toISOString(),
+        stockRestored: false,
+        stockWarning: stockWarningItems.length > 0,
+        stockWarningItems: stockWarningItems.length > 0 ? stockWarningItems : undefined,
+      });
+    } catch (reservationErr) {
+      await restoreStock(normalizedItems);
+      throw reservationErr;
+    }
 
     console.log('[create-order] ✓ Order created:', orderId, 'razorpay:', order.id, 'amount:', amount, 'customer:', customerEmail);
 
