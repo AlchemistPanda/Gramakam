@@ -158,15 +158,7 @@ export default function MerchandisePage() {
 
   const buyNow = (product: Product) => {
     const pQty = getProductQty(product.id);
-    if (pQty === 0) {
-      // Add 1 of the first available size (or N/A for non-sized)
-      if (product.sizes && product.sizes.length > 0) {
-        const firstAvail = product.sizes.find((s) => !isSizeOutOfStock(product.id, s));
-        if (firstAvail) setSizeQty(product.id, firstAvail, 1);
-      } else {
-        setSizeQty(product.id, 'N/A', 1);
-      }
-    }
+    if (pQty === 0) return; // nothing selected — do nothing
     setShowCheckout(true);
   };
 
@@ -356,10 +348,10 @@ export default function MerchandisePage() {
                     {/* Buy Now / Checkout Button */}
                     <button
                       onClick={() => buyNow(product)}
-                      disabled={isProductOutOfStock(product.id)}
+                      disabled={isProductOutOfStock(product.id) || productQty === 0}
                       className="w-full bg-maroon hover:bg-maroon-dark text-white font-bold py-3 rounded-lg transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
                     >
-                      {isProductOutOfStock(product.id) ? 'Out of Stock' : productQty > 0 ? 'Checkout' : 'Buy Now'}
+                      {isProductOutOfStock(product.id) ? 'Out of Stock' : productQty > 0 ? 'Checkout' : 'Select items to continue'}
                     </button>
                   </div>
                 </div>
