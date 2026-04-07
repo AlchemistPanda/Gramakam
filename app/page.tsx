@@ -147,16 +147,21 @@ export default function HomePage() {
                 <div className="w-16 h-1 bg-maroon rounded-full mb-8" />
                 <p className="text-gray-600 leading-relaxed text-lg">
                   <strong className="text-charcoal">Gramakam</strong> is an annual theatre and cultural
-                  festival held in Velur, Thrissur, Kerala. Organised by{' '}
-                  <strong className="text-charcoal">IF Creations</strong>, the festival is a vibrant
-                  celebration of theatre, literature, art, and community. It brings together
-                  playwrights, actors, directors, writers, and art enthusiasts from across Kerala and
-                  beyond — creating a space where traditional art forms meet contemporary expression.
+                  festival held in the historic village of Velur, Thrissur. As a vibrant celebration of
+                  theatre, literature, art, and community, the festival serves as a bridge between
+                  Kerala&apos;s deep-rooted traditions and contemporary creative expression.
                 </p>
                 <p className="text-gray-600 leading-relaxed text-lg mt-4">
-                  From powerful stage performances and dramatic readings to literary discussions and
-                  cultural workshops, Gramakam is a testament to the enduring spirit of Kerala&apos;s
-                  rich theatrical heritage.
+                  Each year, Gramakam transforms Velur into a cultural hub, bringing together a diverse
+                  community of playwrights, actors, directors, writers, and art enthusiasts from across
+                  the state and beyond.
+                </p>
+                <p className="text-gray-600 leading-relaxed text-lg mt-4">
+                  The journey began in 2016, when <strong className="text-charcoal">IF Creations Cultural
+                  Organization</strong> Velur initiated the first organizing activities for the festival.
+                  Gramakam is organized by a dedicated committee of art-loving residents from Velur and
+                  neighbouring villages. The success of every edition is fueled by the immense
+                  participation and support of the local community.
                 </p>
                 <Link href="/gallery" className="inline-flex items-center gap-2 mt-8 text-maroon font-semibold hover:gap-3 transition-all duration-300">
                   View Festival Gallery <ArrowRight size={16} />
