@@ -3,44 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
-import { X, ChevronLeft, ChevronRight, Plus, Minus, ShoppingBag, Package } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Plus, Minus, ShoppingBag, Package, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import CheckoutModal from '@/components/merchandise/CheckoutModal';
 import type { MerchCartItem } from '@/types';
-
-interface MerchProduct {
-  id: string;
-  name: string;
-  description: string;
-  images: string[];
-  price: number;
-  sizes?: string[];
-}
-
-const products: MerchProduct[] = [
-  {
-    id: 'tshirt',
-    name: 'Gramakam T-Shirt',
-    description:
-      'Premium cotton t-shirt with the iconic Gramakam festival design. A wearable piece of cultural art.',
-    images: ['/images/merch/tshirt2.jpg', '/images/merch/tshirt.jpg', '/images/merch/tshirt3.png', '/images/merch/tshirt4.png'],
-    price: 1,
-    sizes: ['24', '28', '32', '36 (S)', '38 (M)', '40 (L)', '42 (XL)', '44 (XXL)'],
-  },
-  {
-    id: 'slingbag',
-    name: 'Gramakam Sling Bag',
-    description:
-      'A stylish, everyday carry sling bag bearing the Gramakam 2026 festival design. Crafted for comfort and durability, it features a spacious main compartment and an adjustable strap — perfect for the festival and beyond.',
-    images: [
-      '/images/SLINGBAG/SLINGBAG1.png',
-      '/images/SLINGBAG/SLINGBAG2.png',
-      '/images/SLINGBAG/SLINGBAG3.png',
-      '/images/SLINGBAG/SLINGBAG4.png',
-    ],
-    price: 1,
-  },
-];
+import { PRODUCTS as products, type Product } from '@/lib/products';
 
 // Per-product selection state: { size, quantity }
 interface Selection {
@@ -71,15 +38,15 @@ export default function MerchandisePage() {
     return () => { if (rotationRef.current) clearInterval(rotationRef.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getSelection = (id: string, product: MerchProduct): Selection =>
+  const getSelection = (id: string, product: Product): Selection =>
     selections[id] ?? { size: product.sizes?.[0] ?? 'N/A', quantity: 1 };
 
-  const setSize = (id: string, product: MerchProduct, size: string) => {
+  const setSize = (id: string, product: Product, size: string) => {
     const sel = getSelection(id, product);
     setSelections((prev) => ({ ...prev, [id]: { ...sel, size } }));
   };
 
-  const setQty = (id: string, product: MerchProduct, delta: number) => {
+  const setQty = (id: string, product: Product, delta: number) => {
     const sel = getSelection(id, product);
     const newQty = Math.max(0, Math.min(10, sel.quantity + delta));
     setSelections((prev) => ({ ...prev, [id]: { ...sel, quantity: newQty } }));
@@ -103,7 +70,7 @@ export default function MerchandisePage() {
     setLightboxImage({ ...lightboxImage, index: newIndex });
   };
 
-  const buyNow = (product: MerchProduct) => {
+  const buyNow = (product: Product) => {
     const sel = getSelection(product.id, product);
     setSelections({ [product.id]: sel });
     setShowCheckout(true);
@@ -214,11 +181,27 @@ export default function MerchandisePage() {
 
                     {/* Quantity controls */}
                     <div className="flex items-center justify-between mb-4">
-                      <p className="text-xs text-gray-400">Qty</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-gray-400">Qty</p>
+                        {sel.quantity > 0 && (
+                          <button
+                            onClick={() => {
+                              setSelections((prev) => {
+                                const next = { ...prev };
+                                delete next[product.id];
+                                return next;
+                              });
+                            }}
+                            className="text-xs text-red-400 hover:text-red-600 flex items-center gap-0.5 transition-colors"
+                          >
+                            <Trash2 size={12} /> Remove
+                          </button>
+                        )}
+                      </div>
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => setQty(product.id, product, -1)}
-                          disabled={sel.quantity === 1}
+                          disabled={sel.quantity <= 1}
                           className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors text-lg font-bold"
                         >
                           <Minus size={16} />

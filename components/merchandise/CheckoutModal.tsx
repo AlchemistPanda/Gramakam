@@ -4,19 +4,12 @@ import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import type { MerchCartItem, DeliveryAddress } from '@/types';
-import { createMerchOrder } from '@/lib/services';
+import { createMerchOrder, updateMerchOrderByOrderId } from '@/lib/services';
 
 declare global {
   interface Window {
     Razorpay: any;
   }
-}
-
-function generateOrderId(): string {
-  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return `GRM-${code}`;
 }
 
 interface CheckoutModalProps {
@@ -74,7 +67,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
   useEffect(() => {
     if (open) {
       setStep('details');
-      setOrderId(generateOrderId());
+      setOrderId('');
       setIsSubmitting(false);
       setErrorMsg('');
       setPaymentId('');
@@ -101,7 +94,6 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
 
     try {
       // 0. Make sure the Razorpay checkout script is actually available.
-      // If it isn't, don't even try to create an order — the popup wouldn't open.
       if (typeof window === 'undefined' || !window.Razorpay) {
         throw new Error(
           'Payment gateway is still loading. Please wait a moment and try again. ' +
@@ -109,13 +101,12 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
         );
       }
 
-      // 1. Create Razorpay order on server
+      // 1. Create Razorpay order on server (server validates prices & generates orderId)
       const res = await fetch('/api/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: total,
-          orderId,
+          items: cart.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity })),
           customerName: name,
           customerEmail: email,
           customerMobile: mobile,
@@ -123,20 +114,38 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
       });
 
       if (!res.ok) {
-        throw new Error('Failed to create payment order. Please try again.');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create payment order. Please try again.');
       }
 
       const razorpayOrder = await res.json();
+      const serverOrderId: string = razorpayOrder.orderId;
+      const serverTotal: number = razorpayOrder.serverTotal;
+      setOrderId(serverOrderId);
 
-      // 2. Build Razorpay checkout options (do NOT switch UI to 'paying' yet —
-      // we only do that once rzp.open() actually fires, otherwise users can get
-      // stuck on the "checkout is open" screen if the popup never appears).
+      // 2. Persist a "pending" order in Firestore BEFORE opening Razorpay.
+      //    This ensures we have a record even if the browser closes mid-payment.
+      await createMerchOrder({
+        orderId: serverOrderId,
+        items: cart,
+        total: serverTotal,
+        customerName: name,
+        customerEmail: email,
+        customerMobile: mobile,
+        deliveryAddress,
+        upiRef: '',
+        status: 'pending',
+        razorpayOrderId: razorpayOrder.id,
+        paymentMethod: 'razorpay',
+      });
+
+      // 3. Build Razorpay checkout options
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
         name: 'Gramakam',
-        description: `Merchandise - ${orderId}`,
+        description: `Merchandise - ${serverOrderId}`,
         image: '/images/gramakam-logo-white.png',
         order_id: razorpayOrder.id,
         prefill: {
@@ -152,7 +161,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
           razorpay_payment_id: string;
           razorpay_signature: string;
         }) => {
-          // 3. Verify payment on server
+          // 4. Verify payment on server
           try {
             const verifyRes = await fetch('/api/razorpay/verify-payment', {
               method: 'POST',
@@ -163,25 +172,16 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
             const verifyData = await verifyRes.json();
 
             if (verifyData.verified) {
-              // 4. Save order to Firestore as verified
-              await createMerchOrder({
-                orderId,
-                items: cart,
-                total,
-                customerName: name,
-                customerEmail: email,
-                customerMobile: mobile,
-                deliveryAddress,
+              // 5. Update existing order to verified
+              await updateMerchOrderByOrderId(serverOrderId, {
                 upiRef: response.razorpay_payment_id,
                 status: 'verified',
-                razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: response.razorpay_payment_id,
-                paymentMethod: 'razorpay',
                 verifiedAt: new Date().toISOString(),
                 verifiedBy: 'auto',
               });
 
-              setConfirmedTotal(total);
+              setConfirmedTotal(serverTotal);
               setPaymentId(response.razorpay_payment_id);
               setStep('success');
               onOrderPlaced();
@@ -205,14 +205,20 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
 
       const rzp = new window.Razorpay(options);
 
-      rzp.on('payment.failed', (response: any) => {
+      rzp.on('payment.failed', async (response: any) => {
         console.error('Payment failed:', response.error);
+        // Mark order as rejected
+        try {
+          await updateMerchOrderByOrderId(serverOrderId, {
+            status: 'rejected',
+            rejectedAt: new Date().toISOString(),
+          });
+        } catch (_) { /* best-effort */ }
         setErrorMsg(response.error?.description || 'Payment failed. Please try again.');
         setStep('failed');
       });
 
       // Open the checkout popup, then flip the UI to 'paying'.
-      // If rzp.open() throws synchronously the catch below resets us cleanly.
       rzp.open();
       setStep('paying');
     } catch (err: any) {

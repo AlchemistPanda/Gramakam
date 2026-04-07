@@ -296,6 +296,18 @@ export async function deleteMerchOrder(id: string): Promise<void> {
   await deleteDoc(docRef);
 }
 
+/** Update an order by its human-readable orderId (GRM-xxx). Used by checkout flow. */
+export async function updateMerchOrderByOrderId(
+  orderId: string,
+  data: Partial<MerchOrder>
+): Promise<void> {
+  const ref = collection(requireDb(), 'merch_orders');
+  const q = query(ref, where('orderId', '==', orderId), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) throw new Error(`Order ${orderId} not found`);
+  await updateDoc(snap.docs[0].ref, data);
+}
+
 export async function trackOrder(input: string): Promise<MerchOrder | null> {
   const db = requireDb();
   const ref = collection(db, 'merch_orders');
