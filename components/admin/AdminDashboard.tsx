@@ -62,7 +62,10 @@ import {
   getAwards,
   addAward,
   deleteAward,
+  getStockCounts,
+  setStockCount,
 } from '@/lib/services';
+import { PRODUCTS } from '@/lib/products';
 import type {
   GalleryItem,
   FeedPost,
@@ -754,7 +757,7 @@ function CountdownPanel() {
 
 // ===== MERCH PANEL (with sub-tabs) =====
 function MerchPanel() {
-  const [subTab, setSubTab] = useState<'orders' | 'prebooks'>('orders');
+  const [subTab, setSubTab] = useState<'orders' | 'prebooks' | 'stock'>('orders');
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -764,6 +767,7 @@ function MerchPanel() {
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
         {([
           { id: 'orders' as const, label: 'Orders' },
+          { id: 'stock' as const, label: 'Stock & Availability' },
           { id: 'prebooks' as const, label: 'Pre-bookings' },
         ]).map((tab) => (
           <button
@@ -781,8 +785,184 @@ function MerchPanel() {
       </div>
 
       {subTab === 'orders' && <MerchOrdersSubTab />}
+      {subTab === 'stock' && <MerchStockSubTab />}
       {subTab === 'prebooks' && <MerchPrebooksSubTab />}
     </motion.div>
+  );
+}
+
+// ===== Stock management sub-tab =====
+function MerchStockSubTab() {
+  const [stockCounts, setStockCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+
+  const loadStock = async () => {
+    try {
+      const counts = await getStockCounts();
+      setStockCounts(counts);
+      // Initialize edit values
+      const vals: Record<string, string> = {};
+      PRODUCTS.forEach((p) => {
+        const count = counts[p.id] ?? p.stock;
+        vals[p.id] = count === -1 ? '' : String(count);
+      });
+      setEditValues(vals);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { loadStock(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
+
+  const getEffectiveStock = (productId: string): number => {
+    if (productId in stockCounts) return stockCounts[productId];
+    return PRODUCTS.find((p) => p.id === productId)?.stock ?? -1;
+  };
+
+  const handleSaveStock = async (productId: string) => {
+    const val = editValues[productId]?.trim();
+    const count = val === '' ? -1 : parseInt(val, 10);
+    if (val !== '' && (isNaN(count) || count < 0)) {
+      alert('Enter a valid number (0 or more), or leave empty for unlimited.');
+      return;
+    }
+    setSaving(productId);
+    try {
+      await setStockCount(productId, count);
+      setStockCounts((prev) => ({ ...prev, [productId]: count }));
+    } catch {
+      alert('Failed to update stock.');
+    }
+    setSaving(null);
+  };
+
+  const handlePauseSelling = async (productId: string) => {
+    setSaving(productId);
+    try {
+      await setStockCount(productId, 0);
+      setStockCounts((prev) => ({ ...prev, [productId]: 0 }));
+      setEditValues((prev) => ({ ...prev, [productId]: '0' }));
+    } catch {
+      alert('Failed to pause selling.');
+    }
+    setSaving(null);
+  };
+
+  const handleResumeSelling = async (productId: string) => {
+    setSaving(productId);
+    try {
+      await setStockCount(productId, -1);
+      setStockCounts((prev) => ({ ...prev, [productId]: -1 }));
+      setEditValues((prev) => ({ ...prev, [productId]: '' }));
+    } catch {
+      alert('Failed to resume selling.');
+    }
+    setSaving(null);
+  };
+
+  if (loading) {
+    return <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+        <p className="font-semibold mb-1">How Stock Works</p>
+        <ul className="list-disc ml-5 space-y-1 text-xs text-blue-700">
+          <li><strong>Unlimited</strong> — leave stock empty. Product is always available.</li>
+          <li><strong>Set stock count</strong> — enter a number. Decrements automatically when a payment is verified.</li>
+          <li><strong>Pause selling</strong> — sets stock to 0. Product shows "Out of Stock" to customers.</li>
+        </ul>
+      </div>
+
+      {PRODUCTS.map((product) => {
+        const stock = getEffectiveStock(product.id);
+        const isPaused = stock === 0;
+        const isUnlimited = stock === -1;
+
+        return (
+          <div
+            key={product.id}
+            className={`bg-white rounded-xl border shadow-sm p-5 ${isPaused ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}
+          >
+            <div className="flex items-start gap-4">
+              {/* Product image */}
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <h3 className="font-semibold text-charcoal">{product.name}</h3>
+                  <span className="text-sm text-gray-500">₹{product.price}</span>
+                  {isPaused && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 uppercase">
+                      Selling Paused
+                    </span>
+                  )}
+                  {isUnlimited && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-600 uppercase">
+                      Unlimited
+                    </span>
+                  )}
+                  {!isPaused && !isUnlimited && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                      stock <= 10 ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+                    }`}>
+                      {stock} in stock
+                    </span>
+                  )}
+                </div>
+
+                {/* Stock input row */}
+                <div className="flex items-center gap-3 mt-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-500 shrink-0">Stock count:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="∞ unlimited"
+                      value={editValues[product.id] ?? ''}
+                      onChange={(e) => setEditValues((prev) => ({ ...prev, [product.id]: e.target.value }))}
+                      className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
+                    />
+                    <button
+                      onClick={() => handleSaveStock(product.id)}
+                      disabled={saving === product.id}
+                      className="px-3 py-2 bg-charcoal text-white text-xs font-semibold rounded-lg hover:bg-charcoal/80 disabled:opacity-50"
+                    >
+                      {saving === product.id ? <Loader2 size={12} className="animate-spin" /> : <><Save size={12} /> Save</>}
+                    </button>
+                  </div>
+
+                  <div className="ml-auto flex gap-2">
+                    {!isPaused ? (
+                      <button
+                        onClick={() => handlePauseSelling(product.id)}
+                        disabled={saving === product.id}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <X size={12} /> Pause Selling
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleResumeSelling(product.id)}
+                        disabled={saving === product.id}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-green-200 text-green-600 hover:bg-green-50 disabled:opacity-50"
+                      >
+                        <CheckCircle size={12} /> Resume Selling
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
