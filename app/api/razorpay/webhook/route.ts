@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { Resend } from 'resend';
 import { collection, query, where, getDocs, updateDoc, limit } from 'firebase/firestore';
 
 // Razorpay sends webhooks as POST with a JSON body and X-Razorpay-Signature header.
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
 
       if (!snap.empty) {
         const orderDoc = snap.docs[0];
+        const orderData = orderDoc.data();
         await updateDoc(orderDoc.ref, {
           status: 'verified',
           razorpayPaymentId,
@@ -67,6 +69,30 @@ export async function POST(req: NextRequest) {
           verifiedBy: 'webhook',
         });
         console.log(`Webhook: verified order ${orderDoc.id} via payment ${razorpayPaymentId}`);
+
+        // Send confirmation email (webhook-recovered payment)
+        if (process.env.RESEND_API_KEY && orderData.customerEmail) {
+          try {
+            const resend = new Resend(process.env.RESEND_API_KEY);
+            const { buildOrderEmailHtml } = await import('@/lib/orderEmail');
+            await resend.emails.send({
+              from: 'Gramakam <orders@gramakam.org>',
+              to: orderData.customerEmail,
+              subject: `Order Confirmed – ${orderData.orderId} | Gramakam Merch`,
+              html: buildOrderEmailHtml({
+                customerName: orderData.customerName,
+                orderId: orderData.orderId,
+                items: orderData.items,
+                total: orderData.total,
+                paymentId: razorpayPaymentId,
+                deliveryAddress: orderData.deliveryAddress,
+              }),
+            });
+            console.log(`Webhook: confirmation email sent to ${orderData.customerEmail}`);
+          } catch (emailErr) {
+            console.error('Webhook: email send failed:', emailErr);
+          }
+        }
       } else {
         // Order may already be verified by the client handler — that's fine
         console.log(`Webhook: no pending order found for razorpay order ${razorpayOrderId}`);

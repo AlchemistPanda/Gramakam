@@ -181,6 +181,21 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                 verifiedBy: 'auto',
               });
 
+              // 6. Send order confirmation email (fire-and-forget)
+              fetch('/api/order-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: email,
+                  customerName: name,
+                  orderId: serverOrderId,
+                  items: cart,
+                  total: serverTotal,
+                  paymentId: response.razorpay_payment_id,
+                  deliveryAddress,
+                }),
+              }).catch((err) => console.error('Email send failed:', err));
+
               setConfirmedTotal(serverTotal);
               setPaymentId(response.razorpay_payment_id);
               setStep('success');
