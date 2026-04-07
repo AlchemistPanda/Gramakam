@@ -8,7 +8,7 @@ import {
   MapPin, Copy, ExternalLink, ChevronRight, ArrowLeft,
   ShoppingBag,
 } from 'lucide-react';
-import { trackOrder } from '@/lib/services';
+import { trackOrders } from '@/lib/services';
 import type { MerchOrder, MerchOrderStatus } from '@/types';
 
 // ─── Pipeline definition ────────────────────────────────────────────────────
@@ -46,14 +46,37 @@ function copyToClipboard(text: string) {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+const STATUS_LABEL: Partial<Record<MerchOrderStatus, { label: string; color: string }>> = {
+  verified:        { label: 'Confirmed',  color: 'text-blue-400' },
+  manual_verified: { label: 'Confirmed',  color: 'text-blue-400' },
+  packed:          { label: 'Packed',     color: 'text-amber-400' },
+  shipped:         { label: 'Shipped',    color: 'text-purple-400' },
+  delivered:       { label: 'Delivered',  color: 'text-green-400' },
+  rejected:        { label: 'Cancelled',  color: 'text-red-400' },
+};
+
 function TrackPageContent() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [order, setOrder] = useState<MerchOrder | null | 'not_found'>(null);
+  const [orders, setOrders] = useState<MerchOrder[] | null>(null); // null = no search yet
+  const [selectedOrder, setSelectedOrder] = useState<MerchOrder | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const applyResults = (results: MerchOrder[]) => {
+    if (results.length === 0) {
+      setOrders([]);
+      setSelectedOrder(null);
+    } else if (results.length === 1) {
+      setOrders(results);
+      setSelectedOrder(results[0]);
+    } else {
+      setOrders(results);
+      setSelectedOrder(results[0]); // default to most recent
+    }
+  };
 
   // Auto-search if orderId is provided in URL
   useEffect(() => {
@@ -61,8 +84,8 @@ function TrackPageContent() {
     if (orderId) {
       setQuery(orderId);
       setLoading(true);
-      trackOrder(orderId)
-        .then((result) => setOrder(result ?? 'not_found'))
+      trackOrders(orderId)
+        .then(applyResults)
         .catch(() => setError('Something went wrong. Please try again.'))
         .finally(() => setLoading(false));
     }
@@ -73,10 +96,11 @@ function TrackPageContent() {
     if (!query.trim()) return;
     setLoading(true);
     setError('');
-    setOrder(null);
+    setOrders(null);
+    setSelectedOrder(null);
     try {
-      const result = await trackOrder(query.trim());
-      setOrder(result ?? 'not_found');
+      const results = await trackOrders(query.trim());
+      applyResults(results);
     } catch {
       setError('Something went wrong. Please try again.');
     }
@@ -90,14 +114,18 @@ function TrackPageContent() {
   };
 
   const handleReset = () => {
-    setOrder(null);
+    setOrders(null);
+    setSelectedOrder(null);
     setQuery('');
     setError('');
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  const stepIndex = order && order !== 'not_found' ? getStepIndex(order.status) : -1;
-  const isActive = order && order !== 'not_found' && order.status !== 'rejected';
+  const order = selectedOrder;
+  const notFound = orders !== null && orders.length === 0;
+  const multipleOrders = orders !== null && orders.length > 1;
+  const stepIndex = order ? getStepIndex(order.status) : -1;
+  const isActive = order && order.status !== 'rejected';
 
   return (
     <div className="min-h-screen bg-charcoal relative overflow-hidden">
@@ -167,7 +195,7 @@ function TrackPageContent() {
 
         {/* Results */}
         <AnimatePresence mode="wait">
-          {order === 'not_found' && (
+          {notFound && (
             <motion.div
               key="not_found"
               initial={{ opacity: 0, scale: 0.96 }}
@@ -181,7 +209,7 @@ function TrackPageContent() {
                 </div>
                 <h3 className="text-cream font-semibold mb-2" style={{ fontFamily: 'var(--font-heading)' }}>Order Not Found</h3>
                 <p className="text-gray-500 text-sm mb-6">
-                  No order matched <span className="font-mono text-gray-400">"{query}"</span>.<br />
+                  No order matched <span className="font-mono text-gray-400">&quot;{query}&quot;</span>.<br />
                   Check your Order ID or mobile number and try again.
                 </p>
                 <button onClick={handleReset} className="flex items-center gap-2 text-sm text-maroon/80 hover:text-maroon mx-auto transition-colors">
@@ -191,7 +219,7 @@ function TrackPageContent() {
             </motion.div>
           )}
 
-          {order && order !== 'not_found' && (
+          {order && (
             <motion.div
               key="result"
               initial={{ opacity: 0, y: 30 }}
@@ -200,6 +228,39 @@ function TrackPageContent() {
               transition={{ duration: 0.45, ease: 'easeOut' }}
               className="max-w-2xl mx-auto space-y-4"
             >
+              {/* Multi-order selector */}
+              {multipleOrders && orders && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-semibold mb-3">
+                    {orders.length} orders found — select one
+                  </p>
+                  <div className="space-y-2">
+                    {orders.map((o) => {
+                      const st = STATUS_LABEL[o.status];
+                      const isSelected = o.orderId === order.orderId;
+                      return (
+                        <button
+                          key={o.orderId}
+                          onClick={() => setSelectedOrder(o)}
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? 'bg-maroon/20 border-maroon/40'
+                              : 'bg-white/5 border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          <ShoppingBag size={15} className={isSelected ? 'text-maroon' : 'text-gray-500'} />
+                          <div className="flex-1 min-w-0">
+                            <span className="font-mono text-sm text-cream font-bold">{o.orderId}</span>
+                            <span className="text-gray-500 text-xs ml-2">{fmtDate(o.createdAt as string)}</span>
+                          </div>
+                          {st && <span className={`text-xs font-semibold shrink-0 ${st.color}`}>{st.label}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Order header card */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-maroon/20 flex items-center justify-center shrink-0">

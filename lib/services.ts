@@ -320,56 +320,50 @@ export async function updateMerchOrderByOrderId(
   await updateDoc(snap.docs[0].ref, data);
 }
 
-export async function trackOrder(input: string): Promise<MerchOrder | null> {
+function toMerchOrder(d: { id: string; data: () => Record<string, unknown> }): MerchOrder {
+  return { id: d.id, ...d.data(), createdAt: (d.data().createdAt as { toDate?: () => Date })?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
+}
+
+function sortByDateDesc(docs: { data: () => Record<string, unknown> }[]) {
+  return docs.sort((a, b) => {
+    const at = (a.data().createdAt as { toDate?: () => Date })?.toDate?.()?.getTime() ?? 0;
+    const bt = (b.data().createdAt as { toDate?: () => Date })?.toDate?.()?.getTime() ?? 0;
+    return bt - at;
+  });
+}
+
+/** Returns all orders matching an email or mobile, or a single order by orderId. */
+export async function trackOrders(input: string): Promise<MerchOrder[]> {
   const db = requireDb();
   const ref = collection(db, 'merch_orders');
   const clean = input.trim();
 
   // Try by orderId first (GRM-xxxx format)
   const byId = await getDocs(query(ref, where('orderId', '==', clean.toUpperCase()), limit(1)));
-  if (!byId.empty) {
-    const d = byId.docs[0];
-    return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
-  }
+  if (!byId.empty) return [toMerchOrder(byId.docs[0])];
 
-  // Try by lowercase orderId (in case user typed lowercase)
   const byIdLower = await getDocs(query(ref, where('orderId', '==', clean), limit(1)));
-  if (!byIdLower.empty) {
-    const d = byIdLower.docs[0];
-    return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
-  }
+  if (!byIdLower.empty) return [toMerchOrder(byIdLower.docs[0])];
 
-  // Try by email (most recent order)
+  // Try by email — return ALL orders sorted newest first
   if (clean.includes('@')) {
     const byEmail = await getDocs(query(ref, where('customerEmail', '==', clean.toLowerCase())));
-    if (!byEmail.empty) {
-      const sorted = byEmail.docs.sort((a, b) => {
-        const at = a.data().createdAt?.toDate?.()?.getTime() ?? 0;
-        const bt = b.data().createdAt?.toDate?.()?.getTime() ?? 0;
-        return bt - at;
-      });
-      const d = sorted[0];
-      return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
-    }
+    if (!byEmail.empty) return sortByDateDesc([...byEmail.docs]).map(toMerchOrder);
   }
 
-  // Try by mobile (last 10 digits, most recent order)
+  // Try by mobile — return ALL orders sorted newest first
   const mobile = clean.replace(/\D/g, '').slice(-10);
   if (mobile.length === 10) {
     const byMobile = await getDocs(query(ref, where('customerMobile', '==', mobile)));
-    if (!byMobile.empty) {
-      // Sort client-side to avoid requiring a composite Firestore index
-      const sorted = byMobile.docs.sort((a, b) => {
-        const at = a.data().createdAt?.toDate?.()?.getTime() ?? 0;
-        const bt = b.data().createdAt?.toDate?.()?.getTime() ?? 0;
-        return bt - at;
-      });
-      const d = sorted[0];
-      return { id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt } as MerchOrder;
-    }
+    if (!byMobile.empty) return sortByDateDesc([...byMobile.docs]).map(toMerchOrder);
   }
 
-  return null;
+  return [];
+}
+
+export async function trackOrder(input: string): Promise<MerchOrder | null> {
+  const results = await trackOrders(input);
+  return results[0] ?? null;
 }
 
 // ==================== STOCK MANAGEMENT ====================
