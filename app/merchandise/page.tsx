@@ -67,27 +67,60 @@ export default function MerchandisePage() {
     return () => { if (rotationRef.current) clearInterval(rotationRef.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getSelection = (id: string, product: Product): Selection =>
-    selections[id] ?? { size: product.sizes?.[0] ?? 'N/A', quantity: 0 };
+  // Cart key: 'productId' for non-sized, 'productId:size' for sized
+  const cartKey = (productId: string, size?: string) =>
+    size && size !== 'N/A' ? `${productId}:${size}` : productId;
 
-  const setSize = (id: string, product: Product, size: string) => {
-    const sel = getSelection(id, product);
-    setSelections((prev) => ({ ...prev, [id]: { ...sel, size } }));
+  const getSizeQty = (productId: string, size: string): number =>
+    selections[cartKey(productId, size)]?.quantity ?? 0;
+
+  const getProductQty = (productId: string): number => {
+    const prefix = `${productId}:`;
+    return Object.entries(selections)
+      .filter(([k]) => k === productId || k.startsWith(prefix))
+      .reduce((sum, [, sel]) => sum + sel.quantity, 0);
   };
 
-  const setQty = (id: string, product: Product, delta: number) => {
-    const sel = getSelection(id, product);
-    const newQty = Math.max(0, Math.min(10, sel.quantity + delta));
-    setSelections((prev) => ({ ...prev, [id]: { ...sel, quantity: newQty } }));
+  const setSizeQty = (productId: string, size: string, newQty: number) => {
+    const key = cartKey(productId, size);
+    setSelections((prev) => {
+      if (newQty <= 0) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      const prefix = `${productId}:`;
+      let otherQty = 0;
+      for (const [k, s] of Object.entries(prev)) {
+        if ((k === productId || k.startsWith(prefix)) && k !== key) otherQty += s.quantity;
+      }
+      const capped = Math.min(newQty, 10 - otherQty);
+      if (capped <= 0) return prev;
+      return { ...prev, [key]: { size, quantity: capped } };
+    });
+  };
+
+  const removeProduct = (productId: string) => {
+    setSelections((prev) => {
+      const prefix = `${productId}:`;
+      const next: Record<string, Selection> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        if (k !== productId && !k.startsWith(prefix)) next[k] = v;
+      }
+      return next;
+    });
   };
 
   // Build cart from selections
-  const cart: MerchCartItem[] = products
-    .filter((p) => (selections[p.id]?.quantity ?? 0) > 0)
-    .map((p) => {
-      const sel = getSelection(p.id, p);
-      return { productId: p.id, name: p.name, price: p.price, size: sel.size, quantity: sel.quantity };
-    });
+  const cart: MerchCartItem[] = Object.entries(selections)
+    .filter(([, sel]) => sel.quantity > 0)
+    .map(([key, sel]) => {
+      const productId = key.includes(':') ? key.split(':')[0] : key;
+      const product = products.find((p) => p.id === productId);
+      if (!product) return null;
+      return { productId, name: product.name, price: product.price, size: sel.size, quantity: sel.quantity };
+    })
+    .filter((item): item is MerchCartItem => item !== null);
 
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
   const { subtotal, discount, total: totalAmount, tshirtQty } = computeCartBreakdown(
@@ -124,10 +157,16 @@ export default function MerchandisePage() {
   };
 
   const buyNow = (product: Product) => {
-    const sel = getSelection(product.id, product);
-    // If quantity is 0, treat as 1 for direct buy
-    const buyQty = sel.quantity > 0 ? sel.quantity : 1;
-    setSelections({ [product.id]: { ...sel, quantity: buyQty } });
+    const pQty = getProductQty(product.id);
+    if (pQty === 0) {
+      // Add 1 of the first available size (or N/A for non-sized)
+      if (product.sizes && product.sizes.length > 0) {
+        const firstAvail = product.sizes.find((s) => !isSizeOutOfStock(product.id, s));
+        if (firstAvail) setSizeQty(product.id, firstAvail, 1);
+      } else {
+        setSizeQty(product.id, 'N/A', 1);
+      }
+    }
     setShowCheckout(true);
   };
 
@@ -154,13 +193,13 @@ export default function MerchandisePage() {
         {/* Product Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
           {products.map((product, index) => {
-            const sel = getSelection(product.id, product);
+            const productQty = getProductQty(product.id);
             const currentImg = activeImageIndex[product.id] ?? 0;
             const hasMultipleSizes = product.sizes && product.sizes.length > 1;
 
             return (
               <AnimatedSection key={product.id} delay={index * 0.1}>
-                <div className={`card bg-white h-full flex flex-col transition-shadow duration-300 ${sel.quantity > 0 ? 'ring-2 ring-maroon shadow-lg' : ''}`}>
+                <div className={`card bg-white h-full flex flex-col transition-shadow duration-300 ${productQty > 0 ? 'ring-2 ring-maroon shadow-lg' : ''}`}>
                   {/* Product Image */}
                   <div className="relative aspect-square bg-gray-100 overflow-hidden group">
                     <AnimatePresence mode="wait">
@@ -197,9 +236,9 @@ export default function MerchandisePage() {
                         ))}
                       </div>
                     )}
-                    {sel.quantity > 0 && (
+                    {productQty > 0 && (
                       <div className="absolute top-2 right-2 bg-maroon text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow">
-                        {sel.quantity}
+                        {productQty}
                       </div>
                     )}
                     {isProductOutOfStock(product.id) && (
@@ -229,79 +268,98 @@ export default function MerchandisePage() {
                       </div>
                     )}
 
-                    {/* Size selector */}
+                    {/* Per-size quantity grid (sized products like t-shirts) */}
                     {hasMultipleSizes && (
                       <div className="mb-4">
-                        <p className="text-xs text-gray-500 mb-2 font-medium">Select Size</p>
-                        <div className="flex gap-1.5 flex-wrap">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs text-gray-500 font-medium">Select Size & Quantity</p>
+                          {productQty > 0 && (
+                            <button
+                              onClick={() => removeProduct(product.id)}
+                              className="text-xs text-red-400 hover:text-red-600 flex items-center gap-0.5 transition-colors"
+                            >
+                              <Trash2 size={12} /> Clear All
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-1">
                           {product.sizes!.map((size) => {
                             const sizeOos = isSizeOutOfStock(product.id, size);
+                            const qty = getSizeQty(product.id, size);
                             return (
-                              <button
-                                key={size}
-                                onClick={() => !sizeOos && setSize(product.id, product, size)}
-                                disabled={sizeOos}
-                                className={`px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all ${
-                                  sizeOos
-                                    ? 'bg-gray-100 text-gray-300 border-gray-200 line-through cursor-not-allowed'
-                                    : sel.size === size
-                                      ? 'bg-maroon text-white border-maroon'
-                                      : 'bg-white text-charcoal border-gray-300 hover:border-maroon'
-                                }`}
-                              >
-                                {size}
-                              </button>
+                              <div key={size} className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg transition-colors ${qty > 0 ? 'bg-maroon/5' : ''}`}>
+                                <span className={`text-sm font-medium ${sizeOos ? 'text-gray-300 line-through' : 'text-charcoal'}`}>
+                                  {size}
+                                  {sizeOos && <span className="text-[10px] text-red-400 ml-1">(sold out)</span>}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => setSizeQty(product.id, size, qty - 1)}
+                                    disabled={qty <= 0 || sizeOos}
+                                    className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors"
+                                  >
+                                    <Minus size={12} />
+                                  </button>
+                                  <span className={`text-sm font-bold w-5 text-center ${qty > 0 ? 'text-maroon' : 'text-gray-400'}`}>{qty}</span>
+                                  <button
+                                    onClick={() => setSizeQty(product.id, size, qty + 1)}
+                                    disabled={sizeOos || productQty >= 10}
+                                    className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors"
+                                  >
+                                    <Plus size={12} />
+                                  </button>
+                                </div>
+                              </div>
                             );
                           })}
+                        </div>
+                        {productQty > 0 && (
+                          <p className="text-xs text-maroon font-medium mt-2 text-right">{productQty} selected (max 10)</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Quantity controls (non-sized products like sling bag) */}
+                    {!hasMultipleSizes && (
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-gray-400">Qty</p>
+                          {productQty > 0 && (
+                            <button
+                              onClick={() => removeProduct(product.id)}
+                              className="text-xs text-red-400 hover:text-red-600 flex items-center gap-0.5 transition-colors"
+                            >
+                              <Trash2 size={12} /> Remove
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setSizeQty(product.id, 'N/A', productQty - 1)}
+                            disabled={productQty <= 0}
+                            className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors text-lg font-bold"
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <span className="text-xl font-bold text-charcoal w-6 text-center">{productQty}</span>
+                          <button
+                            onClick={() => setSizeQty(product.id, 'N/A', productQty + 1)}
+                            disabled={productQty >= 10}
+                            className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors"
+                          >
+                            <Plus size={16} />
+                          </button>
                         </div>
                       </div>
                     )}
 
-                    {/* Quantity controls */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-gray-400">Qty</p>
-                        {sel.quantity > 0 && (
-                          <button
-                            onClick={() => {
-                              setSelections((prev) => {
-                                const next = { ...prev };
-                                delete next[product.id];
-                                return next;
-                              });
-                            }}
-                            className="text-xs text-red-400 hover:text-red-600 flex items-center gap-0.5 transition-colors"
-                          >
-                            <Trash2 size={12} /> Remove
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setQty(product.id, product, -1)}
-                          disabled={sel.quantity <= 0}
-                          className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors text-lg font-bold"
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <span className="text-xl font-bold text-charcoal w-6 text-center">{sel.quantity}</span>
-                        <button
-                          onClick={() => setQty(product.id, product, 1)}
-                          disabled={sel.quantity === 10}
-                          className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-maroon hover:text-maroon disabled:opacity-30 transition-colors"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Buy Now Button */}
+                    {/* Buy Now / Checkout Button */}
                     <button
                       onClick={() => buyNow(product)}
-                      disabled={isProductOutOfStock(product.id) || (hasMultipleSizes && isSizeOutOfStock(product.id, sel.size))}
+                      disabled={isProductOutOfStock(product.id)}
                       className="w-full bg-maroon hover:bg-maroon-dark text-white font-bold py-3 rounded-lg transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
                     >
-                      {isProductOutOfStock(product.id) ? 'Out of Stock' : (hasMultipleSizes && isSizeOutOfStock(product.id, sel.size)) ? 'Size Out of Stock' : 'Buy Now'}
+                      {isProductOutOfStock(product.id) ? 'Out of Stock' : productQty > 0 ? 'Checkout' : 'Buy Now'}
                     </button>
                   </div>
                 </div>
