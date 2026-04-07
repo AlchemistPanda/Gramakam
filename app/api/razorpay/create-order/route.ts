@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { PRODUCT_MAP, computeCartTotal } from '@/lib/products';
+import { PRODUCT_MAP, computeCartTotal, computeCartBreakdown } from '@/lib/products';
 
 function generateOrderId(): string {
   const bytes = crypto.randomBytes(4);
@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
     if (amount === null || amount < 1) {
       return NextResponse.json({ error: 'Invalid cart total' }, { status: 400 });
     }
+
+    const { discount } = computeCartBreakdown(items);
 
     // Check stock availability (read-only — actual decrement happens on payment verification)
     // Also check for recently-resumed-from-out-of-stock flagging
@@ -170,6 +172,7 @@ export async function POST(req: NextRequest) {
         orderId,
         items: enrichedItems,
         total: amount,
+        discount: discount > 0 ? discount : undefined,
         customerName,
         customerEmail,
         customerMobile,

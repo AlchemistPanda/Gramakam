@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight, CheckCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import type { MerchCartItem, DeliveryAddress } from '@/types';
 import { restoreStock, updateMerchOrderByOrderId } from '@/lib/services';
+import { computeCartBreakdown } from '@/lib/products';
 
 declare global {
   interface Window {
@@ -39,7 +40,9 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
   // Snapshot confirmed order details so they survive cart clearing
   const [confirmedTotal, setConfirmedTotal] = useState(0);
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const { subtotal, discount, total } = computeCartBreakdown(
+    cart.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+  );
 
   // Load Razorpay script (with onload tracking so we know when it's ready)
   useEffect(() => {
@@ -234,6 +237,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                   orderId: serverOrderId,
                   items: cart,
                   total: serverTotal,
+                  discount: discount > 0 ? discount : undefined,
                   paymentId: response.razorpay_payment_id,
                   deliveryAddress,
                 }),
@@ -354,6 +358,12 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
                         <span className="font-medium">₹{item.price * item.quantity}</span>
                       </div>
                     ))}
+                    {discount > 0 && (
+                      <div className="flex justify-between text-sm py-1 text-green-600">
+                        <span>Bulk Discount</span>
+                        <span className="font-medium">−₹{discount}</span>
+                      </div>
+                    )}
                     <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-semibold text-maroon">
                       <span>Total</span>
                       <span>₹{total}</span>

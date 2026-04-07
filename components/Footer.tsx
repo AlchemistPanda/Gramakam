@@ -84,7 +84,7 @@ export default function Footer() {
             {/* Social Icons */}
             <div className="flex items-center gap-4 mt-6">
               <a
-                href="https://instagram.com/gramakam"
+                href="https://www.instagram.com/_gramakam_/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-maroon transition-colors duration-300"
@@ -93,7 +93,7 @@ export default function Footer() {
                 <Instagram size={18} />
               </a>
               <a
-                href="https://facebook.com/gramakam"
+                href="https://www.facebook.com/graamakam"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-maroon transition-colors duration-300"

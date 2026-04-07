@@ -1625,6 +1625,12 @@ function OrderCard({ order, onUpdate, onDelete }: {
                   <span className="font-medium text-maroon">₹{(item.price ?? 0) * item.quantity}</span>
                 </div>
               ))}
+              {(order as any).discount > 0 && (
+                <div className="flex justify-between text-xs text-green-600">
+                  <span>Bulk Discount</span>
+                  <span>−₹{(order as any).discount}</span>
+                </div>
+              )}
               <div className="border-t border-gray-100 pt-1 flex justify-between text-xs font-semibold">
                 <span>Total</span>
                 <span className="text-maroon">₹{order.total}</span>

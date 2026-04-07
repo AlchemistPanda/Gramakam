@@ -185,7 +185,7 @@ export default function ContactPage() {
                 <h3 className="heading-md text-charcoal mb-4">Follow Us</h3>
                 <div className="flex gap-4">
                   <a
-                    href="https://instagram.com/gramakam"
+                    href="https://www.instagram.com/_gramakam_/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-12 h-12 rounded-full bg-cream flex items-center justify-center hover:bg-maroon hover:text-white text-maroon transition-all duration-300"
@@ -194,7 +194,7 @@ export default function ContactPage() {
                     <Instagram size={22} />
                   </a>
                   <a
-                    href="https://facebook.com/gramakam"
+                    href="https://www.facebook.com/graamakam"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-12 h-12 rounded-full bg-cream flex items-center justify-center hover:bg-maroon hover:text-white text-maroon transition-all duration-300"

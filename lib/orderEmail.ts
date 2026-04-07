@@ -5,6 +5,7 @@ interface OrderEmailData {
   orderId: string;
   items: MerchCartItem[];
   total: number;
+  discount?: number;
   paymentId: string;
   deliveryAddress?: DeliveryAddress;
 }
@@ -85,6 +86,10 @@ export function buildOrderEmailHtml(data: OrderEmailData): string {
           ${itemRows}
         </tbody>
         <tfoot>
+          ${data.discount && data.discount > 0 ? `<tr>
+            <td colspan="2" style="padding:8px 12px;font-size:13px;color:#16a34a">Bulk Discount</td>
+            <td style="padding:8px 12px;font-size:13px;color:#16a34a;text-align:right">−₹${data.discount}</td>
+          </tr>` : ''}
           <tr>
             <td colspan="2" style="padding:12px;font-size:15px;font-weight:700;color:#6B1D1D">Total</td>
             <td style="padding:12px;font-size:15px;font-weight:700;color:#6B1D1D;text-align:right">₹${data.total}</td>

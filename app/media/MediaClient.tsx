@@ -23,7 +23,7 @@ const staticMediaItems: MediaItem[] = [
   { id: 's12', type: 'newspaper', title: 'Gramakam 2018 — Year-End Report',         source: 'Press', year: 2018, date: '2018-12-31', imageUrl: '/images/media/img-20181231-wa0001-e1587994265617.jpg',      createdAt: '2018-12-31' },
   { id: 's13', type: 'newspaper', title: 'Gramakam 2018 — Post-festival Report',    source: 'Press', year: 2018, date: '2018-09-08', imageUrl: '/images/media/img-20180908-wa0000-e1587991192973.jpg',      createdAt: '2018-09-08' },
   { id: 's14', type: 'newspaper', title: 'Gramakam 2019 — Morning News',            source: 'Press', year: 2019, date: '2019-04-09', imageUrl: '/images/media/20190409_063133-e1587990860337.jpg',          createdAt: '2019-04-09' },
-  { id: 's15', type: 'link', title: 'Gramakam — IF Creations Facebook Page',        source: 'Facebook', year: 2019, date: '2019-04-01', linkUrl: 'https://www.facebook.com/graamakam/', createdAt: '2019-04-01' },
+  { id: 's15', type: 'link', title: 'Gramakam — IF Creations Facebook Page',        source: 'Facebook', year: 2019, date: '2019-04-01', linkUrl: 'https://www.facebook.com/graamakam', createdAt: '2019-04-01' },
 ];
 
 export default function MediaClient() {

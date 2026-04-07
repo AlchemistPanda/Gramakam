@@ -138,6 +138,7 @@ export interface MerchOrder {
   orderId: string;            // human-readable: "GRM-xxxx"
   items: MerchCartItem[];
   total: number;
+  discount?: number;          // bulk discount amount (if any)
   customerName: string;
   customerEmail: string;
   customerMobile: string;

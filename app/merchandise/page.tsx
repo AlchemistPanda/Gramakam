@@ -7,7 +7,7 @@ import { X, ChevronLeft, ChevronRight, Plus, Minus, ShoppingBag, Package, Trash2
 import Link from 'next/link';
 import CheckoutModal from '@/components/merchandise/CheckoutModal';
 import type { MerchCartItem } from '@/types';
-import { PRODUCTS as products, type Product } from '@/lib/products';
+import { PRODUCTS as products, type Product, computeCartBreakdown, TSHIRT_DISCOUNT_TIERS } from '@/lib/products';
 import { getStockDocs, type StockDoc } from '@/lib/services';
 
 // Per-product selection state: { size, quantity }
@@ -90,7 +90,9 @@ export default function MerchandisePage() {
     });
 
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
-  const totalAmount = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const { subtotal, discount, total: totalAmount, tshirtQty } = computeCartBreakdown(
+    cart.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+  );
 
   // Stock helpers
   const getProductStock = (productId: string): number => {
@@ -216,6 +218,17 @@ export default function MerchandisePage() {
                     <p className="text-xl font-bold text-maroon mb-2">₹{product.price}</p>
                     <p className="text-gray-600 text-sm mb-4 flex-grow">{product.description}</p>
 
+                    {/* T-shirt bulk discount offer */}
+                    {product.id === 'tshirt' && (
+                      <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5">🎉 Special Offer</p>
+                        <div className="space-y-0.5 text-sm text-amber-900">
+                          <p>Buy 2 for <span className="font-bold">₹550</span> <span className="text-xs text-amber-600">(save ₹50)</span></p>
+                          <p>Buy 4 for <span className="font-bold">₹1,000</span> <span className="text-xs text-amber-600">(save ₹200)</span></p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Size selector */}
                     {hasMultipleSizes && (
                       <div className="mb-4">
@@ -312,7 +325,10 @@ export default function MerchandisePage() {
                 <ShoppingBag size={22} className="shrink-0" />
                 <div>
                   <p className="text-sm font-semibold">{totalItems} item{totalItems > 1 ? 's' : ''} selected</p>
-                  <p className="text-white/70 text-xs">Total: ₹{totalAmount}</p>
+                  <p className="text-white/70 text-xs">
+                    Total: ₹{totalAmount}
+                    {discount > 0 && <span className="text-green-300 ml-1">(saved ₹{discount})</span>}
+                  </p>
                 </div>
               </div>
               <button

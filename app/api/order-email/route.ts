@@ -9,6 +9,7 @@ interface OrderEmailPayload {
   orderId: string;
   items: MerchCartItem[];
   total: number;
+  discount?: number;
   paymentId: string;
   deliveryAddress?: DeliveryAddress;
 }
