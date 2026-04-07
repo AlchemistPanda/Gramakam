@@ -132,7 +132,7 @@ export default function TrackPage() {
               <button
                 type="submit"
                 disabled={loading || !query.trim()}
-                className="m-2 px-6 py-2.5 bg-maroon text-white font-semibold text-sm rounded-xl hover:bg-maroon/80 active:scale-95 transition-all disabled:opacity-40 shrink-0"
+                className="m-2 px-4 py-2 sm:px-6 sm:py-2.5 bg-maroon text-white font-semibold text-sm rounded-xl hover:bg-maroon/80 active:scale-95 transition-all disabled:opacity-40 shrink-0"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">

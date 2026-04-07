@@ -1170,7 +1170,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 const FULFILLMENT_FLOW: MerchOrderStatus[] = ['verified', 'packed', 'shipped', 'delivered'];
 
 function getNextStatus(current: MerchOrderStatus): MerchOrderStatus | null {
-  const idx = FULFILLMENT_FLOW.indexOf(current);
+  const normalized = current === 'manual_verified' ? 'verified' : current;
+  const idx = FULFILLMENT_FLOW.indexOf(normalized);
   if (idx === -1 || idx >= FULFILLMENT_FLOW.length - 1) return null;
   return FULFILLMENT_FLOW[idx + 1];
 }
