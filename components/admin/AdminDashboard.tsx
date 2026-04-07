@@ -1264,6 +1264,7 @@ function OrderCard({ order, onUpdate, onDelete }: {
   const [trackingCarrier, setTrackingCarrier] = useState(order.trackingCarrier ?? '');
   const [notes, setNotes] = useState(order.adminNotes ?? '');
   const [showNotes, setShowNotes] = useState(false);
+  const [emailSent, setEmailSent] = useState<'sent' | 'failed' | null>(null);
 
   const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.verified;
   const StatusIcon = cfg.icon;
@@ -1299,14 +1300,27 @@ function OrderCard({ order, onUpdate, onDelete }: {
               trackingId: target === 'shipped' ? trackingId.trim() : undefined,
             }),
           });
-          if (!emailRes.ok) {
+          if (emailRes.ok) {
+            setEmailSent('sent');
+            // Persist that email was sent for this status
+            try {
+              await updateMerchOrderStatus(order.id, target, {
+                [`emailSentFor_${target}`]: new Date().toISOString(),
+              } as unknown as Partial<MerchOrder>);
+            } catch { /* best-effort persist */ }
+            setTimeout(() => setEmailSent(null), 4000);
+          } else {
+            setEmailSent('failed');
             const errBody = await emailRes.json().catch(() => ({}));
             console.error('[admin] Status email API error:', emailRes.status, errBody);
             alert(`Status updated but email failed to send (${errBody.error ?? emailRes.status})`);
+            setTimeout(() => setEmailSent(null), 6000);
           }
         } catch (emailErr) {
+          setEmailSent('failed');
           console.error('[admin] Status email network error:', emailErr);
           alert('Status updated but email could not be sent (network error)');
+          setTimeout(() => setEmailSent(null), 6000);
         }
       }
 
@@ -1356,6 +1370,16 @@ function OrderCard({ order, onUpdate, onDelete }: {
             {order.stockWarning && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-600 border border-orange-200" title={order.stockWarningItems?.join(', ')}>
                 ⚠ Post-restock
+              </span>
+            )}
+            {emailSent === 'sent' && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-600 border border-green-200 flex items-center gap-1 animate-pulse">
+                <MailIcon size={10} /> Email sent ✓
+              </span>
+            )}
+            {emailSent === 'failed' && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 flex items-center gap-1">
+                <MailIcon size={10} /> Email failed ✗
               </span>
             )}
           </div>
@@ -1428,6 +1452,23 @@ function OrderCard({ order, onUpdate, onDelete }: {
             {order.shippedAt && <span>Shipped: {new Date(order.shippedAt).toLocaleString('en-IN')}</span>}
             {order.deliveredAt && <span>Delivered: {new Date(order.deliveredAt).toLocaleString('en-IN')}</span>}
           </div>
+
+          {/* Email sent indicators */}
+          {(() => {
+            const o = order as unknown as Record<string, unknown>;
+            const packed = !!o.emailSentFor_packed;
+            const shipped = !!o.emailSentFor_shipped;
+            const delivered = !!o.emailSentFor_delivered;
+            if (!packed && !shipped && !delivered) return null;
+            return (
+              <div className="flex items-center gap-3 text-[10px] text-green-600">
+                <MailIcon size={11} className="shrink-0" />
+                {packed && <span>📦 Packed email sent</span>}
+                {shipped && <span>🚚 Shipped email sent</span>}
+                {delivered && <span>✅ Delivered email sent</span>}
+              </div>
+            );
+          })()}
 
           {/* Tracking info (if shipped) */}
           {order.trackingId && (
