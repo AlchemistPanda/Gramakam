@@ -271,8 +271,10 @@ describe('POST /api/razorpay/create-order', () => {
         items: [{ productId: 'tshirt', size: '38 (M)', quantity: 3, price: 999999 }], // injected price ignored
       }));
       const body = await res.json();
-      const { PRODUCT_MAP } = await import('@/lib/products');
-      const expectedTotal = PRODUCT_MAP.get('tshirt')!.price * 3;
+      const { computeCartTotal } = await import('@/lib/products');
+      const expectedTotal = computeCartTotal([
+        { productId: 'tshirt', size: '38 (M)', quantity: 3, name: 'Gramakam T-Shirt', price: 300 },
+      ]);
       expect(body.serverTotal).toBe(expectedTotal);
     });
 
