@@ -13,6 +13,7 @@ const navLinks = [
   { href: '/feed', label: 'Latest Feed' },
   { href: '/merchandise', label: 'Merchandise' },
   { href: '/awards', label: 'Awards' },
+  { href: '/bookfest', label: 'Book Festival' },
   { href: '/media', label: 'Media & News' },
   { href: '/workshop', label: "Children's Workshop" },
   { href: '/game', label: '🎭 Game' },
