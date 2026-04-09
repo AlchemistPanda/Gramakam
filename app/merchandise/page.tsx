@@ -307,8 +307,13 @@ export default function MerchandisePage() {
 
                     {/* Coupon code prompt — shown on tshirt card when no coupon applied */}
                     {product.id === 'tshirt' && !couponApplied && (
-                      <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">🎟️ Have a coupon code?</p>
+                      <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5">🎉 Special Offer</p>
+                        <div className="space-y-0.5 text-sm text-amber-900 mb-3">
+                          <p>Buy 2 for <span className="font-bold">₹550</span> <span className="text-xs text-amber-600">(save ₹50)</span></p>
+                          <p>Buy 4 for <span className="font-bold">₹1,000</span> <span className="text-xs text-amber-600">(save ₹200)</span></p>
+                        </div>
+                        <p className="text-xs text-amber-700 mb-2 font-medium">Enter coupon code to unlock this offer:</p>
                         <div className="flex gap-2">
                           <input
                             type="text"
@@ -316,7 +321,7 @@ export default function MerchandisePage() {
                             onChange={(e) => { setCouponCode(e.target.value); setCouponError(''); }}
                             onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
                             placeholder="Enter code"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none uppercase"
+                            className="flex-1 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none uppercase bg-white"
                           />
                           <button
                             onClick={handleApplyCoupon}
