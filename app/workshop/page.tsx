@@ -11,12 +11,18 @@ export const metadata: Metadata = {
 };
 
 const galleryImages = [
-  { src: '/images/festival/gramakam-04.jpg', alt: 'Kids at the acting workshop' },
-  { src: '/images/festival/gramakam-06.jpg', alt: 'Young performers on stage' },
-  { src: '/images/festival/gramakam-08.jpg', alt: 'Workshop activities' },
-  { src: '/images/festival/gramakam-10.jpg', alt: 'Theatre exercises' },
-  { src: '/images/festival/gramakam-12.jpg', alt: 'Group performance' },
-  { src: '/images/festival/gramakam-14.jpg', alt: 'Children performing' },
+  { src: '/images/child/CHILDRENS WORKSHOP (1).JPG', alt: 'Children at workshop' },
+  { src: '/images/child/CHILDRENS WORKSHOP (2).JPG', alt: 'Workshop participants' },
+  { src: '/images/child/CHILDRENS WORKSHOP (5).JPG', alt: 'Acting exercises' },
+  { src: '/images/child/CHILDRENS WORKSHOP (6).JPG', alt: 'Group performance' },
+  { src: '/images/child/CHILDRENS WORKSHOP (7).JPG', alt: 'Theatre activities' },
+  { src: '/images/child/CHILDRENS WORKSHOP (8).JPG', alt: 'Workshop moment' },
+  { src: '/images/child/CHILDRENS WORKSHOP (9).JPG', alt: 'Children performing' },
+  { src: '/images/child/CHILDRENS WORKSHOP (10).JPG', alt: 'Acting workshop' },
+  { src: '/images/child/IMG_2826.jpg', alt: 'Workshop memory' },
+  { src: '/images/child/IMG_2845.jpg', alt: 'Theatre session' },
+  { src: '/images/child/IMG_2886.jpg', alt: 'Children at work' },
+  { src: '/images/child/IMG_2893.jpg', alt: 'Workshop activity' },
 ];
 
 const highlights = [
@@ -197,12 +203,12 @@ export default function WorkshopPage() {
         <div className="container-custom">
           <AnimatedSection>
             <div className="text-center mb-10">
-              <p className="text-white/50 uppercase tracking-[0.2em] text-sm mb-2 font-medium">Memories</p>
+              <p className="text-white/50 uppercase tracking-[0.2em] text-sm mb-2 font-medium">Gallery</p>
               <h2
                 className="text-3xl sm:text-4xl font-bold"
                 style={{ fontFamily: 'var(--font-heading)' }}
               >
-                From Our Last Workshop
+                Memories
               </h2>
               <div className="w-12 h-0.5 bg-maroon mx-auto mt-5" />
             </div>
