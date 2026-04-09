@@ -5,7 +5,7 @@ import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
 import GameLeaderboard from '@/components/GameLeaderboard';
 import InstagramFeed from '@/components/InstagramFeed';
-import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar } from 'lucide-react';
+import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar, Trophy, BookOpen, Mic2, Image as ImageIcon, Gamepad2, BookMarked, Phone } from 'lucide-react';
 
 // Real festival images from past editions
 const carouselImages = [
@@ -20,10 +20,16 @@ const carouselImages = [
 ];
 
 const quickLinks = [
-  { href: '/gallery', label: 'Gallery', icon: Camera, description: 'Explore festival moments captured over the years' },
+  { href: '/about', label: 'About', icon: BookMarked, description: 'The story behind Gramakam' },
+  { href: '/gallery', label: 'Gallery', icon: Camera, description: 'Festival moments over the years' },
   { href: '/feed', label: 'Latest Feed', icon: Newspaper, description: 'News, updates & announcements' },
+  { href: '/awards', label: 'Awards', icon: Trophy, description: 'Celebrating excellence in theatre' },
+  { href: '/bookfest', label: 'Book Festival', icon: BookOpen, description: 'Celebrating Malayalam literature' },
+  { href: '/workshop', label: 'Workshop', icon: Mic2, description: "Children's theatre workshop" },
+  { href: '/media', label: 'Media', icon: ImageIcon, description: 'Press coverage & media gallery' },
   { href: '/merchandise', label: 'Merchandise', icon: ShoppingBag, description: 'Exclusive festival collectibles' },
-  { href: '/contact', label: 'Contact Us', icon: Mail, description: 'Reach out to the Gramakam team' },
+  { href: '/game', label: 'Spotlight Game', icon: Gamepad2, description: 'Play & win Gramakam prizes' },
+  { href: '/contact', label: 'Contact Us', icon: Phone, description: 'Reach out to the Gramakam team' },
 ];
 
 export default function HomePage() {
@@ -190,7 +196,10 @@ export default function HomePage() {
       {/* ===== GAME LEADERBOARD SECTION ===== */}
       <GameLeaderboard />
 
-      {/* ===== QUICK NAVIGATION — with subtle bg ===== */}
+      {/* ===== INSTAGRAM FEED SECTION ===== */}
+      <InstagramFeed />
+
+      {/* ===== DISCOVER GRAMAKAM — last section ===== */}
       <section className="relative section-padding overflow-hidden">
         <Image
           src="/images/festival/gramakam-20.jpg"
@@ -206,27 +215,28 @@ export default function HomePage() {
             <div className="text-center mb-12">
               <p className="text-maroon uppercase tracking-[0.2em] text-sm mb-2 font-semibold">Explore</p>
               <h2 className="heading-lg text-charcoal">Discover Gramakam</h2>
+              <p className="text-gray-600 mt-3 max-w-xl mx-auto">Everything Gramakam has to offer — all in one place</p>
             </div>
             <div className="flex flex-wrap justify-center gap-6">
               {quickLinks.map((link, index) => (
-                <AnimatedSection key={link.href} delay={index * 0.1}>
+                <AnimatedSection key={link.href} delay={index * 0.05}>
                   <Link
                     href={link.href}
-                    className="group block bg-white/80 backdrop-blur-sm rounded-2xl p-8 text-center border border-gray-100 shadow-sm hover:shadow-xl hover:border-maroon/30 hover:-translate-y-1 transition-all duration-300 w-52"
+                    className="group block bg-white/80 backdrop-blur-sm rounded-2xl p-6 text-center border border-gray-100 shadow-sm hover:shadow-xl hover:border-maroon/30 hover:-translate-y-1 transition-all duration-300 w-44"
                   >
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-maroon/10 to-maroon/5 flex items-center justify-center mx-auto mb-5 group-hover:from-maroon group-hover:to-maroon-dark group-hover:scale-110 transition-all duration-300">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-maroon/10 to-maroon/5 flex items-center justify-center mx-auto mb-4 group-hover:from-maroon group-hover:to-maroon-dark group-hover:scale-110 transition-all duration-300">
                       <link.icon
-                        size={26}
+                        size={22}
                         className="text-maroon group-hover:text-white transition-colors duration-300"
                       />
                     </div>
                     <h3
-                      className="text-lg font-semibold text-charcoal mb-2"
+                      className="text-sm font-semibold text-charcoal mb-1"
                       style={{ fontFamily: 'var(--font-heading)' }}
                     >
                       {link.label}
                     </h3>
-                    <p className="text-gray-500 text-sm leading-relaxed">{link.description}</p>
+                    <p className="text-gray-500 text-xs leading-relaxed">{link.description}</p>
                   </Link>
                 </AnimatedSection>
               ))}
@@ -234,9 +244,6 @@ export default function HomePage() {
           </AnimatedSection>
         </div>
       </section>
-
-      {/* ===== INSTAGRAM FEED SECTION ===== */}
-      <InstagramFeed />
     </>
   );
 }
