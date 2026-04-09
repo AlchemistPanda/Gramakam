@@ -12,18 +12,25 @@ export const metadata: Metadata = {
 };
 
 const galleryImages = [
-  { src: '/images/child/CHILDRENS WORKSHOP (1).JPG', alt: 'Children at workshop' },
-  { src: '/images/child/CHILDRENS WORKSHOP (2).JPG', alt: 'Workshop participants' },
-  { src: '/images/child/CHILDRENS WORKSHOP (5).JPG', alt: 'Acting exercises' },
-  { src: '/images/child/CHILDRENS WORKSHOP (6).JPG', alt: 'Group performance' },
-  { src: '/images/child/CHILDRENS WORKSHOP (7).JPG', alt: 'Theatre activities' },
-  { src: '/images/child/CHILDRENS WORKSHOP (8).JPG', alt: 'Workshop moment' },
-  { src: '/images/child/CHILDRENS WORKSHOP (9).JPG', alt: 'Children performing' },
-  { src: '/images/child/CHILDRENS WORKSHOP (10).JPG', alt: 'Acting workshop' },
-  { src: '/images/child/IMG_2826.jpg', alt: 'Workshop memory' },
-  { src: '/images/child/IMG_2845.jpg', alt: 'Theatre session' },
-  { src: '/images/child/IMG_2886.jpg', alt: 'Children at work' },
-  { src: '/images/child/IMG_2893.jpg', alt: 'Workshop activity' },
+  { src: '/images/child/CHILDRENS WORKSHOP (1).JPG', alt: 'Children at workshop', year: 2016 },
+  { src: '/images/child/CHILDRENS WORKSHOP (2).JPG', alt: 'Workshop participants', year: 2016 },
+  { src: '/images/child/CHILDRENS WORKSHOP (5).JPG', alt: 'Acting exercises', year: 2016 },
+  { src: '/images/child/CHILDRENS WORKSHOP (6).JPG', alt: 'Group performance', year: 2016 },
+  { src: '/images/child/CHILDRENS WORKSHOP (7).JPG', alt: 'Theatre activities', year: 2016 },
+  { src: '/images/child/CHILDRENS WORKSHOP (8).JPG', alt: 'Workshop moment', year: 2016 },
+  { src: '/images/child/CHILDRENS WORKSHOP (9).JPG', alt: 'Children performing', year: 2016 },
+  { src: '/images/child/CHILDRENS WORKSHOP (10).JPG', alt: 'Acting workshop', year: 2016 },
+  { src: '/images/child/CHILDRENS WORKSHOP (11).jpg', alt: 'Workshop memory', year: 2016 },
+  { src: '/images/child/IMG_2826.jpg', alt: 'Children at work', year: 2016 },
+  { src: '/images/child/IMG_2845.jpg', alt: 'Theatre session', year: 2016 },
+  { src: '/images/child/IMG_2886.jpg', alt: 'Acting exercise', year: 2016 },
+  { src: '/images/child/IMG_2893.jpg', alt: 'Workshop activity', year: 2016 },
+  { src: '/images/child/IMG_2896.jpg', alt: 'Children workshop', year: 2016 },
+  { src: '/images/child/IMG_2898.jpg', alt: 'Theatre performance', year: 2016 },
+  { src: '/images/child/IMG_2902.jpg', alt: 'Acting practice', year: 2016 },
+  { src: '/images/child/IMG_2907.jpg', alt: 'Workshop session', year: 2016 },
+  { src: '/images/child/IMG_2913.jpg', alt: 'Theatre workshop', year: 2016 },
+  { src: '/images/child/_MG_3637.JPG', alt: 'Workshop 2018', year: 2018 },
 ];
 
 const highlights = [

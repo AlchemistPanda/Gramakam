@@ -7,6 +7,7 @@ import AnimatedSection from '@/components/AnimatedSection';
 interface GalleryImage {
   src: string;
   alt: string;
+  year: number;
 }
 
 interface WorkshopGalleryProps {
@@ -14,27 +15,47 @@ interface WorkshopGalleryProps {
 }
 
 export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
-  const [shuffledImages, setShuffledImages] = useState<GalleryImage[]>(images);
+  const [groupedImages, setGroupedImages] = useState<Record<number, GalleryImage[]>>({});
 
   useEffect(() => {
-    // Shuffle images on mount and whenever window gains focus
-    const shuffleImages = () => {
-      const shuffled = [...images].sort(() => Math.random() - 0.5);
-      setShuffledImages(shuffled);
-    };
+    // Group images by year and shuffle within each year
+    const grouped: Record<number, GalleryImage[]> = {};
+    
+    images.forEach((img) => {
+      if (!grouped[img.year]) {
+        grouped[img.year] = [];
+      }
+      grouped[img.year].push(img);
+    });
 
-    shuffleImages();
+    // Shuffle images within each year
+    Object.keys(grouped).forEach((year) => {
+      grouped[Number(year)] = [...grouped[Number(year)]].sort(() => Math.random() - 0.5);
+    });
 
-    // Re-shuffle when user returns to the tab
+    setGroupedImages(grouped);
+
+    // Re-shuffle when user returns to tab
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        shuffleImages();
+        const newGrouped: Record<number, GalleryImage[]> = {};
+        
+        Object.keys(grouped).forEach((year) => {
+          newGrouped[Number(year)] = [...grouped[Number(year)]].sort(() => Math.random() - 0.5);
+        });
+        
+        setGroupedImages(newGrouped);
       }
     };
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
     return () => window.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [images]);
+
+  // Get sorted years (newest first)
+  const sortedYears = Object.keys(groupedImages)
+    .map(Number)
+    .sort((a, b) => b - a);
 
   return (
     <section className="section-padding bg-charcoal text-white">
@@ -52,22 +73,32 @@ export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
           </div>
         </AnimatedSection>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-          {shuffledImages.map((img, i) => (
-            <AnimatedSection key={`${img.src}-${i}`} delay={i * 0.07}>
-              <div className="relative aspect-square rounded-2xl overflow-hidden group">
-                <Image
-                  src={img.src}
-                  alt={img.alt}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-110"
-                  quality={70}
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
-              </div>
+        {sortedYears.map((year) => (
+          <div key={year} className="mb-16 last:mb-0">
+            <AnimatedSection>
+              <h3 className="text-2xl font-bold text-maroon mb-6" style={{ fontFamily: 'var(--font-heading)' }}>
+                Gramakam {year}
+              </h3>
             </AnimatedSection>
-          ))}
-        </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              {groupedImages[year].map((img, i) => (
+                <AnimatedSection key={`${img.src}-${i}`} delay={i * 0.07}>
+                  <div className="relative aspect-square rounded-2xl overflow-hidden group">
+                    <Image
+                      src={img.src}
+                      alt={img.alt}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-110"
+                      quality={70}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                  </div>
+                </AnimatedSection>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );
