@@ -207,12 +207,12 @@ export default function HomePage() {
               <p className="text-maroon uppercase tracking-[0.2em] text-sm mb-2 font-semibold">Explore</p>
               <h2 className="heading-lg text-charcoal">Discover Gramakam</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            <div className="flex flex-wrap justify-center gap-6">
               {quickLinks.map((link, index) => (
                 <AnimatedSection key={link.href} delay={index * 0.1}>
                   <Link
                     href={link.href}
-                    className="group block bg-white/80 backdrop-blur-sm rounded-2xl p-8 text-center border border-gray-100 shadow-sm hover:shadow-xl hover:border-maroon/30 hover:-translate-y-1 transition-all duration-300"
+                    className="group block bg-white/80 backdrop-blur-sm rounded-2xl p-8 text-center border border-gray-100 shadow-sm hover:shadow-xl hover:border-maroon/30 hover:-translate-y-1 transition-all duration-300 w-52"
                   >
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-maroon/10 to-maroon/5 flex items-center justify-center mx-auto mb-5 group-hover:from-maroon group-hover:to-maroon-dark group-hover:scale-110 transition-all duration-300">
                       <link.icon
