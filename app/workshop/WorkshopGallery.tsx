@@ -16,6 +16,7 @@ interface WorkshopGalleryProps {
 
 export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
   const [groupedImages, setGroupedImages] = useState<Record<number, GalleryImage[]>>({});
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Group images by year and shuffle within each year
@@ -52,6 +53,10 @@ export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
     return () => window.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [images]);
 
+  const handleImageLoad = (src: string) => {
+    setLoadedImages((prev) => new Set(prev).add(src));
+  };
+
   // Get sorted years (newest first)
   const sortedYears = Object.keys(groupedImages)
     .map(Number)
@@ -84,15 +89,21 @@ export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               {groupedImages[year].map((img, i) => (
                 <AnimatedSection key={`${img.src}-${i}`} delay={i * 0.07}>
-                  <div className="relative aspect-square rounded-2xl overflow-hidden group">
+                  <div className="relative aspect-square rounded-2xl overflow-hidden group bg-gray-800">
                     <Image
                       src={img.src}
                       alt={img.alt}
                       fill
                       className="object-cover transition-transform duration-500 group-hover:scale-110"
                       quality={70}
+                      loading="lazy"
+                      onLoad={() => handleImageLoad(img.src)}
+                      placeholder="empty"
                     />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                    {!loadedImages.has(img.src) && (
+                      <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 animate-pulse" />
+                    )}
                   </div>
                 </AnimatedSection>
               ))}
