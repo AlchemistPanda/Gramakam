@@ -57,8 +57,8 @@ export default function AwardsClient() {
             >
               Gramakam Awards
             </h1>
-            <p className="text-gray-400 max-w-xl">
-              Recognizing outstanding contributions to theatre and cultural activities. Established in 2019, the Gramakam Award honours individuals and groups whose work enriches our cultural landscape.
+            <p className="text-gray-300 max-w-2xl leading-relaxed">
+              Established in 2019, the Gramakam Award honors individuals whose extraordinary work in theatre enriches our collective cultural landscape. We believe in celebrating the dedication of those who keep the spirit of theatre and art alive in Kerala and beyond.
             </p>
           </AnimatedSection>
         </div>
@@ -68,10 +68,10 @@ export default function AwardsClient() {
       <section className="bg-white py-12 border-b border-gray-100">
         <div className="container-custom max-w-2xl">
           <AnimatedSection>
-            <h2 className="heading-lg text-charcoal mb-4">Award Details</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            <h2 className="heading-lg text-charcoal mb-8">Award Details</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
               <div>
-                <div className="text-3xl font-bold text-maroon mb-2">₹10,001</div>
+                <div className="text-3xl font-bold text-maroon mb-2">₹11,111</div>
                 <p className="text-sm text-gray-600">Cash Award</p>
               </div>
               <div>
@@ -83,7 +83,16 @@ export default function AwardsClient() {
                 <p className="text-sm text-gray-600">Keepsake</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mt-6 pt-6 border-t border-gray-200">
+
+            {/* Memento Information */}
+            <div className="bg-maroon/5 rounded-lg p-6 mb-6">
+              <h3 className="font-semibold text-charcoal mb-3">Bespoke Memento</h3>
+              <p className="text-gray-700 text-sm leading-relaxed">
+                From 2024 onwards, the Gramakam Memento has been elevated from a traditional award to a bespoke work of art. Envisioned and crafted by the celebrated artist <span className="font-medium">Jayan Pathramangalam</span>.
+              </p>
+            </div>
+
+            <p className="text-gray-600 text-sm pt-6 border-t border-gray-200">
               Recipients are selected by a jury formed by the Gramakam Festival Organizing Committee, recognizing excellence and dedication to theatre and cultural advancement.
             </p>
           </AnimatedSection>
