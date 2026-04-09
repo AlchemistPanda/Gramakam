@@ -36,7 +36,9 @@ export default function InstagramFeed() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+        <div className="space-y-16">
+          {/* First Row: Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Left: Follow CTA */}
           <div className="lg:col-span-1 flex flex-col justify-start">
             <div className="bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 rounded-2xl p-1 shadow-lg">
@@ -149,9 +151,10 @@ export default function InstagramFeed() {
               </p>
             </div>
           </div>
+          </div>
 
-          {/* Right: Instagram Feed Embeds */}
-          <div className="lg:col-span-2">
+          {/* Second Row: Instagram Feed Embeds */}
+          <div>
             <div className="space-y-6">
               {/* Instagram Profile Embed */}
               <div className="rounded-xl overflow-hidden">
