@@ -4,6 +4,7 @@ import CountdownSection from '@/components/CountdownSection';
 import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
 import GameLeaderboard from '@/components/GameLeaderboard';
+import InstagramFeed from '@/components/InstagramFeed';
 import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar } from 'lucide-react';
 
 // Real festival images from past editions
@@ -233,6 +234,9 @@ export default function HomePage() {
           </AnimatedSection>
         </div>
       </section>
+
+      {/* ===== INSTAGRAM FEED SECTION ===== */}
+      <InstagramFeed />
     </>
   );
 }
