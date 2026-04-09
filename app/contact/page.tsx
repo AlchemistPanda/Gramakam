@@ -3,7 +3,7 @@
 import { useState, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import AnimatedSection from '@/components/AnimatedSection';
-import { MapPin, Mail, Instagram, Facebook, Send, CheckCircle } from 'lucide-react';
+import { MapPin, Mail, Instagram, Facebook, Send, CheckCircle, MessageCircle } from 'lucide-react';
 import { submitContact } from '@/lib/services';
 
 export default function ContactPage() {
@@ -201,6 +201,15 @@ export default function ContactPage() {
                     aria-label="Facebook"
                   >
                     <Facebook size={22} />
+                  </a>
+                  <a
+                    href="https://chat.whatsapp.com/G64V2w7mD3j3vRJCfLL3S8"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-12 h-12 rounded-full bg-cream flex items-center justify-center hover:bg-green-500 hover:text-white text-green-600 transition-all duration-300"
+                    aria-label="WhatsApp"
+                  >
+                    <MessageCircle size={22} />
                   </a>
                 </div>
               </div>

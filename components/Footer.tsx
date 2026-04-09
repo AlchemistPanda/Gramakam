@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Instagram, Facebook, Mail, MapPin } from 'lucide-react';
+import { Instagram, Facebook, Mail, MapPin, MessageCircle } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -100,6 +100,15 @@ export default function Footer() {
                 aria-label="Facebook"
               >
                 <Facebook size={18} />
+              </a>
+              <a
+                href="https://chat.whatsapp.com/G64V2w7mD3j3vRJCfLL3S8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-green-500 transition-colors duration-300"
+                aria-label="WhatsApp"
+              >
+                <MessageCircle size={18} />
               </a>
             </div>
           </div>
