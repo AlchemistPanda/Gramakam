@@ -50,7 +50,7 @@ export default function WorkshopPage() {
       {/* ── HERO ────────────────────────────────────────────────────────────── */}
       <section className="relative min-h-[70vh] flex items-center justify-center text-white overflow-hidden">
         <Image
-          src="/images/festival/gramakam-06.jpg"
+          src="/images/child/_MG_3637.JPG"
           alt="Children's Acting Workshop"
           fill
           className="object-cover"
@@ -139,7 +139,7 @@ export default function WorkshopPage() {
             <AnimatedSection delay={0.15}>
               <div className="relative rounded-3xl overflow-hidden shadow-2xl aspect-[4/3]">
                 <Image
-                  src="/images/festival/gramakam-08.jpg"
+                  src="/images/child/New Folder With Items/IMG_7651.jpg"
                   alt="Workshop in action"
                   fill
                   className="object-cover"
