@@ -7,7 +7,7 @@ import { X, ChevronLeft, ChevronRight, Plus, Minus, ShoppingBag, Package, Trash2
 import Link from 'next/link';
 import CheckoutModal from '@/components/merchandise/CheckoutModal';
 import type { MerchCartItem } from '@/types';
-import { PRODUCTS as products, type Product, computeCartBreakdown, TSHIRT_DISCOUNT_TIERS } from '@/lib/products';
+import { PRODUCTS as products, type Product, computeCartBreakdown, TSHIRT_DISCOUNT_TIERS, isValidCoupon } from '@/lib/products';
 import { getStockDocs, type StockDoc } from '@/lib/services';
 
 // Per-product selection state: { size, quantity }
@@ -46,6 +46,9 @@ export default function MerchandisePage() {
   const [lightboxImage, setLightboxImage] = useState<{ images: string[]; index: number } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<Record<string, number>>({});
   const [stockDocs, setStockDocs] = useState<Record<string, StockDoc>>({});
+  const [couponCode, setCouponCode] = useState('');
+  const [couponApplied, setCouponApplied] = useState(false);
+  const [couponError, setCouponError] = useState('');
 
   // Fetch live stock counts from Firestore
   useEffect(() => {
@@ -141,9 +144,33 @@ export default function MerchandisePage() {
     .filter((item): item is MerchCartItem => item !== null);
 
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
+  const appliedCoupon = couponApplied ? couponCode.trim().toUpperCase() : undefined;
   const { subtotal, discount, total: totalAmount, tshirtQty } = computeCartBreakdown(
-    cart.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+    cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    appliedCoupon
   );
+
+  const handleApplyCoupon = () => {
+    setCouponError('');
+    const code = couponCode.trim().toUpperCase();
+    if (!code) {
+      setCouponError('Please enter a coupon code');
+      return;
+    }
+    if (isValidCoupon(code)) {
+      setCouponApplied(true);
+      setCouponError('');
+    } else {
+      setCouponApplied(false);
+      setCouponError('Invalid coupon code');
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode('');
+    setCouponApplied(false);
+    setCouponError('');
+  };
 
   // Stock helpers
   const getProductStock = (productId: string): number => {
@@ -267,14 +294,51 @@ export default function MerchandisePage() {
                     <p className="text-xl font-bold text-maroon mb-2">₹{product.price}</p>
                     <p className="text-gray-600 text-sm mb-4 flex-grow">{product.description}</p>
 
-                    {/* T-shirt bulk discount offer */}
-                    {product.id === 'tshirt' && (
+                    {/* T-shirt bulk discount offer — shown only when coupon applied */}
+                    {product.id === 'tshirt' && couponApplied && (
                       <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                        <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5">🎉 Special Offer</p>
+                        <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5">🎉 Special Offer Applied</p>
                         <div className="space-y-0.5 text-sm text-amber-900">
                           <p>Buy 2 for <span className="font-bold">₹550</span> <span className="text-xs text-amber-600">(save ₹50)</span></p>
                           <p>Buy 4 for <span className="font-bold">₹1,000</span> <span className="text-xs text-amber-600">(save ₹200)</span></p>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Coupon code prompt — shown on tshirt card when no coupon applied */}
+                    {product.id === 'tshirt' && !couponApplied && (
+                      <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">🎟️ Have a coupon code?</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={couponCode}
+                            onChange={(e) => { setCouponCode(e.target.value); setCouponError(''); }}
+                            onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                            placeholder="Enter code"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none uppercase"
+                          />
+                          <button
+                            onClick={handleApplyCoupon}
+                            className="px-4 py-2 bg-maroon text-white text-sm font-semibold rounded-lg hover:bg-maroon-dark transition-colors"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                        {couponError && <p className="text-xs text-red-500 mt-1.5">{couponError}</p>}
+                      </div>
+                    )}
+
+                    {/* Coupon applied badge on tshirt card */}
+                    {product.id === 'tshirt' && couponApplied && (
+                      <div className="mb-4 flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <span className="text-sm text-green-700 font-medium">✅ Coupon <span className="font-bold">{couponCode.toUpperCase()}</span> applied</span>
+                        <button
+                          onClick={handleRemoveCoupon}
+                          className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors"
+                        >
+                          Remove
+                        </button>
                       </div>
                     )}
 
@@ -415,6 +479,7 @@ export default function MerchandisePage() {
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         cart={cart}
+        coupon={appliedCoupon}
         onOrderPlaced={() => {
           setSelections({});
           try { localStorage.removeItem('gramakam_cart'); } catch {}

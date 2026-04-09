@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { PRODUCT_MAP, computeCartTotal, computeCartBreakdown } from '@/lib/products';
+import { PRODUCT_MAP, computeCartTotal, computeCartBreakdown, isValidCoupon } from '@/lib/products';
 
 function generateOrderId(): string {
   const bytes = crypto.randomBytes(4);
@@ -12,7 +12,10 @@ function generateOrderId(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { items, customerName, customerEmail, customerMobile, deliveryAddress } = await req.json();
+    const { items, customerName, customerEmail, customerMobile, deliveryAddress, coupon } = await req.json();
+
+    // Validate coupon if provided
+    const validCoupon = coupon && isValidCoupon(coupon) ? coupon : undefined;
 
     // Validate customer fields
     if (!customerName || !customerEmail || !customerMobile) {
@@ -56,12 +59,12 @@ export async function POST(req: NextRequest) {
       qtyPerProduct.set(item.productId, combined);
     }
 
-    const amount = computeCartTotal(items);
+    const amount = computeCartTotal(items, validCoupon);
     if (amount === null || amount < 1) {
       return NextResponse.json({ error: 'Invalid cart total' }, { status: 400 });
     }
 
-    const { discount } = computeCartBreakdown(items);
+    const { discount } = computeCartBreakdown(items, validCoupon);
 
     // Check stock availability (read-only — actual decrement happens on payment verification)
     // Also check for recently-resumed-from-out-of-stock flagging
@@ -173,6 +176,7 @@ export async function POST(req: NextRequest) {
         items: enrichedItems,
         total: amount,
         discount: discount > 0 ? discount : undefined,
+        coupon: validCoupon,
         customerName,
         customerEmail,
         customerMobile,

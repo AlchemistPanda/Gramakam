@@ -17,12 +17,13 @@ interface CheckoutModalProps {
   open: boolean;
   onClose: () => void;
   cart: MerchCartItem[];
+  coupon?: string;
   onOrderPlaced: () => void;
 }
 
 type Step = 'details' | 'paying' | 'success' | 'failed';
 
-export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: CheckoutModalProps) {
+export default function CheckoutModal({ open, onClose, cart, coupon, onOrderPlaced }: CheckoutModalProps) {
   const [step, setStep] = useState<Step>('details');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -41,7 +42,8 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
   const [confirmedTotal, setConfirmedTotal] = useState(0);
 
   const { subtotal, discount, total } = computeCartBreakdown(
-    cart.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+    cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    coupon
   );
 
   // Load Razorpay script (with onload tracking so we know when it's ready)
@@ -114,6 +116,7 @@ export default function CheckoutModal({ open, onClose, cart, onOrderPlaced }: Ch
           customerEmail: email,
           customerMobile: mobile,
           deliveryAddress,
+          coupon,
         }),
       });
 

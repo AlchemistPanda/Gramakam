@@ -139,6 +139,7 @@ export interface MerchOrder {
   items: MerchCartItem[];
   total: number;
   discount?: number;          // bulk discount amount (if any)
+  coupon?: string;            // coupon code used (if any)
   customerName: string;
   customerEmail: string;
   customerMobile: string;

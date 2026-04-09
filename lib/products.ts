@@ -41,7 +41,16 @@ export const PRODUCTS: Product[] = [
 /** Fast lookup by product ID */
 export const PRODUCT_MAP = new Map(PRODUCTS.map((p) => [p.id, p]));
 
-// ── T-shirt bulk discount tiers ──
+// ── Coupon codes ──
+const VALID_COUPONS = new Set(['PANDABOY']);
+
+/** Check if a coupon code is valid (case-insensitive). */
+export function isValidCoupon(code: string | undefined): boolean {
+  if (!code) return false;
+  return VALID_COUPONS.has(code.trim().toUpperCase());
+}
+
+// ── T-shirt bulk discount tiers (only with valid coupon) ──
 // 1 pc  → ₹300
 // 2 pcs → ₹550  (save ₹50)
 // 4 pcs → ₹1000 (save ₹200)
@@ -64,8 +73,9 @@ export function computeTshirtTotal(qty: number): number {
   return total;
 }
 
-/** Compute total from cart items using server-side prices (ignores client-sent prices). */
-export function computeCartTotal(items: { productId: string; quantity: number }[]): number | null {
+/** Compute total from cart items using server-side prices (ignores client-sent prices).
+ *  Bulk t-shirt discounts only apply when a valid coupon is provided. */
+export function computeCartTotal(items: { productId: string; quantity: number }[], coupon?: string): number | null {
   // Count total t-shirts across all sizes
   let tshirtQty = 0;
   let otherTotal = 0;
@@ -82,13 +92,17 @@ export function computeCartTotal(items: { productId: string; quantity: number }[
     }
   }
 
-  // Apply bulk discount for t-shirts
-  const tshirtTotal = tshirtQty > 0 ? computeTshirtTotal(tshirtQty) : 0;
+  // Apply bulk discount for t-shirts only with a valid coupon
+  const hasCoupon = isValidCoupon(coupon);
+  const tshirtTotal = tshirtQty > 0
+    ? (hasCoupon ? computeTshirtTotal(tshirtQty) : tshirtQty * (PRODUCT_MAP.get('tshirt')?.price ?? 300))
+    : 0;
   return tshirtTotal + otherTotal;
 }
 
-/** Breakdown for UI display: subtotal (at base price), discount, final total. */
-export function computeCartBreakdown(items: { productId: string; quantity: number }[]): {
+/** Breakdown for UI display: subtotal (at base price), discount, final total.
+ *  Discounts only apply when a valid coupon is provided. */
+export function computeCartBreakdown(items: { productId: string; quantity: number }[], coupon?: string): {
   subtotal: number;
   discount: number;
   total: number;
@@ -104,6 +118,6 @@ export function computeCartBreakdown(items: { productId: string; quantity: numbe
     if (item.productId === 'tshirt') tshirtQty += item.quantity;
   }
 
-  const total = computeCartTotal(items) ?? subtotal;
+  const total = computeCartTotal(items, coupon) ?? subtotal;
   return { subtotal, discount: subtotal - total, total, tshirtQty };
 }
