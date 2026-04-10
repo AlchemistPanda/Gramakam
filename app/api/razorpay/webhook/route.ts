@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       const q = query(
         ordersRef,
         where('razorpayOrderId', '==', razorpayOrderId),
-        where('status', '==', 'pending'),
+        where('status', 'in', ['pending', 'rejected']),
         limit(1)
       );
       const snap = await getDocs(q);

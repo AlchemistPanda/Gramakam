@@ -529,7 +529,7 @@ export function getEffectiveSizeStock(stockDoc: StockDoc | undefined, size?: str
 
 /** Decrement stock for purchased items. Returns true if stock was sufficient. */
 export async function decrementStock(items: { productId: string; size?: string; quantity: number }[]): Promise<boolean> {
-  const { runTransaction } = await import('firebase/firestore');
+  const { runTransaction, FieldPath } = await import('firebase/firestore');
   const database = requireDb();
 
   return runTransaction(database, async (transaction) => {
@@ -554,8 +554,8 @@ export async function decrementStock(items: { productId: string; size?: string; 
     // Decrement
     for (const r of reads) {
       if (r.size && r.data.sizes && r.size in r.data.sizes && r.data.sizes[r.size] !== -1) {
-        // Decrement per-size stock
-        transaction.update(r.ref, { [`sizes.${r.size}`]: r.data.sizes[r.size] - r.quantity });
+        // Decrement per-size stock safely using FieldPath
+        transaction.update(r.ref, new FieldPath('sizes', r.size), r.data.sizes[r.size] - r.quantity);
       } else if (r.data.count !== -1) {
         // Decrement product-level stock
         transaction.update(r.ref, { count: r.data.count - r.quantity });
@@ -569,7 +569,7 @@ export async function decrementStock(items: { productId: string; size?: string; 
 
 /** Restore stock for deleted/cancelled orders. Inverse of decrementStock. */
 export async function restoreStock(items: { productId: string; size?: string; quantity: number }[]): Promise<void> {
-  const { runTransaction } = await import('firebase/firestore');
+  const { runTransaction, FieldPath } = await import('firebase/firestore');
   const database = requireDb();
 
   await runTransaction(database, async (transaction) => {
@@ -582,7 +582,7 @@ export async function restoreStock(items: { productId: string; size?: string; qu
         sizes: snap.data().sizes,
       };
       if (item.size && data.sizes && item.size in data.sizes && data.sizes[item.size] !== -1) {
-        transaction.update(stockRef, { [`sizes.${item.size}`]: data.sizes[item.size] + item.quantity });
+        transaction.update(stockRef, new FieldPath('sizes', item.size), data.sizes[item.size] + item.quantity);
       } else if (data.count !== -1) {
         transaction.update(stockRef, { count: data.count + item.quantity });
       }
