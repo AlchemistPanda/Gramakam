@@ -67,6 +67,8 @@ import {
   deleteAward,
   getStockDocs,
   setStockDoc,
+  setStockCount,
+  setSizeStock,
   addStockCount,
   addSizeStock,
   type StockDoc,
@@ -982,6 +984,8 @@ function MerchStockSubTab() {
   const [stockDocs, setStockDocs] = useState<Record<string, StockDoc>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  // 'add' = add to existing stock, 'set' = set absolute value
+  const [stockMode, setStockMode] = useState<'add' | 'set'>('set');
   // Per-size edit values: { "tshirt::36 (S)": "10", "slingbag": "50" }
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
@@ -1044,21 +1048,35 @@ function MerchStockSubTab() {
     const val = editValues[key]?.trim();
     const quantity = val === '' ? 0 : parseInt(val, 10);
     if (isNaN(quantity) || quantity < 0) {
-      alert('Enter a valid number to add to this size.');
+      alert('Enter a valid non-negative number.');
       return;
     }
-    if (quantity === 0) return;
+    if (stockMode === 'add' && quantity === 0) return;
     setSaving(key);
     try {
-      const next = await addSizeStock(productId, size, quantity);
-      setStockDocs((prev) => ({
-        ...prev,
-        [productId]: {
-          ...prev[productId],
-          count: prev[productId]?.count ?? -1,
-          sizes: { ...prev[productId]?.sizes, [size]: next },
-        },
-      }));
+      if (stockMode === 'set') {
+        // Directly set the stock to this value
+        await setSizeStock(productId, size, quantity);
+        setStockDocs((prev) => ({
+          ...prev,
+          [productId]: {
+            ...prev[productId],
+            count: prev[productId]?.count ?? -1,
+            sizes: { ...prev[productId]?.sizes, [size]: quantity },
+          },
+        }));
+      } else {
+        // Add to existing stock
+        const next = await addSizeStock(productId, size, quantity);
+        setStockDocs((prev) => ({
+          ...prev,
+          [productId]: {
+            ...prev[productId],
+            count: prev[productId]?.count ?? -1,
+            sizes: { ...prev[productId]?.sizes, [size]: next },
+          },
+        }));
+      }
       setEditValues((prev) => ({ ...prev, [key]: '' }));
     } catch {
       alert('Failed to update stock.');
@@ -1070,17 +1088,27 @@ function MerchStockSubTab() {
     const val = editValues[productId]?.trim();
     const quantity = val === '' ? 0 : parseInt(val, 10);
     if (isNaN(quantity) || quantity < 0) {
-      alert('Enter a valid number to add to stock.');
+      alert('Enter a valid non-negative number.');
       return;
     }
-    if (quantity === 0) return;
+    if (stockMode === 'add' && quantity === 0) return;
     setSaving(productId);
     try {
-      const next = await addStockCount(productId, quantity);
-      setStockDocs((prev) => ({
-        ...prev,
-        [productId]: { ...prev[productId], count: next },
-      }));
+      if (stockMode === 'set') {
+        // Directly set the stock to this value
+        await setStockCount(productId, quantity);
+        setStockDocs((prev) => ({
+          ...prev,
+          [productId]: { ...prev[productId], count: quantity },
+        }));
+      } else {
+        // Add to existing stock
+        const next = await addStockCount(productId, quantity);
+        setStockDocs((prev) => ({
+          ...prev,
+          [productId]: { ...prev[productId], count: next },
+        }));
+      }
       setEditValues((prev) => ({ ...prev, [productId]: '' }));
     } catch {
       alert('Failed to update stock.');
@@ -1143,12 +1171,45 @@ function MerchStockSubTab() {
 
   return (
     <div className="space-y-4">
+      {/* Stock Mode Toggle */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium text-gray-600">Stock Mode:</span>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+          <button
+            onClick={() => setStockMode('set')}
+            className={`px-4 py-2 text-xs font-semibold transition-colors ${
+              stockMode === 'set'
+                ? 'bg-maroon text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Set (Exact)
+          </button>
+          <button
+            onClick={() => setStockMode('add')}
+            className={`px-4 py-2 text-xs font-semibold transition-colors border-l border-gray-200 ${
+              stockMode === 'add'
+                ? 'bg-maroon text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Add (+)
+          </button>
+        </div>
+        <span className="text-xs text-gray-400">
+          {stockMode === 'set'
+            ? 'Entering 10 sets stock to exactly 10'
+            : 'Entering 10 adds 10 to existing stock'}
+        </span>
+      </div>
+
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
         <p className="font-semibold mb-1">How Stock Works</p>
         <ul className="list-disc ml-5 space-y-1 text-xs text-blue-700">
           <li><strong>Unlimited</strong> — leave stock empty. That size/product is always available.</li>
-          <li><strong>Add stock</strong> — enter the newly arrived quantity. The dashboard adds it to the current stock.</li>
-          <li><strong>Pause All</strong> — pauses entire product. Shows "Out of Stock" to customers.</li>
+          <li><strong>Set (Exact)</strong> — enter the exact stock count. Use this to correct mistakes.</li>
+          <li><strong>Add (+)</strong> — enter newly arrived quantity. Adds to the current stock.</li>
+          <li><strong>Pause All</strong> — pauses entire product. Shows &quot;Out of Stock&quot; to customers.</li>
           <li><strong>Resume</strong> — resumes selling. Orders placed after resume are <span className="text-orange-600 font-bold">flagged</span> so you know they came after a stock-out.</li>
         </ul>
       </div>
@@ -1235,7 +1296,7 @@ function MerchStockSubTab() {
                         <input
                           type="number"
                           min="0"
-                          placeholder="Add"
+                          placeholder={stockMode === 'set' ? 'Set to' : 'Add'}
                           value={editValues[key] ?? ''}
                           onChange={(e) => setEditValues((prev) => ({ ...prev, [key]: e.target.value }))}
                           className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-2 focus:ring-maroon outline-none text-center"
@@ -1263,11 +1324,11 @@ function MerchStockSubTab() {
             {!hasSizes && status !== 'paused' && (
               <div className="border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-gray-500 shrink-0">Add stock:</label>
+                  <label className="text-xs text-gray-500 shrink-0">{stockMode === 'set' ? 'Set stock:' : 'Add stock:'}</label>
                   <input
                     type="number"
                     min="0"
-                    placeholder="Add"
+                    placeholder={stockMode === 'set' ? 'Set to' : 'Add'}
                     value={editValues[product.id] ?? ''}
                     onChange={(e) => setEditValues((prev) => ({ ...prev, [product.id]: e.target.value }))}
                     className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
