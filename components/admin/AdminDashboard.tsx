@@ -2035,8 +2035,9 @@ function MediaPanel() {
       });
       resetForm();
       await loadItems();
-    } catch {
-      alert('Upload failed. Make sure Firebase is configured.');
+    } catch (err: any) {
+      console.error('Media save error:', err);
+      alert(`Upload failed: ${err.message || 'Unknown error'}. Check console for details.`);
     }
     setUploading(false);
   };
@@ -2218,8 +2219,9 @@ function AwardsPanel() {
       });
       resetForm();
       await loadItems();
-    } catch {
-      alert('Upload failed. Make sure Firebase is configured.');
+    } catch (err: any) {
+      console.error('Award save error:', err);
+      alert(`Upload failed: ${err.message || 'Unknown error'}. Check console for details.`);
     }
     setUploading(false);
   };
