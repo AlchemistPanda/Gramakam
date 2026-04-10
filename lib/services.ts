@@ -137,7 +137,7 @@ export async function addGalleryItem(
 ): Promise<string> {
   const galleryRef = collection(requireDb(), 'gallery');
   const docRef = await addDoc(galleryRef, {
-    ...item,
+    ...(stripUndefinedDeep(item) as any),
     createdAt: serverTimestamp(),
   });
   return docRef.id;
@@ -175,7 +175,7 @@ export async function addFeedPost(
 ): Promise<string> {
   const postsRef = collection(requireDb(), 'posts');
   const docRef = await addDoc(postsRef, {
-    ...post,
+    ...(stripUndefinedDeep(post) as any),
     createdAt: serverTimestamp(),
   });
   return docRef.id;
@@ -207,11 +207,26 @@ export async function getAwards(): Promise<Award[]> {
   })) as Award[];
 }
 
+// Helper to remove undefined fields recursively (Firestore doesn't like them)
+function stripUndefinedDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripUndefinedDeep);
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, stripUndefinedDeep(v)]);
+    return Object.fromEntries(entries);
+  }
+  return value;
+}
+
 export async function addAward(
   award: Omit<Award, 'id' | 'createdAt'>
 ): Promise<string> {
   const ref = collection(requireDb(), 'awards');
-  const docRef = await addDoc(ref, { ...award, createdAt: serverTimestamp() });
+  const docRef = await addDoc(ref, {
+    ...(stripUndefinedDeep(award) as any),
+    createdAt: serverTimestamp(),
+  });
   return docRef.id;
 }
 
@@ -236,7 +251,10 @@ export async function addMediaItem(
   item: Omit<MediaItem, 'id' | 'createdAt'>
 ): Promise<string> {
   const colRef = collection(requireDb(), 'media_items');
-  const docRef = await addDoc(colRef, { ...item, createdAt: serverTimestamp() });
+  const docRef = await addDoc(colRef, {
+    ...(stripUndefinedDeep(item) as any),
+    createdAt: serverTimestamp(),
+  });
   return docRef.id;
 }
 
@@ -319,17 +337,6 @@ export async function deletePrebook(id: string): Promise<void> {
 
 export async function createMerchOrder(data: Omit<MerchOrder, 'id' | 'createdAt'>): Promise<string> {
   const ordersRef = collection(requireDb(), 'merch_orders');
-
-  const stripUndefinedDeep = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(stripUndefinedDeep);
-    if (value && typeof value === 'object') {
-      const entries = Object.entries(value as Record<string, unknown>)
-        .filter(([, v]) => v !== undefined)
-        .map(([k, v]) => [k, stripUndefinedDeep(v)]);
-      return Object.fromEntries(entries);
-    }
-    return value;
-  };
 
   const docRef = await addDoc(ordersRef, {
     ...(stripUndefinedDeep(data) as Omit<MerchOrder, 'id' | 'createdAt'>),
