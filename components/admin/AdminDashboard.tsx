@@ -549,7 +549,7 @@ function GalleryPanel() {
               <input
                 type="number"
                 value={bulkYear}
-                onChange={(e) => { const y = parseInt(e.target.value); setBulkYear(y); globalYear = y; }}
+                onChange={(e) => { const y = parseInt(e.target.value) || new Date().getFullYear(); setBulkYear(y); globalYear = y; }}
                 disabled={running}
                 className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none disabled:opacity-50"
               />
@@ -2089,7 +2089,7 @@ function MediaPanel() {
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input type="text" placeholder="Title *" value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} required />
             <input type="text" placeholder="Source (e.g., Mathrubhumi)" value={source} onChange={(e) => setSource(e.target.value)} className={inputCls} />
-            <input type="number" placeholder="Year" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className={inputCls} />
+            <input type="number" placeholder="Year" value={year || ''} onChange={(e) => setYear(e.target.value ? parseInt(e.target.value) : new Date().getFullYear())} className={inputCls} />
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
             <textarea placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputCls} md:col-span-2 resize-none`} rows={2} />
             {type === 'newspaper' ? (
@@ -2247,10 +2247,10 @@ function AwardsPanel() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
           <h3 className="font-semibold text-charcoal mb-4">Add New Award</h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="number" placeholder="Year *" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className={inputCls} required />
+            <input type="number" placeholder="Year *" value={year || ''} onChange={(e) => setYear(e.target.value ? parseInt(e.target.value) : new Date().getFullYear())} className={inputCls} required />
             <input type="text" placeholder="Awardee Name *" value={awardeeName} onChange={(e) => setAwardeeName(e.target.value)} className={inputCls} required />
             <input type="text" placeholder="Award Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
-            <input type="number" placeholder="Cash Award Amount" value={cashAward} onChange={(e) => setCashAward(parseInt(e.target.value))} className={inputCls} />
+            <input type="number" placeholder="Cash Award Amount" value={cashAward || ''} onChange={(e) => setCashAward(e.target.value ? parseInt(e.target.value) : 0)} className={inputCls} />
             <textarea placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputCls} md:col-span-2 resize-none`} rows={2} />
             <div className="md:col-span-2">
               <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className={inputCls} />
