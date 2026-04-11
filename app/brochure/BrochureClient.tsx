@@ -8,310 +8,476 @@ import {
   ChevronRight,
   Volume2,
   VolumeX,
-  Maximize2,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
+  Maximize,
+  Minimize,
   BookOpen,
-  Move
+  Download,
 } from 'lucide-react';
-import AnimatedSection from '@/components/AnimatedSection';
 import { soundManager } from '@/lib/sounds';
 import { BROCHURE_PAGES, getBrochurePageImage } from '@/lib/brochureData';
+
+const FLIP_DURATION = 0.7; // seconds
 
 export default function BrochureClient() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isFlipping, setIsFlipping] = useState(false);
   const [flipDirection, setFlipDirection] = useState<'next' | 'prev' | null>(null);
   const [isMuted, setIsMuted] = useState(false);
-  
-  // Zoom & Pan State
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showThumbnails, setShowThumbnails] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
-  const bookRef = useRef<HTMLDivElement>(null);
+  const thumbnailRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
 
-  const PAGE_FLIP_DURATION = 0.8;
+  // Preload adjacent pages
+  useEffect(() => {
+    const pages = [currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
+    pages.forEach((p) => {
+      if (p >= 1 && p <= BROCHURE_PAGES) {
+        const img = new window.Image();
+        img.src = getBrochurePageImage(p);
+      }
+    });
+  }, [currentPage]);
 
-  // Sound Management
   useEffect(() => {
     soundManager.setMuted(isMuted);
   }, [isMuted]);
 
-  // Handle Flip
-  const flipToNext = useCallback(() => {
-    if (currentPage < BROCHURE_PAGES && !isFlipping) {
-      setFlipDirection('next');
+  const flipTo = useCallback(
+    (dir: 'next' | 'prev') => {
+      if (isFlipping) return;
+      if (dir === 'next' && currentPage >= BROCHURE_PAGES) return;
+      if (dir === 'prev' && currentPage <= 1) return;
+
+      setFlipDirection(dir);
       setIsFlipping(true);
       soundManager.playPageFlip();
-      
+
       setTimeout(() => {
-        setCurrentPage(prev => prev + 1);
+        setCurrentPage((p) => (dir === 'next' ? p + 1 : p - 1));
         setIsFlipping(false);
         setFlipDirection(null);
-      }, PAGE_FLIP_DURATION * 1000);
-    }
-  }, [currentPage, isFlipping]);
+      }, FLIP_DURATION * 1000);
+    },
+    [currentPage, isFlipping]
+  );
 
-  const flipToPrev = useCallback(() => {
-    if (currentPage > 1 && !isFlipping) {
-      setFlipDirection('prev');
-      setIsFlipping(true);
+  const goToPage = useCallback(
+    (page: number) => {
+      if (page < 1 || page > BROCHURE_PAGES || page === currentPage || isFlipping) return;
+      // For thumbnail jumps: instant switch (no flip anim to avoid confusion)
       soundManager.playPageFlip();
-      
-      setTimeout(() => {
-        setCurrentPage(prev => prev - 1);
-        setIsFlipping(false);
-        setFlipDirection(null);
-      }, PAGE_FLIP_DURATION * 1000);
-    }
-  }, [currentPage, isFlipping]);
+      setCurrentPage(page);
+    },
+    [currentPage, isFlipping]
+  );
 
-  // Zoom / Pan Handlers
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.5, 4));
-  const handleZoomOut = () => {
-    setZoom(prev => {
-      const nextZoom = Math.max(prev - 0.5, 1);
-      if (nextZoom === 1) setPan({ x: 0, y: 0 });
-      return nextZoom;
-    });
-  };
-  const resetZoom = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (zoom > 1) {
-      setIsDragging(true);
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    }
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (isDragging && zoom > 1) {
-      setPan({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
-    }
-  };
-
-  const handlePointerUp = () => setIsDragging(false);
-
-  // Keyboard navigation
+  // Keyboard
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') flipToNext();
-      if (e.key === 'ArrowLeft') flipToPrev();
-      if (e.key === '+' || e.key === '=') handleZoomIn();
-      if (e.key === '-') handleZoomOut();
-      if (e.key === 'Escape') resetZoom();
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        flipTo('next');
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        flipTo('prev');
+      }
+      if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+      if (e.key === 'Escape' && isFullscreen) toggleFullscreen();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [flipToNext, flipToPrev]);
+  }, [flipTo, isFullscreen]);
+
+  // Touch swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (dx < -60) flipTo('next');
+    if (dx > 60) flipTo('prev');
+  };
+
+  // Fullscreen
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch {
+      /* not supported */
+    }
+  };
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  // Scroll thumbnail strip
+  useEffect(() => {
+    if (showThumbnails && thumbnailRef.current) {
+      const el = thumbnailRef.current.querySelector('[data-active="true"]');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [currentPage, showThumbnails]);
+
+  const progress = ((currentPage - 1) / (BROCHURE_PAGES - 1)) * 100;
+
+  // Determine images for the flipbook layers
+  const underPageNum =
+    flipDirection === 'next'
+      ? Math.min(currentPage + 1, BROCHURE_PAGES)
+      : flipDirection === 'prev'
+      ? Math.max(currentPage - 1, 1)
+      : currentPage;
 
   return (
-    <div className="min-h-screen bg-[#fdfaf6] py-12 px-4 selection:bg-maroon/10">
-      <div className="max-w-6xl mx-auto">
-        
-        {/* Header Section */}
-        <AnimatedSection className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-maroon/5 text-maroon text-xs font-bold uppercase tracking-widest mb-4">
-            <BookOpen size={14} /> Official Guide
+    <div
+      ref={containerRef}
+      className={`min-h-screen flex flex-col ${
+        isFullscreen ? 'bg-[#1a1816]' : 'bg-gradient-to-b from-[#f8f5f0] via-[#faf8f4] to-[#f0ebe3]'
+      }`}
+    >
+      {/* Header */}
+      {!isFullscreen && (
+        <motion.header
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center pt-10 pb-6 px-4"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-maroon/8 text-maroon text-[11px] font-semibold uppercase tracking-[0.2em] mb-5 border border-maroon/10">
+            <BookOpen size={13} strokeWidth={2.5} />
+            <span>Official Brochure</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-charcoal mb-4 tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
-            Digital <span className="text-maroon">Brochure</span> 2026
-          </h1>
-          <p className="text-gray-600 max-w-xl mx-auto leading-relaxed">
-            Experience the 9th edition of Gramakam. Flip through the pages to explore artists, 
-            schedules, and the heritage of our village.
-          </p>
-        </AnimatedSection>
-
-        {/* Browser Tooling */}
-        <div className="flex justify-center mb-6 gap-3">
-          <div className="flex items-center bg-white p-1 rounded-xl shadow-sm border border-gray-100">
-            <button onClick={handleZoomOut} className="p-2 hover:bg-gray-50 rounded-lg transition-colors text-gray-500"><ZoomOut size={18} /></button>
-            <span className="px-3 text-sm font-bold text-gray-400 w-16 text-center">{Math.round(zoom * 100)}%</span>
-            <button onClick={handleZoomIn} className="p-2 hover:bg-gray-50 rounded-lg transition-colors text-gray-500"><ZoomIn size={18} /></button>
-            <div className="w-px h-6 bg-gray-100 mx-1" />
-            <button onClick={resetZoom} className="p-2 hover:bg-gray-50 rounded-lg transition-colors text-gray-500"><RotateCcw size={18} /></button>
-          </div>
-          <button 
-            onClick={() => setIsMuted(!isMuted)} 
-            className={`p-3 rounded-xl shadow-sm border border-gray-100 transition-all ${isMuted ? 'bg-gray-100 text-gray-400' : 'bg-white text-maroon hover:bg-maroon hover:text-white'}`}
+          <h1
+            className="text-3xl sm:text-4xl md:text-5xl font-bold text-charcoal mb-3"
+            style={{ fontFamily: 'var(--font-heading)' }}
           >
-            {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-          </button>
+            Gramakam <span className="text-maroon">2026</span>
+          </h1>
+          <p className="text-gray-500 text-sm md:text-base max-w-md mx-auto leading-relaxed">
+            The 9th edition — explore artists, schedules, and the heritage of our village
+          </p>
+        </motion.header>
+      )}
+
+      {/* Main area */}
+      <div className={`flex-1 flex flex-col items-center justify-center ${isFullscreen ? 'p-4' : 'px-4 pb-6'}`}>
+        {/* Toolbar */}
+        <div className={`flex items-center justify-between w-full ${isFullscreen ? 'max-w-5xl' : 'max-w-3xl'} mb-3`}>
+          <div className="flex items-center gap-1.5 text-xs text-gray-400">
+            <span className="font-semibold text-charcoal text-sm">{currentPage}</span>
+            <span>/</span>
+            <span>{BROCHURE_PAGES}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowThumbnails((p) => !p)}
+              className={`p-2 rounded-lg text-xs font-medium transition-all ${
+                showThumbnails ? 'bg-maroon text-white' : 'text-gray-400 hover:text-charcoal hover:bg-black/5'
+              }`}
+              title="Toggle page thumbnails"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="1" y="1" width="4" height="5" rx="0.5" />
+                <rect x="6" y="1" width="4" height="5" rx="0.5" />
+                <rect x="11" y="1" width="4" height="5" rx="0.5" />
+                <rect x="1" y="8" width="4" height="5" rx="0.5" />
+                <rect x="6" y="8" width="4" height="5" rx="0.5" />
+                <rect x="11" y="8" width="4" height="5" rx="0.5" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className={`p-2 rounded-lg transition-all ${
+                isMuted ? 'text-gray-300' : 'text-gray-400 hover:text-maroon hover:bg-maroon/5'
+              }`}
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 rounded-lg text-gray-400 hover:text-charcoal hover:bg-black/5 transition-all"
+              title="Toggle fullscreen"
+            >
+              {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            </button>
+            <a
+              href={getBrochurePageImage(currentPage)}
+              download={`gramakam-2026-page-${currentPage}.png`}
+              className="p-2 rounded-lg text-gray-400 hover:text-charcoal hover:bg-black/5 transition-all"
+              title="Download this page"
+            >
+              <Download size={16} />
+            </a>
+          </div>
         </div>
 
-        {/* Flipbook Container */}
-        <div className="relative flex justify-center items-center py-4">
-          
-          {/* Navigation Arrows (Desktop) */}
-          <button 
-            onClick={flipToPrev}
+        {/* Progress bar */}
+        <div className={`w-full ${isFullscreen ? 'max-w-5xl' : 'max-w-3xl'} mb-4`}>
+          <div className="relative w-full h-1 bg-black/5 rounded-full overflow-hidden">
+            <motion.div
+              className="absolute inset-y-0 left-0 bg-maroon rounded-full"
+              animate={{ width: `${progress}%` }}
+              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+            />
+          </div>
+        </div>
+
+        {/* Thumbnail strip */}
+        <AnimatePresence>
+          {showThumbnails && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className={`w-full ${isFullscreen ? 'max-w-5xl' : 'max-w-3xl'} mb-4 overflow-hidden`}
+            >
+              <div
+                ref={thumbnailRef}
+                className="flex gap-2 overflow-x-auto py-2 px-1"
+              >
+                {Array.from({ length: BROCHURE_PAGES }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    data-active={page === currentPage}
+                    onClick={() => goToPage(page)}
+                    className={`relative flex-shrink-0 w-12 h-16 sm:w-14 sm:h-[74px] rounded-md overflow-hidden border-2 transition-all duration-200 ${
+                      page === currentPage
+                        ? 'border-maroon shadow-md shadow-maroon/20 scale-105'
+                        : 'border-transparent opacity-60 hover:opacity-100 hover:border-gray-300'
+                    }`}
+                  >
+                    <Image src={getBrochurePageImage(page)} alt={`Page ${page}`} fill className="object-cover" sizes="56px" />
+                    <span
+                      className={`absolute bottom-0 inset-x-0 text-[8px] font-bold text-center py-0.5 ${
+                        page === currentPage ? 'bg-maroon text-white' : 'bg-black/40 text-white/80'
+                      }`}
+                    >
+                      {page}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ──────── FLIPBOOK ──────── */}
+        <div
+          className={`relative w-full ${isFullscreen ? 'max-w-5xl flex-1' : 'max-w-3xl'} flex items-center justify-center`}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Desktop nav arrows */}
+          <button
+            onClick={() => flipTo('prev')}
             disabled={currentPage === 1 || isFlipping}
-            className="hidden md:flex absolute left-0 z-20 w-12 h-12 items-center justify-center bg-white rounded-full shadow-lg border border-gray-100 text-charcoal hover:bg-maroon hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all"
+            className="hidden md:flex absolute -left-14 lg:-left-16 z-30 w-10 h-10 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm text-charcoal shadow-sm hover:bg-maroon hover:text-white disabled:opacity-0 disabled:pointer-events-none transition-all duration-200 border border-black/5"
           >
-            <ChevronLeft size={24} />
+            <ChevronLeft size={20} />
           </button>
 
-          {/* THE BOOK */}
-          <div 
-            ref={bookRef}
-            className="book-container relative w-full max-w-[800px] aspect-[1/1.4] md:aspect-[1/1.414] select-none"
-            style={{ perspective: '2000px' }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
+          {/* Book wrapper with 3D perspective */}
+          <div
+            className="relative w-full select-none"
+            style={{ perspective: '1800px' }}
           >
-            {/* Zoom / Pan Wrapper */}
-            <motion.div 
-              className="w-full h-full relative"
-              animate={{ 
-                scale: zoom,
-                x: pan.x,
-                y: pan.y
-              }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            >
-              {/* Spine Effect */}
-              <div className="absolute top-0 bottom-0 left-1/2 w-8 -translate-x-1/2 z-10 pointer-events-none bg-gradient-to-r from-black/5 via-black/20 to-black/5" />
-              
-              <div className="relative w-full h-full bg-white shadow-2xl rounded-sm overflow-hidden border border-gray-200">
-                
-                {/* Pages Logic */}
-                <div className="w-full h-full relative" style={{ transformStyle: 'preserve-3d' }}>
-                  
-                  {/* UNDER Page (The destination) */}
-                  <div className="absolute inset-0 z-0">
-                    <Image 
-                      src={getBrochurePageImage(flipDirection === 'next' ? currentPage + 1 : flipDirection === 'prev' ? currentPage - 1 : currentPage)}
-                      alt="Next content"
+            {/* A4 aspect-ratio container */}
+            <div className="relative w-full" style={{ paddingBottom: '141.4%' }}>
+              {/* Book shadow beneath */}
+              <div className="absolute -bottom-3 left-[5%] right-[5%] h-8 bg-black/10 rounded-[50%] blur-xl pointer-events-none" />
+
+              {/* ── UNDER PAGE (destination page, always visible below) ── */}
+              <div className="absolute inset-0 rounded-lg overflow-hidden bg-white shadow-lg border border-black/[0.06]">
+                <Image
+                  src={getBrochurePageImage(underPageNum)}
+                  alt={`Page ${underPageNum}`}
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 768px) 100vw, 800px"
+                  quality={90}
+                />
+              </div>
+
+              {/* ── FLIPPING PAGE (3D rotateY around left/right edge) ── */}
+              {isFlipping && flipDirection && (
+                <motion.div
+                  key={`flip-${currentPage}-${flipDirection}`}
+                  initial={{ rotateY: 0 }}
+                  animate={{ rotateY: flipDirection === 'next' ? -180 : 180 }}
+                  transition={{
+                    duration: FLIP_DURATION,
+                    ease: [0.45, 0.05, 0.35, 1], // smooth page-turn ease curve
+                  }}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    transformStyle: 'preserve-3d',
+                    transformOrigin: flipDirection === 'next' ? 'left center' : 'right center',
+                    zIndex: 20,
+                  }}
+                >
+                  {/* Front face — current page */}
+                  <div
+                    className="absolute inset-0 rounded-lg overflow-hidden bg-white"
+                    style={{ backfaceVisibility: 'hidden' }}
+                  >
+                    <Image
+                      src={getBrochurePageImage(currentPage)}
+                      alt="Current page"
                       fill
                       className="object-contain"
+                      sizes="(max-width: 768px) 100vw, 800px"
+                      quality={90}
+                    />
+                    {/* Dynamic shadow that intensifies as page lifts */}
+                    <motion.div
+                      className="absolute inset-0 pointer-events-none"
+                      initial={{ background: 'linear-gradient(to right, transparent 60%, rgba(0,0,0,0) 100%)' }}
+                      animate={{
+                        background: [
+                          'linear-gradient(to right, transparent 60%, rgba(0,0,0,0) 100%)',
+                          'linear-gradient(to right, transparent 30%, rgba(0,0,0,0.15) 100%)',
+                          'linear-gradient(to right, transparent 60%, rgba(0,0,0,0) 100%)',
+                        ],
+                      }}
+                      transition={{ duration: FLIP_DURATION, ease: 'easeInOut' }}
                     />
                   </div>
 
-                  {/* FLIPPING Page */}
-                  <AnimatePresence mode="wait">
-                    {isFlipping && (
-                      <motion.div
-                        key={`flip-${currentPage}-${flipDirection}`}
-                        initial={{ rotateY: 0 }}
-                        animate={{ rotateY: flipDirection === 'next' ? -180 : 180 }}
-                        transition={{ duration: PAGE_FLIP_DURATION, ease: "easeInOut" }}
-                        style={{ 
-                          transformStyle: 'preserve-3d', 
-                          transformOrigin: flipDirection === 'next' ? 'left' : 'right',
-                          width: '100%',
-                          height: '100%',
-                          position: 'absolute',
-                          top: 0
-                        }}
-                        className="z-20"
-                      >
-                        {/* Front of the flipping page */}
-                        <div className="absolute inset-0 bg-white" style={{ backfaceVisibility: 'hidden' }}>
-                           <div className="relative w-full h-full">
-                              <Image src={getBrochurePageImage(currentPage)} alt="page front" fill className="object-contain shadow-2xl" />
-                              {/* Page Bend Shadow Overlay */}
-                              <motion.div 
-                                className="absolute inset-0 bg-gradient-to-r from-black/0 via-black/10 to-black/30"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ duration: PAGE_FLIP_DURATION }}
-                              />
-                           </div>
-                        </div>
+                  {/* Back face — next/prev page (mirrored) */}
+                  <div
+                    className="absolute inset-0 rounded-lg overflow-hidden bg-white"
+                    style={{
+                      backfaceVisibility: 'hidden',
+                      transform: flipDirection === 'next' ? 'rotateY(180deg)' : 'rotateY(-180deg)',
+                    }}
+                  >
+                    <Image
+                      src={getBrochurePageImage(underPageNum)}
+                      alt="Next page"
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 768px) 100vw, 800px"
+                      quality={90}
+                    />
+                    {/* Subtle light reflection on back */}
+                    <div className="absolute inset-0 bg-gradient-to-l from-white/5 via-transparent to-black/[0.06] pointer-events-none" />
+                  </div>
+                </motion.div>
+              )}
 
-                        {/* Back of the flipping page */}
-                        <div className="absolute inset-0 bg-white shadow-2xl" style={{ backfaceVisibility: 'hidden', transform: flipDirection === 'next' ? 'rotateY(180deg)' : 'rotateY(-180deg)' }}>
-                           <div className="relative w-full h-full">
-                              <Image src={getBrochurePageImage(flipDirection === 'next' ? currentPage + 1 : currentPage - 1)} alt="page back" fill className="object-contain" />
-                              {/* Back of page light shimmer */}
-                              <div className="absolute inset-0 bg-gradient-to-l from-white/10 via-transparent to-black/10" />
-                           </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* STATIC Page (The one not flipping) */}
-                  {!isFlipping && (
-                    <div className="absolute inset-0 z-10">
-                       <Image src={getBrochurePageImage(currentPage)} alt={`Page ${currentPage}`} fill className="object-contain" />
-                    </div>
-                  )}
-
+              {/* ── STATIC PAGE (when not flipping) ── */}
+              {!isFlipping && (
+                <div className="absolute inset-0 z-10 rounded-lg overflow-hidden bg-white shadow-lg border border-black/[0.06]">
+                  <Image
+                    src={getBrochurePageImage(currentPage)}
+                    alt={`Gramakam 2026 Brochure — Page ${currentPage}`}
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, 800px"
+                    priority={currentPage <= 3}
+                    quality={90}
+                  />
+                  {/* Page edge highlight */}
+                  <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-black/[0.04] rounded-lg" />
                 </div>
-              </div>
-            </motion.div>
-          </div>
+              )}
 
-          <button 
-            onClick={flipToNext}
-            disabled={currentPage === BROCHURE_PAGES || isFlipping}
-            className="hidden md:flex absolute right-0 z-20 w-12 h-12 items-center justify-center bg-white rounded-full shadow-lg border border-gray-100 text-charcoal hover:bg-maroon hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all"
-          >
-            <ChevronRight size={24} />
-          </button>
-
-        </div>
-
-        {/* Mobile Navigation / Controls */}
-        <div className="mt-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-6">
-          <div className="flex items-center gap-4 w-full">
-            <button 
-              onClick={flipToPrev} 
-              disabled={currentPage === 1 || isFlipping}
-              className="flex-1 py-3 bg-gray-50 rounded-xl text-gray-500 hover:text-maroon transition-colors disabled:opacity-20"
-            >
-              <ChevronLeft className="mx-auto" size={24} />
-            </button>
-            <div className="text-center px-6">
-              <span className="text-xs uppercase font-bold text-gray-400 block mb-1">Page</span>
-              <span className="text-2xl font-black text-charcoal">{currentPage} / {BROCHURE_PAGES}</span>
+              {/* Click zones for flipping — left half = prev, right half = next */}
+              {!isFlipping && (
+                <>
+                  <div
+                    className="absolute inset-y-0 left-0 w-1/2 z-20 cursor-pointer"
+                    onClick={() => flipTo('prev')}
+                    role="button"
+                    aria-label="Previous page"
+                  />
+                  <div
+                    className="absolute inset-y-0 right-0 w-1/2 z-20 cursor-pointer"
+                    onClick={() => flipTo('next')}
+                    role="button"
+                    aria-label="Next page"
+                  />
+                </>
+              )}
             </div>
-            <button 
-              onClick={flipToNext} 
-              disabled={currentPage === BROCHURE_PAGES || isFlipping}
-              className="flex-1 py-3 bg-gray-50 rounded-xl text-gray-500 hover:text-maroon transition-colors disabled:opacity-20"
-            >
-              <ChevronRight className="mx-auto" size={24} />
-            </button>
           </div>
 
-          {/* Progress Bar */}
-          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-             <motion.div 
-               className="h-full bg-maroon"
-               animate={{ width: `${(currentPage / BROCHURE_PAGES) * 100}%` }}
-               transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-             />
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-            <span className="flex items-center gap-1.5"><BookOpen size={12} /> Swipe to Flip</span>
-            <span className="flex items-center gap-1.5"><Maximize2 size={12} /> Double Tap to Zoom</span>
-            <span className="flex items-center gap-1.5"><Move size={12} /> Drag to Pan</span>
-          </div>
+          <button
+            onClick={() => flipTo('next')}
+            disabled={currentPage === BROCHURE_PAGES || isFlipping}
+            className="hidden md:flex absolute -right-14 lg:-right-16 z-30 w-10 h-10 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm text-charcoal shadow-sm hover:bg-maroon hover:text-white disabled:opacity-0 disabled:pointer-events-none transition-all duration-200 border border-black/5"
+          >
+            <ChevronRight size={20} />
+          </button>
         </div>
 
-      </div>
+        {/* Mobile controls */}
+        <div className="md:hidden flex items-center justify-center gap-6 mt-6">
+          <button
+            onClick={() => flipTo('prev')}
+            disabled={currentPage === 1 || isFlipping}
+            className="w-12 h-12 flex items-center justify-center rounded-full bg-white shadow-sm text-charcoal hover:bg-maroon hover:text-white disabled:opacity-20 transition-all border border-black/5"
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <div className="text-center min-w-[80px]">
+            <span className="text-2xl font-bold text-charcoal" style={{ fontFamily: 'var(--font-heading)' }}>
+              {currentPage}
+            </span>
+            <span className="text-gray-300 mx-1">/</span>
+            <span className="text-sm text-gray-400">{BROCHURE_PAGES}</span>
+          </div>
+          <button
+            onClick={() => flipTo('next')}
+            disabled={currentPage === BROCHURE_PAGES || isFlipping}
+            className="w-12 h-12 flex items-center justify-center rounded-full bg-white shadow-sm text-charcoal hover:bg-maroon hover:text-white disabled:opacity-20 transition-all border border-black/5"
+          >
+            <ChevronRight size={22} />
+          </button>
+        </div>
 
-      <style jsx>{`
-        .book-container {
-          cursor: ${zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'};
-        }
-      `}</style>
+        {/* Page slider */}
+        <div className={`w-full ${isFullscreen ? 'max-w-5xl' : 'max-w-3xl'} mt-6`}>
+          <input
+            type="range"
+            min={1}
+            max={BROCHURE_PAGES}
+            value={currentPage}
+            onChange={(e) => goToPage(Number(e.target.value))}
+            className="w-full h-1.5 appearance-none bg-black/5 rounded-full outline-none cursor-pointer
+              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-maroon [&::-webkit-slider-thumb]:shadow-md
+              [&::-webkit-slider-thumb]:shadow-maroon/30 [&::-webkit-slider-thumb]:cursor-pointer
+              [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-125
+              [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full
+              [&::-moz-range-thumb]:bg-maroon [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md
+              [&::-moz-range-thumb]:cursor-pointer"
+          />
+        </div>
+
+        {/* Hint */}
+        {!isFullscreen && (
+          <p className="mt-4 text-[11px] text-gray-300 tracking-wide text-center">
+            Click left/right side to flip &middot; Swipe on mobile &middot; Arrow keys &middot; F for fullscreen
+          </p>
+        )}
+      </div>
     </div>
   );
 }
