@@ -171,13 +171,17 @@ function drawFrame(
     ctx.shadowOffsetX = size * 0.002;
     ctx.shadowOffsetY = size * 0.002;
 
-    // Draw logo directly
+    // Draw logo directly preserving aspect ratio
+    const ratio = logoImg.naturalWidth / logoImg.naturalHeight;
+    const drawWidth = logoSize;
+    const drawHeight = logoSize / ratio;
+
     ctx.drawImage(
       logoImg,
-      cx - logoSize / 2,
-      logoY - logoSize / 2,
-      logoSize,
-      logoSize
+      cx - drawWidth / 2,
+      logoY - drawHeight / 2,
+      drawWidth,
+      drawHeight
     );
     ctx.restore();
   }
@@ -885,17 +889,28 @@ export default function ProfileFrameGenerator() {
         }
         .pfg-drag-indicator {
           position: absolute;
-          bottom: 20px;
+          top: 38%;
           left: 50%;
           transform: translateX(-50%);
-          background: rgba(0,0,0,0.6);
+          background: rgba(0,0,0,0.45);
           color: #fff;
-          padding: 6px 14px;
+          padding: 8px 16px;
           border-radius: 20px;
           font-size: 11px;
+          font-weight: 600;
           white-space: nowrap;
           pointer-events: none;
-          backdrop-filter: blur(4px);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          border: 1px solid rgba(255,255,255,0.1);
+          animation: pfg-pulse 2s infinite;
+        }
+        @keyframes pfg-pulse {
+          0% { opacity: 0.8; transform: translate(-50%, 0) scale(1); }
+          50% { opacity: 1; transform: translate(-50%, -4px) scale(1.02); }
+          100% { opacity: 0.8; transform: translate(-50%, 0) scale(1); }
         }
 
         .pfg-social-previews {
