@@ -474,13 +474,12 @@ export default function GameClient() {
             onClick={startGame}
             className="flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-black font-bold px-10 py-4 rounded-2xl text-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-400/30"
           >
-            <Play size={22} /> Let the Show Begin!
+            Let the Show Begin!
           </button>
 
           {/* Global leaderboard preview on menu */}
           <div className="w-full">
             <div className="flex items-center justify-center gap-2 mb-3">
-              <Trophy size={16} className="text-amber-300" />
               <span className="text-amber-300 text-sm font-semibold uppercase tracking-wider">Global Top 10</span>
             </div>
             <LeaderboardList scores={globalScores} loading={scoresLoading} />

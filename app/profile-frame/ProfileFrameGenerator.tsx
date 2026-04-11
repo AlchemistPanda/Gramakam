@@ -4,7 +4,6 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
-  Download,
   Shield,
   RotateCcw,
   ZoomIn,
@@ -12,7 +11,6 @@ import {
   Move,
   Check,
   Sparkles,
-  Camera,
   Eye,
   ArrowLeft,
   ArrowRight,
@@ -468,9 +466,6 @@ export default function ProfileFrameGenerator() {
               />
               <label htmlFor="main-upload" className="pfg-dropzone">
                 <div className="pfg-dropzone-inner">
-                  <div className="pfg-upload-icon-box">
-                    <Camera size={40} strokeWidth={1.5} />
-                  </div>
                   <h3>Upload Your Photo</h3>
                   <p>Select a clear photo where your face is visible</p>
                   <div className="pfg-format-pills">
@@ -587,7 +582,6 @@ export default function ProfileFrameGenerator() {
                             disabled={isDownloading}
                           >
                             {isDownloading ? 'Processing...' : 'Download Picture'}
-                            <Download size={18} />
                           </button>
                           <button onClick={() => setStep('adjust')} className="pfg-btn-secondary">Readjust Photo</button>
                           <button onClick={reset} className="pfg-btn-text">Start Over</button>
