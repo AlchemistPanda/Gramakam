@@ -47,8 +47,8 @@ function drawFrame(
 
   // ── Bottom arc band (The maroon frame) ─────────────────────
   // Canvas angles: 0 = 3 o'clock, PI/2 = 6 o'clock (bottom), PI = 9 o'clock
-  const bandThickness = size * 0.14;
-  const bandRadius = radius - bandThickness / 2 - size * 0.005;
+  const bandThickness = size * 0.16;
+  const bandRadius = radius - bandThickness / 2;
   const arcSpan = (150 * Math.PI) / 180; // 150 degrees
   const bottomCenter = Math.PI / 2; // 6 o'clock = bottom
   const arcStart = bottomCenter - arcSpan / 2;
@@ -75,7 +75,7 @@ function drawFrame(
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
   ctx.lineWidth = size * 0.002;
   ctx.beginPath();
-  ctx.arc(cx, cy, bandRadius - bandThickness * 0.4, arcStart + 0.05, arcEnd - 0.05);
+  ctx.arc(cx, cy, bandRadius - bandThickness * 0.35, arcStart + 0.05, arcEnd - 0.05);
   ctx.stroke();
   ctx.restore();
 
