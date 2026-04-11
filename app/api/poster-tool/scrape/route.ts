@@ -106,15 +106,15 @@ export async function POST(req: NextRequest) {
 
       const src = resolveUrl(rawSrc, url);
 
-      // Skip tiny icons / trackers / SVGs
+      // Skip SVGs (don't rasterize well for posters)
       const lower = src.toLowerCase();
-      if (lower.endsWith('.svg') || lower.includes('logo') || lower.includes('icon')) continue;
+      if (lower.endsWith('.svg')) continue;
 
-      // Skip likely 1x1 trackers
+      // Skip 1x1 trackers (but be lenient — mostly rely on user to deselect)
       const wMatch = tag.match(/width=["'](\d+)["']/i);
       const hMatch = tag.match(/height=["'](\d+)["']/i);
-      if (wMatch && parseInt(wMatch[1]) < 50) continue;
-      if (hMatch && parseInt(hMatch[1]) < 50) continue;
+      if (wMatch && parseInt(wMatch[1]) < 20) continue;
+      if (hMatch && parseInt(hMatch[1]) < 20) continue;
 
       if (!seen.has(src)) {
         seen.add(src);
