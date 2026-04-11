@@ -131,6 +131,24 @@ export default function HomePage() {
             <p className="text-maroon uppercase tracking-[0.2em] text-sm mb-2 font-semibold">Mark Your Calendar</p>
             <h2 className="heading-lg text-charcoal mb-2">Gramakam 2026</h2>
             <CountdownSection />
+            
+            {/* Profile Picture Invitation */}
+            <div className="mt-12 pt-12 border-t border-maroon/20">
+              <div className="max-w-md mx-auto">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-maroon/10 text-maroon text-xs font-bold uppercase tracking-widest mb-4">
+                  <Camera size={14} /> Celebrate with Us
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold text-charcoal mb-3">Change Your Profile Picture</h3>
+                <p className="text-gray-600 text-sm mb-6">Join the Gramakam community and update your profile with our festival frame!</p>
+                <Link
+                  href="/profile-frame"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-maroon text-white rounded-lg font-semibold hover:bg-maroon/90 transition-all duration-300 hover:shadow-lg hover:shadow-maroon/20"
+                >
+                  Get Your Frame
+                  <ArrowRight size={18} />
+                </Link>
+              </div>
+            </div>
           </AnimatedSection>
         </div>
       </section>
