@@ -8,7 +8,6 @@ import { Menu, X } from 'lucide-react';
 
 const navLinks = [
   { href: '/', label: 'Home' },
-  { href: '/about', label: 'About' },
   { href: '/gallery', label: 'Gallery' },
   { href: '/feed', label: 'Latest Feed' },
   { href: '/merchandise', label: 'Merchandise' },
@@ -20,6 +19,7 @@ const navLinks = [
   { href: '/profile-frame', label: 'Profile Picture' },
   { href: '/game', label: 'Game' },
   { href: '/contact', label: 'Contact' },
+  { href: '/about', label: 'About' },
 ];
 
 export default function Navbar() {
