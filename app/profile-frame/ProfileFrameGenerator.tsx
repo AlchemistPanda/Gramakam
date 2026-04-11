@@ -466,6 +466,13 @@ export default function ProfileFrameGenerator() {
               />
               <label htmlFor="main-upload" className="pfg-dropzone">
                 <div className="pfg-dropzone-inner">
+                  <motion.div 
+                    className="pfg-upload-icon-box"
+                    animate={{ y: [0, -8, 0], scale: [1, 1.05, 1] }}
+                    transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                  >
+                    <Camera size={40} strokeWidth={1.5} />
+                  </motion.div>
                   <h3>Upload Your Photo</h3>
                   <p>Select a clear photo where your face is visible</p>
                   <div className="pfg-format-pills">
