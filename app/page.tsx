@@ -5,7 +5,7 @@ import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
 import GameLeaderboard from '@/components/GameLeaderboard';
 import InstagramFeed from '@/components/InstagramFeed';
-import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar, Trophy, BookOpen, Mic2, Image as ImageIcon, Gamepad2, BookMarked, Phone } from 'lucide-react';
+import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar, Trophy, BookOpen, Mic2, Image as ImageIcon, Gamepad2, BookMarked, Phone, FileText } from 'lucide-react';
 
 // Real festival images from past editions
 const carouselImages = [
@@ -26,6 +26,7 @@ const quickLinks = [
   { href: '/awards', label: 'Awards', icon: Trophy, description: 'Celebrating excellence in theatre' },
   { href: '/bookfest', label: 'Book Festival', icon: BookOpen, description: 'Celebrating Malayalam literature' },
   { href: '/workshop', label: 'Workshop', icon: Mic2, description: "Children's theatre workshop" },
+  { href: '/brochure', label: 'Brochure', icon: FileText, description: 'Flip through the 2026 festival brochure' },
   { href: '/media', label: 'Media', icon: ImageIcon, description: 'Press coverage & media gallery' },
   { href: '/merchandise', label: 'Merchandise', icon: ShoppingBag, description: 'Exclusive festival collectibles' },
   { href: '/game', label: 'Spotlight Game', icon: Gamepad2, description: 'Play & win Gramakam prizes' },
@@ -95,7 +96,10 @@ export default function HomePage() {
               <Link href="/gallery" className="bg-maroon hover:bg-maroon-dark text-white px-8 py-3.5 rounded-full font-medium transition-all duration-300 flex items-center gap-2 shadow-lg shadow-maroon/30 hover:shadow-xl hover:shadow-maroon/40 hover:scale-105">
                 Explore Gallery <ArrowRight size={16} />
               </Link>
-              <Link href="/feed" className="border-2 border-white/30 text-white px-8 py-3.5 rounded-full font-medium hover:bg-white hover:text-charcoal transition-all duration-300 backdrop-blur-sm hover:scale-105">
+              <Link href="/brochure" className="border-2 border-white/30 text-white px-8 py-3.5 rounded-full font-medium hover:bg-white hover:text-charcoal transition-all duration-300 backdrop-blur-sm hover:scale-105 flex items-center gap-2">
+                <FileText size={16} /> View Brochure
+              </Link>
+              <Link href="/feed" className="border-2 border-white/20 text-white/80 px-8 py-3.5 rounded-full font-medium hover:bg-white/10 transition-all duration-300 backdrop-blur-sm hover:scale-105">
                 Latest Updates
               </Link>
             </div>

@@ -16,6 +16,7 @@ const navLinks = [
   { href: '/bookfest', label: 'Book Festival' },
   { href: '/media', label: 'Media & News' },
   { href: '/workshop', label: "Children's Workshop" },
+  { href: '/brochure', label: 'Brochure' },
   { href: '/profile-frame', label: 'Profile Picture' },
   { href: '/game', label: 'Game' },
   { href: '/contact', label: 'Contact' },
