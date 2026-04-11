@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
+  Download,
   Shield,
   RotateCcw,
   ZoomIn,
@@ -11,6 +12,7 @@ import {
   Move,
   Check,
   Sparkles,
+  Camera,
   Eye,
   ArrowLeft,
   ArrowRight,
@@ -198,10 +200,6 @@ export default function ProfileFrameGenerator() {
   const [step, setStep] = useState<'upload' | 'adjust' | 'preview'>('upload');
   
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const whatsappRef = useRef<HTMLCanvasElement>(null);
-  const instagramRef = useRef<HTMLCanvasElement>(null);
-  const facebookRef = useRef<HTMLCanvasElement>(null);
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const userImageRef = useRef<HTMLImageElement | null>(null);
   const logoRef = useRef<HTMLImageElement | null>(null);
@@ -261,20 +259,6 @@ export default function ProfileFrameGenerator() {
     drawFrame(ctx, size, logoRef.current);
     ctx.restore();
 
-    // 3. Update Social Previews
-    [whatsappRef, instagramRef, facebookRef].forEach(ref => {
-      const el = ref.current;
-      if (!el) return;
-      el.width = 100;
-      el.height = 100;
-      const c = el.getContext('2d');
-      if (!c) return;
-      c.clearRect(0, 0, 100, 100);
-      c.beginPath();
-      c.arc(50, 50, 50, 0, Math.PI * 2);
-      c.clip();
-      c.drawImage(mainCanvas, 0, 0, 100, 100);
-    });
   }, [zoom, offset]);
 
   useEffect(() => {
@@ -328,6 +312,32 @@ export default function ProfileFrameGenerator() {
   }, [isDragging, dragStart]);
 
   const handlePointerUp = useCallback(() => setIsDragging(false), []);
+
+  // Pinch-zoom support
+  const lastPinchDistRef = useRef<number | null>(null);
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastPinchDistRef.current = Math.hypot(dx, dy);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastPinchDistRef.current !== null) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const delta = dist / lastPinchDistRef.current;
+      setZoom(z => Math.min(3, Math.max(1, z * delta)));
+      lastPinchDistRef.current = dist;
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    lastPinchDistRef.current = null;
+  }, []);
 
   const nudge = (dir: string) => {
     setOffset(prev => ({
@@ -495,12 +505,15 @@ export default function ProfileFrameGenerator() {
                 <div className="pfg-preview-col">
                   <div className="pfg-canvas-container">
                     <div className="pfg-canvas-label"><Eye size={12} /> Live Preview</div>
-                    <div 
+                    <div
                       className="pfg-canvas-wrapper"
                       onPointerDown={handlePointerDown}
                       onPointerMove={handlePointerMove}
                       onPointerUp={handlePointerUp}
                       onPointerLeave={handlePointerUp}
+                      onTouchStart={handleTouchStart}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
                     >
                       <canvas 
                         ref={previewCanvasRef} 
@@ -514,19 +527,6 @@ export default function ProfileFrameGenerator() {
                       )}
                     </div>
 
-                    {/* Simple Social Icons */}
-                    <div className="pfg-social-previews">
-                      {[
-                        { name: 'WhatsApp', ref: whatsappRef },
-                        { name: 'Instagram', ref: instagramRef },
-                        { name: 'Facebook', ref: facebookRef }
-                      ].map(social => (
-                        <div key={social.name} className="pfg-social-item">
-                          <canvas ref={social.ref} className="pfg-mini-canvas" />
-                          <span>{social.name}</span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
 
@@ -603,27 +603,6 @@ export default function ProfileFrameGenerator() {
         </AnimatePresence>
       </main>
 
-      {/* ── Instructions / FAQ (Bottom) ───────────────────────── */}
-      <footer className="pfg-footer-info">
-        <h2 className="pfg-footer-title">Set as Profile Picture</h2>
-        <div className="pfg-tips-grid">
-          <div className="pfg-tip">
-            <div className="pfg-tip-icon">📱</div>
-            <h4>WhatsApp</h4>
-            <p>Settings → Profile → Tap camera icon → Select from Gallery</p>
-          </div>
-          <div className="pfg-tip">
-            <div className="pfg-tip-icon">📸</div>
-            <h4>Instagram</h4>
-            <p>Edit Profile → Change profile photo → Choose from Library</p>
-          </div>
-          <div className="pfg-tip">
-            <div className="pfg-tip-icon">👤</div>
-            <h4>Facebook</h4>
-            <p>Profile → Tap profile picture → Upload photo</p>
-          </div>
-        </div>
-      </footer>
 
       <AnimatePresence>
         {showSuccess && (
@@ -914,25 +893,6 @@ export default function ProfileFrameGenerator() {
           100% { opacity: 0.8; transform: translate(-50%, 0) scale(1); }
         }
 
-        .pfg-social-previews {
-          display: flex;
-          gap: 20px;
-          margin-top: 32px;
-        }
-        .pfg-social-item {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 6px;
-        }
-        .pfg-mini-canvas {
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          border: 1.5px solid #e7e5e4;
-        }
-        .pfg-social-item span { font-size: 10px; font-weight: 600; color: #78716c; }
-
         /* ── Controls Row ── */
         .pfg-controls-box {
           padding-top: 20px;
@@ -1075,37 +1035,6 @@ export default function ProfileFrameGenerator() {
           transition: 0.2s;
         }
         .pfg-btn-secondary:hover { border-color: #800020; color: #800020; }
-
-        /* ── Footer Info ── */
-        .pfg-footer-info {
-          margin-top: 80px;
-          width: 100%;
-          max-width: 800px;
-        }
-        .pfg-footer-title {
-          font-family: var(--font-heading);
-          font-size: 24px;
-          text-align: center;
-          margin-bottom: 32px;
-        }
-        .pfg-tips-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-        }
-        @media (max-width: 600px) {
-          .pfg-tips-grid { grid-template-columns: 1fr; }
-        }
-        .pfg-tip {
-          background: #fff;
-          padding: 24px;
-          border-radius: 20px;
-          border: 1px solid #e7e5e4;
-          text-align: center;
-        }
-        .pfg-tip-icon { font-size: 32px; margin-bottom: 12px; }
-        .pfg-tip h4 { margin-bottom: 8px; font-weight: 700; color: #1a1a1a; }
-        .pfg-tip p { font-size: 13px; color: #666; line-height: 1.5; }
 
         .hidden-input { display: none; }
         
