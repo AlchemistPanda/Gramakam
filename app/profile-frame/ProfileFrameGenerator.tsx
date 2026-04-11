@@ -36,12 +36,13 @@ function drawFrame(
   const cy = size / 2;
   const radius = size / 2;
 
-  // ── Elegant outer ring (Glass effect boundary) ─────────────
+  // ── White border ring ──────────────────────────────────────
+  const ringWidth = size * 0.018;
   ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, radius - size * 0.005, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(128, 0, 32, 0.15)';
-  ctx.lineWidth = size * 0.004;
+  ctx.arc(cx, cy, radius - ringWidth / 2, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.lineWidth = ringWidth;
   ctx.stroke();
   ctx.restore();
 
