@@ -19,9 +19,9 @@ export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Group images by year and shuffle within each year
+    // Group images by year
     const grouped: Record<number, GalleryImage[]> = {};
-    
+
     images.forEach((img) => {
       if (!grouped[img.year]) {
         grouped[img.year] = [];
@@ -29,22 +29,33 @@ export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
       grouped[img.year].push(img);
     });
 
-    // Shuffle images within each year
-    Object.keys(grouped).forEach((year) => {
-      grouped[Number(year)] = [...grouped[Number(year)]].sort(() => Math.random() - 0.5);
-    });
+    // Check if this is the first load (not cached)
+    const isFirstLoad = !localStorage.getItem('workshop-gallery-loaded');
 
+    // Only shuffle on subsequent visits (cached loads)
+    if (!isFirstLoad) {
+      Object.keys(grouped).forEach((year) => {
+        grouped[Number(year)] = [...grouped[Number(year)]].sort(() => Math.random() - 0.5);
+      });
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGroupedImages(grouped);
 
-    // Re-shuffle when user returns to tab
+    // Mark that gallery has been loaded
+    if (isFirstLoad) {
+      localStorage.setItem('workshop-gallery-loaded', 'true');
+    }
+
+    // Re-shuffle when user returns to tab (only if not first load)
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (!document.hidden && !isFirstLoad) {
         const newGrouped: Record<number, GalleryImage[]> = {};
-        
+
         Object.keys(grouped).forEach((year) => {
           newGrouped[Number(year)] = [...grouped[Number(year)]].sort(() => Math.random() - 0.5);
         });
-        
+
         setGroupedImages(newGrouped);
       }
     };
