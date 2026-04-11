@@ -249,6 +249,36 @@ class SoundManager {
       // Silent fail
     }
   }
+
+  // Page flip sound (for brochure interactions)
+  playPageFlip() {
+    if (this.muted) return;
+    try {
+      const ctx = this.getContext();
+      const now = ctx.currentTime;
+      const duration = 0.12;
+
+      // Create a rustling sound using two frequencies
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      // Frequency sweep from 200 to 150 Hz for a rustling effect
+      osc.frequency.setValueAtTime(200, now);
+      osc.frequency.exponentialRampToValueAtTime(150, now + duration);
+
+      // Envelope with quick attack and decay
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+      osc.start(now);
+      osc.stop(now + duration);
+    } catch (e) {
+      // Silent fail if Web Audio API not available
+    }
+  }
 }
 
 export const soundManager = new SoundManager();
