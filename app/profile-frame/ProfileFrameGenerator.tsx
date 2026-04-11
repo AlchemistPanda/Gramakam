@@ -47,9 +47,9 @@ function drawFrame(
 
   // ── Bottom arc band (The maroon frame) ─────────────────────
   // Canvas angles: 0 = 3 o'clock, PI/2 = 6 o'clock (bottom), PI = 9 o'clock
-  const bandThickness = size * 0.12;
+  const bandThickness = size * 0.14;
   const bandRadius = radius - bandThickness / 2 - size * 0.005;
-  const arcSpan = (140 * Math.PI) / 180; // 140 degrees
+  const arcSpan = (150 * Math.PI) / 180; // 150 degrees
   const bottomCenter = Math.PI / 2; // 6 o'clock = bottom
   const arcStart = bottomCenter - arcSpan / 2;
   const arcEnd = bottomCenter + arcSpan / 2;
@@ -82,7 +82,7 @@ function drawFrame(
   // ── "GRAMAKAM 2026" text along the arc ────────────────────
   ctx.save();
   const mainText = 'GRAMAKAM  2026';
-  const fontSize = size * 0.042;
+  const fontSize = size * 0.048;
   ctx.font = `bold ${fontSize}px 'Playfair Display', Georgia, serif`;
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
@@ -90,40 +90,42 @@ function drawFrame(
   ctx.shadowColor = 'rgba(0,0,0,0.3)';
   ctx.shadowBlur = size * 0.005;
 
-  // Measure total angular width for centering
-  const charSpacing = size * 0.005;
+  // Center alignment logic:
+  // Start on the left (PI + offset) and move towards the right (0 + offset)
+  // Left side has HIGHER angles in Canvas API (PI), right side has LOWER angles (0).
+  const charSpacing = size * 0.006;
   let totalWidth = 0;
   for (let i = 0; i < mainText.length; i++) {
     totalWidth += ctx.measureText(mainText[i]).width + charSpacing;
   }
   totalWidth -= charSpacing;
   const totalAngle = totalWidth / bandRadius;
-  let angle = bottomCenter - totalAngle / 2;
+  
+  // Starting calculation: Bottom Center (PI/2) + Half the span to start on the LEFT
+  let angle = bottomCenter + totalAngle / 2;
 
   for (let i = 0; i < mainText.length; i++) {
     const charW = ctx.measureText(mainText[i]).width;
     const halfCharAngle = (charW / 2) / bandRadius;
-    angle += halfCharAngle;
+    angle -= halfCharAngle; // Subtract because we move from LEFT (high angle) to RIGHT (low angle)
 
     ctx.save();
     ctx.translate(
       cx + bandRadius * Math.cos(angle),
       cy + bandRadius * Math.sin(angle)
     );
-    // Rotating it so it follows the curve but stays "upright" (heads toward center)
-    // angle - Math.PI / 2 makes it vertical at the bottom (0 rotation)
     ctx.rotate(angle - Math.PI / 2);
     ctx.fillText(mainText[i], 0, 0);
     ctx.restore();
 
-    angle += halfCharAngle + charSpacing / bandRadius;
+    angle -= (halfCharAngle + charSpacing / bandRadius);
   }
   ctx.restore();
 
   // ── Dates text below "GRAMAKAM" ────────────────────────────
   ctx.save();
   const dateText = 'APRIL 18 - 22, 2026';
-  const dateFontSize = size * 0.018;
+  const dateFontSize = size * 0.022;
   ctx.font = `600 ${dateFontSize}px 'Inter', system-ui, sans-serif`;
   ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
   ctx.textAlign = 'center';
@@ -132,57 +134,48 @@ function drawFrame(
 
   const dateRadius = bandRadius + bandThickness * 0.32;
   let dateTotalWidth = 0;
+  const dateCharSpacing = size * 0.002;
   for (let i = 0; i < dateText.length; i++) {
-    dateTotalWidth += ctx.measureText(dateText[i]).width + size * 0.001;
+    dateTotalWidth += ctx.measureText(dateText[i]).width + dateCharSpacing;
   }
   const dateTotalAngle = dateTotalWidth / dateRadius;
-  let dateAngle = bottomCenter - dateTotalAngle / 2;
+  let dAngle = bottomCenter + dateTotalAngle / 2;
 
   for (let i = 0; i < dateText.length; i++) {
     const charW = ctx.measureText(dateText[i]).width;
     const halfCharAngle = (charW / 2) / dateRadius;
-    dateAngle += halfCharAngle;
+    dAngle -= halfCharAngle;
 
     ctx.save();
     ctx.translate(
-      cx + dateRadius * Math.cos(dateAngle),
-      cy + dateRadius * Math.sin(dateAngle)
+      cx + dateRadius * Math.cos(dAngle),
+      cy + dateRadius * Math.sin(dAngle)
     );
-    ctx.rotate(dateAngle - Math.PI / 2);
+    ctx.rotate(dAngle - Math.PI / 2);
     ctx.fillText(dateText[i], 0, 0);
     ctx.restore();
 
-    dateAngle += halfCharAngle + (size * 0.001) / dateRadius;
+    dAngle -= (halfCharAngle + dateCharSpacing / dateRadius);
   }
   ctx.restore();
 
-  // ── Logo at the top ────────────────────────────────────────
+  // ── Logo at the top (Larger and Transparent) ──────────────
   if (logoImg) {
-    const badgeRadius = size * 0.06;
-    const badgeY = size * 0.02 + badgeRadius;
+    const logoSize = size * 0.16;
+    const logoY = size * 0.05 + logoSize / 2;
 
     ctx.save();
-    // Badge background with glow
-    ctx.shadowColor = 'rgba(128, 0, 32, 0.4)';
-    ctx.shadowBlur = size * 0.02;
-    ctx.beginPath();
-    ctx.arc(cx, badgeY, badgeRadius, 0, Math.PI * 2);
-    const badgeGrad = ctx.createRadialGradient(cx, badgeY, 0, cx, badgeY, badgeRadius);
-    badgeGrad.addColorStop(0, '#a3324d');
-    badgeGrad.addColorStop(1, '#800020');
-    ctx.fillStyle = badgeGrad;
-    ctx.fill();
-    // Border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = size * 0.003;
-    ctx.stroke();
+    // Professional drop shadow to ensure visibility on all photos
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    ctx.shadowBlur = size * 0.015;
+    ctx.shadowOffsetX = size * 0.002;
+    ctx.shadowOffsetY = size * 0.002;
 
-    // Logo image
-    const logoSize = badgeRadius * 1.4;
+    // Draw logo directly
     ctx.drawImage(
       logoImg,
       cx - logoSize / 2,
-      badgeY - logoSize / 2,
+      logoY - logoSize / 2,
       logoSize,
       logoSize
     );
@@ -408,13 +401,16 @@ export default function ProfileFrameGenerator() {
           animate={{ opacity: 1, y: 0 }}
         >
           <div className="pfg-privacy-icons">
-            <Lock size={14} className="icon-lock" />
-            <Shield size={14} className="icon-shield" />
+            <Lock size={18} />
           </div>
-          <div className="pfg-privacy-text">
-            <strong>Your image is safe.</strong> Everything runs 100% in your browser. 
-            <span className="pfg-tag">No Server Uploads</span>
-            <span className="pfg-tag">No AI Used</span>
+          <div className="pfg-privacy-content">
+            <div className="pfg-privacy-main">
+              <strong>Your image is safe.</strong> Everything runs 100% in your browser.
+            </div>
+            <div className="pfg-privacy-tags">
+              <span className="pfg-tag"><Shield size={10} /> No Server Uploads</span>
+              <span className="pfg-tag"><Check size={10} /> No AI Used</span>
+            </div>
           </div>
         </motion.div>
       </div>
@@ -429,12 +425,12 @@ export default function ProfileFrameGenerator() {
           <Sparkles size={14} /> 9th Edition
         </motion.div>
         <h1 className="pfg-title">Gramakam 2026</h1>
-        <p className="pfg-subtitle">Create your professional festival profile picture frame</p>
+        <p className="pfg-subtitle">Create your professional Gramakam 2026 profile picture</p>
       </header>
 
       {/* ── Steps indicator ──────────────────────────────────── */}
       <div className="pfg-steps">
-        {['Upload Image', 'Adjust Frame', 'Download Result'].map((label, i) => {
+        {['Upload Image', 'Adjust Position', 'Download Result'].map((label, i) => {
           const keys = ['upload', 'adjust', 'preview'] as const;
           const active = keys.indexOf(step) >= i;
           return (
@@ -586,7 +582,7 @@ export default function ProfileFrameGenerator() {
                             className="pfg-btn-download"
                             disabled={isDownloading}
                           >
-                            {isDownloading ? 'Processing...' : 'Download Frame'}
+                            {isDownloading ? 'Processing...' : 'Download Picture'}
                             <Download size={18} />
                           </button>
                           <button onClick={() => setStep('adjust')} className="pfg-btn-secondary">Readjust Photo</button>
@@ -632,7 +628,7 @@ export default function ProfileFrameGenerator() {
             exit={{ opacity: 0, y: 50 }}
             className="pfg-success-toast"
           >
-            <Sparkles size={16} className="text-yellow-400" /> Frame downloaded successfully!
+            <Sparkles size={16} className="text-yellow-400" /> Profile Picture downloaded successfully!
           </motion.div>
         )}
       </AnimatePresence>
@@ -657,33 +653,52 @@ export default function ProfileFrameGenerator() {
         .pfg-privacy-card {
           background: #fff;
           border: 1px solid #e7e5e4;
-          border-radius: 16px;
-          padding: 12px 16px;
+          border-radius: 20px;
+          padding: 16px 20px;
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 16px;
           box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+          border-left: 4px solid #166534;
         }
         .pfg-privacy-icons {
+          background: #f0fdf4;
+          color: #166534;
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .pfg-privacy-content {
           display: flex;
           flex-direction: column;
-          gap: 4px;
-          color: #166534;
+          gap: 6px;
         }
-        .pfg-privacy-text {
-          font-size: 13px;
-          color: #444;
+        .pfg-privacy-main {
+          font-size: 13.5px;
+          color: #262626;
           line-height: 1.4;
+        }
+        .pfg-privacy-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
         }
         .pfg-tag {
           font-size: 10px;
-          background: #dcfce7;
-          color: #166534;
-          padding: 2px 6px;
+          background: #f1f5f9;
+          color: #475569;
+          padding: 3px 8px;
           border-radius: 6px;
-          font-weight: 600;
-          margin-left: 6px;
+          font-weight: 700;
           text-transform: uppercase;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          border: 1px solid #e2e8f0;
         }
 
         .pfg-header {
