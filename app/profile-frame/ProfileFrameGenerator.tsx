@@ -332,6 +332,8 @@ export default function ProfileFrameGenerator() {
     });
   }, [isDragging, dragStart]);
 
+  const handlePointerUp = useCallback(() => setIsDragging(false), []);
+
   const nudge = (dir: string) => {
     setOffset(prev => ({
       x: prev.x + (dir === 'left' ? -15 : dir === 'right' ? 15 : 0),
