@@ -250,91 +250,17 @@ class SoundManager {
     }
   }
 
-  // Page flip sound (for brochure interactions) — realistic paper rustle
+  // Page flip sound (for brochure interactions) — play MP3 audio file
   playPageFlip() {
     if (this.muted) return;
     try {
-      const ctx = this.getContext();
-      const now = ctx.currentTime;
-      const duration = 0.35;
-
-      // ── Layer 1: Filtered white noise (body of the rustle) ──
-      const noiseLen = Math.floor(ctx.sampleRate * duration);
-      const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
-      const noiseData = noiseBuf.getChannelData(0);
-      for (let i = 0; i < noiseLen; i++) {
-        noiseData[i] = (Math.random() * 2 - 1);
-      }
-
-      const noise = ctx.createBufferSource();
-      noise.buffer = noiseBuf;
-
-      const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.setValueAtTime(4500, now);
-      bp.frequency.exponentialRampToValueAtTime(1500, now + duration);
-      bp.Q.setValueAtTime(0.6, now);
-
-      const hp = ctx.createBiquadFilter();
-      hp.type = 'highpass';
-      hp.frequency.setValueAtTime(600, now);
-
-      const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0, now);
-      noiseGain.gain.linearRampToValueAtTime(0.12, now + 0.01);
-      noiseGain.gain.setValueAtTime(0.12, now + 0.06);
-      noiseGain.gain.exponentialRampToValueAtTime(0.005, now + duration);
-
-      noise.connect(bp);
-      bp.connect(hp);
-      hp.connect(noiseGain);
-      noiseGain.connect(ctx.destination);
-
-      // ── Layer 2: Short crisp "snap" at the start (paper edge catch) ──
-      const snapLen = Math.floor(ctx.sampleRate * 0.04);
-      const snapBuf = ctx.createBuffer(1, snapLen, ctx.sampleRate);
-      const snapData = snapBuf.getChannelData(0);
-      for (let i = 0; i < snapLen; i++) {
-        snapData[i] = (Math.random() * 2 - 1);
-      }
-
-      const snap = ctx.createBufferSource();
-      snap.buffer = snapBuf;
-
-      const snapHp = ctx.createBiquadFilter();
-      snapHp.type = 'highpass';
-      snapHp.frequency.setValueAtTime(2000, now);
-
-      const snapGain = ctx.createGain();
-      snapGain.gain.setValueAtTime(0.2, now);
-      snapGain.gain.exponentialRampToValueAtTime(0.005, now + 0.04);
-
-      snap.connect(snapHp);
-      snapHp.connect(snapGain);
-      snapGain.connect(ctx.destination);
-
-      // ── Layer 3: Subtle low "whoosh" (air movement) ──
-      const whoosh = ctx.createOscillator();
-      whoosh.type = 'sine';
-      whoosh.frequency.setValueAtTime(120, now);
-      whoosh.frequency.exponentialRampToValueAtTime(80, now + 0.2);
-
-      const whooshGain = ctx.createGain();
-      whooshGain.gain.setValueAtTime(0, now);
-      whooshGain.gain.linearRampToValueAtTime(0.04, now + 0.03);
-      whooshGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
-      whoosh.connect(whooshGain);
-      whooshGain.connect(ctx.destination);
-
-      noise.start(now);
-      noise.stop(now + duration);
-      snap.start(now);
-      snap.stop(now + 0.04);
-      whoosh.start(now);
-      whoosh.stop(now + 0.2);
+      const audio = new Audio('/freesound_community-page-flip-47177.mp3');
+      audio.volume = 0.6;
+      audio.play().catch(() => {
+        // Silent fail if audio can't play
+      });
     } catch (e) {
-      // Silent fail if Web Audio API not available
+      // Silent fail if Audio API not available
     }
   }
 }
