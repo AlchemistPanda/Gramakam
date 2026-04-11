@@ -527,6 +527,20 @@ export default function ProfileFrameGenerator() {
                       )}
                     </div>
 
+                    {/* Simple Social Icons */}
+                    <div className="pfg-social-previews">
+                      {[
+                        { name: 'WhatsApp', ref: whatsappRef },
+                        { name: 'Instagram', ref: instagramRef },
+                        { name: 'Facebook', ref: facebookRef }
+                      ].map(social => (
+                        <div key={social.name} className="pfg-social-item">
+                          <canvas ref={social.ref} className="pfg-mini-canvas" />
+                          <span>{social.name}</span>
+                        </div>
+                      ))}
+                    </div>
+
                   </div>
                 </div>
 
@@ -589,6 +603,7 @@ export default function ProfileFrameGenerator() {
                             disabled={isDownloading}
                           >
                             {isDownloading ? 'Processing...' : 'Download Picture'}
+                            <Download size={18} />
                           </button>
                           <button onClick={() => setStep('adjust')} className="pfg-btn-secondary">Readjust Photo</button>
                           <button onClick={reset} className="pfg-btn-text">Start Over</button>
@@ -602,6 +617,28 @@ export default function ProfileFrameGenerator() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* ── Instructions / FAQ (Bottom) ───────────────────────── */}
+      <footer className="pfg-footer-info">
+        <h2 className="pfg-footer-title">Set as Profile Picture</h2>
+        <div className="pfg-tips-grid">
+          <div className="pfg-tip">
+            <div className="pfg-tip-icon">📱</div>
+            <h4>WhatsApp</h4>
+            <p>Settings → Profile → Tap camera icon → Select from Gallery</p>
+          </div>
+          <div className="pfg-tip">
+            <div className="pfg-tip-icon">📸</div>
+            <h4>Instagram</h4>
+            <p>Edit Profile → Change profile photo → Choose from Library</p>
+          </div>
+          <div className="pfg-tip">
+            <div className="pfg-tip-icon">👤</div>
+            <h4>Facebook</h4>
+            <p>Profile → Tap profile picture → Upload photo</p>
+          </div>
+        </div>
+      </footer>
 
 
       <AnimatePresence>
@@ -893,6 +930,35 @@ export default function ProfileFrameGenerator() {
           100% { opacity: 0.8; transform: translate(-50%, 0) scale(1); }
         }
 
+        .pfg-social-previews {
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          margin-top: 32px;
+          width: 100%;
+        }
+        .pfg-social-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+        .pfg-social-item span {
+          font-size: 10px;
+          font-weight: 700;
+          color: #a8a29e;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .pfg-mini-canvas {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          border: 1.5px solid #fff;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+          background: #f5f2ed;
+        }
+
         /* ── Controls Row ── */
         .pfg-controls-box {
           padding-top: 20px;
@@ -1053,6 +1119,37 @@ export default function ProfileFrameGenerator() {
           box-shadow: 0 20px 40px rgba(0,0,0,0.2);
           z-index: 100;
         }
+
+        /* ── Footer ── */
+        .pfg-footer-info {
+          margin-top: 80px;
+          width: 100%;
+          max-width: 900px;
+          text-align: center;
+        }
+        .pfg-footer-title {
+          font-family: var(--font-heading);
+          font-size: 24px;
+          color: #1a1a1a;
+          margin-bottom: 32px;
+        }
+        .pfg-tips-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 20px;
+        }
+        .pfg-tip {
+          background: #fff;
+          padding: 24px;
+          border-radius: 20px;
+          border: 1px solid #e7e5e4;
+          text-align: left;
+          transition: 0.3s;
+        }
+        .pfg-tip:hover { border-color: #800020; transform: translateY(-4px); }
+        .pfg-tip-icon { font-size: 24px; margin-bottom: 12px; }
+        .pfg-tip h4 { font-weight: 700; margin-bottom: 8px; color: #1a1a1a; }
+        .pfg-tip p { font-size: 13px; color: #666; line-height: 1.5; }
       `}</style>
     </div>
   );
