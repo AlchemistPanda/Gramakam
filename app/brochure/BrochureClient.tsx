@@ -73,9 +73,11 @@ export default function BrochureClient() {
   // Zoom / Pan Handlers
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.5, 4));
   const handleZoomOut = () => {
-    const newZoom = Math.max(prev => prev - 0.5, 1);
-    setZoom(newZoom);
-    if (newZoom === 1) setPan({ x: 0, y: 0 });
+    setZoom(prev => {
+      const nextZoom = Math.max(prev - 0.5, 1);
+      if (nextZoom === 1) setPan({ x: 0, y: 0 });
+      return nextZoom;
+    });
   };
   const resetZoom = () => {
     setZoom(1);
