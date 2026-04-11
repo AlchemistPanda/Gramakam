@@ -2,18 +2,18 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Volume2, 
-  VolumeX, 
-  Maximize2, 
-  Minimize2,
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Volume2,
+  VolumeX,
+  Maximize2,
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  BookOpen
+  BookOpen,
+  Move
 } from 'lucide-react';
 import AnimatedSection from '@/components/AnimatedSection';
 import { soundManager } from '@/lib/sounds';
