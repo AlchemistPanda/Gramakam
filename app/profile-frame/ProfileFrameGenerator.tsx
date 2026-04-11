@@ -476,24 +476,15 @@ export default function ProfileFrameGenerator() {
               />
               <label htmlFor="main-upload" className="pfg-dropzone">
                 <div className="pfg-dropzone-inner">
-                  <motion.div 
-                    className="pfg-upload-icon-box"
-                    animate={{ 
-                      y: [0, -12, 0],
-                      boxShadow: [
-                        "0 10px 30px rgba(128,0,32,0.1)",
-                        "0 20px 40px rgba(128,0,32,0.2)",
-                        "0 10px 30px rgba(128,0,32,0.1)"
-                      ]
-                    }}
-                    transition={{ 
-                      repeat: Infinity, 
-                      duration: 3, 
-                      ease: "easeInOut" 
-                    }}
-                  >
-                    <Camera size={44} strokeWidth={1.2} />
-                  </motion.div>
+                  <div className="pfg-upload-icon-wrapper">
+                    <motion.div
+                      className="pfg-upload-icon-box"
+                      animate={{ y: [0, -8, 0] }}
+                      transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                    >
+                      <Camera size={40} strokeWidth={1.4} />
+                    </motion.div>
+                  </div>
                   <h3>Upload Your Photo</h3>
                   <p>Select a clear photo where your face is visible</p>
                   <div className="pfg-format-pills">
@@ -809,6 +800,13 @@ export default function ProfileFrameGenerator() {
           padding: 50px 20px;
           text-align: center;
         }
+        .pfg-upload-icon-wrapper {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 24px;
+          height: 96px;
+          align-items: center;
+        }
         .pfg-upload-icon-box {
           width: 80px;
           height: 80px;
@@ -817,8 +815,8 @@ export default function ProfileFrameGenerator() {
           display: flex;
           align-items: center;
           justify-content: center;
-          margin: 0 auto 24px;
           color: #800020;
+          flex-shrink: 0;
         }
         .pfg-dropzone h3 {
           font-family: var(--font-heading);
