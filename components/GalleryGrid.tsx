@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Play } from 'lucide-react';
+import { X, Play, Images } from 'lucide-react';
 import { GalleryItem } from '@/types';
 
 interface GalleryGridProps {
@@ -11,21 +11,85 @@ interface GalleryGridProps {
   years: number[];
 }
 
+const PAGE_SIZE = 24;
+
+function SkeletonCard() {
+  return (
+    <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+    </div>
+  );
+}
+
+function GalleryCard({ item, onClick }: { item: GalleryItem; onClick: () => void }) {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <div
+      className="relative aspect-square rounded-lg overflow-hidden cursor-pointer group bg-gray-100"
+      onClick={onClick}
+    >
+      {/* Skeleton shimmer while loading */}
+      {!loaded && (
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+        </div>
+      )}
+      <Image
+        src={item.imageUrl}
+        alt={item.title}
+        fill
+        className={`object-cover group-hover:scale-110 transition-all duration-500 ${
+          loaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+      />
+      {loaded && (
+        <>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <div className="absolute bottom-0 left-0 right-0 p-3 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+            <p className="text-sm font-medium truncate">{item.title}</p>
+            <p className="text-xs text-white/70">{item.year}</p>
+          </div>
+          {item.type === 'video' && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center">
+                <Play size={20} className="text-maroon ml-1" />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function GalleryGrid({ items, years }: GalleryGridProps) {
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
   const [lightboxItem, setLightboxItem] = useState<GalleryItem | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const filteredItems =
     selectedYear === 'all'
       ? items
       : items.filter((item) => item.year === selectedYear);
 
+  const visibleItems = filteredItems.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredItems.length;
+
+  const handleYearChange = useCallback((year: number | 'all') => {
+    setSelectedYear(year);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
   return (
     <>
       {/* Year Filter */}
       <div className="flex flex-wrap justify-center gap-3 mb-8">
         <button
-          onClick={() => setSelectedYear('all')}
+          onClick={() => handleYearChange('all')}
           className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
             selectedYear === 'all'
               ? 'bg-maroon text-white'
@@ -37,7 +101,7 @@ export default function GalleryGrid({ items, years }: GalleryGridProps) {
         {years.map((year) => (
           <button
             key={year}
-            onClick={() => setSelectedYear(year)}
+            onClick={() => handleYearChange(year)}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
               selectedYear === year
                 ? 'bg-maroon text-white'
@@ -49,51 +113,57 @@ export default function GalleryGrid({ items, years }: GalleryGridProps) {
         ))}
       </div>
 
+      {/* Count badge */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <Images size={14} />
+          <span>
+            Showing <span className="font-semibold text-charcoal">{visibleItems.length}</span> of{' '}
+            <span className="font-semibold text-charcoal">{filteredItems.length}</span> photos
+          </span>
+        </div>
+      </div>
+
       {/* Grid */}
-      <motion.div
-        layout
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4"
-      >
-        <AnimatePresence>
-          {filteredItems.map((item, index) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+        <AnimatePresence mode="popLayout">
+          {visibleItems.map((item, index) => (
             <motion.div
               key={item.id}
-              layout
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.3, delay: index * 0.05 }}
-              className="relative aspect-square rounded-lg overflow-hidden cursor-pointer group"
-              onClick={() => setLightboxItem(item)}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.25, delay: Math.min(index, 11) * 0.04 }}
             >
-              <Image
-                src={item.imageUrl}
-                alt={item.title}
-                fill
-                className="object-cover group-hover:scale-110 transition-transform duration-500"
-                sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="absolute bottom-0 left-0 right-0 p-3 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                <p className="text-sm font-medium truncate">{item.title}</p>
-                <p className="text-xs text-white/70">{item.year}</p>
-              </div>
-              {item.type === 'video' && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center">
-                    <Play size={20} className="text-maroon ml-1" />
-                  </div>
-                </div>
-              )}
+              <GalleryCard item={item} onClick={() => setLightboxItem(item)} />
             </motion.div>
           ))}
         </AnimatePresence>
-      </motion.div>
+
+        {/* Skeleton placeholders while more are available */}
+        {hasMore &&
+          Array.from({ length: Math.min(4, filteredItems.length - visibleCount) }).map((_, i) => (
+            <SkeletonCard key={`skeleton-${i}`} />
+          ))}
+      </div>
 
       {filteredItems.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           <p>No gallery items found for this filter.</p>
+        </div>
+      )}
+
+      {/* Load more button */}
+      {hasMore && (
+        <div className="flex justify-center mt-10">
+          <motion.button
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            className="px-8 py-3 rounded-full bg-maroon text-white text-sm font-semibold shadow hover:bg-maroon/90 transition-colors"
+          >
+            Load more &mdash; {filteredItems.length - visibleCount} remaining
+          </motion.button>
         </div>
       )}
 
