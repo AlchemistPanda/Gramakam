@@ -478,10 +478,21 @@ export default function ProfileFrameGenerator() {
                 <div className="pfg-dropzone-inner">
                   <motion.div 
                     className="pfg-upload-icon-box"
-                    animate={{ y: [0, -8, 0], scale: [1, 1.05, 1] }}
-                    transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                    animate={{ 
+                      y: [0, -12, 0],
+                      boxShadow: [
+                        "0 10px 30px rgba(128,0,32,0.1)",
+                        "0 20px 40px rgba(128,0,32,0.2)",
+                        "0 10px 30px rgba(128,0,32,0.1)"
+                      ]
+                    }}
+                    transition={{ 
+                      repeat: Infinity, 
+                      duration: 3, 
+                      ease: "easeInOut" 
+                    }}
                   >
-                    <Camera size={40} strokeWidth={1.5} />
+                    <Camera size={44} strokeWidth={1.2} />
                   </motion.div>
                   <h3>Upload Your Photo</h3>
                   <p>Select a clear photo where your face is visible</p>
