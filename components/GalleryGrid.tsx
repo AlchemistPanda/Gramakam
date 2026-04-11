@@ -13,14 +13,6 @@ interface GalleryGridProps {
 
 const PAGE_SIZE = 24;
 
-function SkeletonCard() {
-  return (
-    <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/60 to-transparent" />
-    </div>
-  );
-}
-
 function GalleryCard({ item, onClick }: { item: GalleryItem; onClick: () => void }) {
   const [loaded, setLoaded] = useState(false);
 
@@ -139,12 +131,6 @@ export default function GalleryGrid({ items, years }: GalleryGridProps) {
             </motion.div>
           ))}
         </AnimatePresence>
-
-        {/* Skeleton placeholders while more are available */}
-        {hasMore &&
-          Array.from({ length: Math.min(4, filteredItems.length - visibleCount) }).map((_, i) => (
-            <SkeletonCard key={`skeleton-${i}`} />
-          ))}
       </div>
 
       {filteredItems.length === 0 && (
