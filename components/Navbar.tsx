@@ -17,8 +17,8 @@ const navLinks = [
   { href: '/media', label: 'Media & News' },
   { href: '/workshop', label: "Children's Workshop" },
   { href: '/brochure', label: 'Brochure' },
-  { href: '/profile-frame', label: '🤳 Profile Picture' },
-  { href: '/game', label: '🎭 Game' },
+  { href: '/profile-frame', label: 'Profile Picture' },
+  { href: '/game', label: 'Game' },
   { href: '/contact', label: 'Contact' },
 ];
 
