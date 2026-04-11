@@ -758,7 +758,7 @@ function FeedPanel() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <h2 className="heading-lg text-charcoal">Feed Posts</h2>
         <button onClick={() => { resetForm(); setShowForm(!showForm); }} className="btn-primary text-sm flex items-center gap-2">
@@ -767,7 +767,7 @@ function FeedPanel() {
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 w-full">
           <h3 className="font-semibold text-charcoal mb-4">{editingId ? 'Edit Post' : 'Create Post'}</h3>
           <form onSubmit={handleSave} className="space-y-4">
             <input type="text" placeholder="Post Title" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" required />
@@ -791,17 +791,17 @@ function FeedPanel() {
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3 w-full">
         {loading ? (
-          <div className="bg-white rounded-xl p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
+          <div className="bg-white rounded-xl p-8 text-center w-full"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
         ) : posts.length === 0 ? (
-          <div className="bg-white rounded-xl p-6 text-center text-gray-500">
+          <div className="bg-white rounded-xl p-6 text-center text-gray-500 w-full">
             <Newspaper size={48} className="mx-auto mb-3 text-gray-300" />
             <p className="font-medium">No feed posts yet</p>
           </div>
         ) : (
           posts.map((post) => (
-            <div key={post.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-start gap-4">
+            <div key={post.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-start gap-4 w-full">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {post.imageUrl && <img src={post.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />}
               <div className="flex-1 min-w-0">
