@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { X, Calendar } from 'lucide-react';
+import { X, Calendar, Share2 } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import AnimatedSection from '@/components/AnimatedSection';
 import { FeedPost } from '@/types';
@@ -21,6 +21,27 @@ export default function FeedClient() {
   const [posts, setPosts] = useState<FeedPost[]>(fallbackPosts);
   const [loading, setLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
+
+  const handleSharePost = async (post: FeedPost) => {
+    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/feed`;
+    const shareText = `Check out this update from Gramakam 2026: "${post.title}" - ${post.description.substring(0, 100)}...`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Gramakam 2026',
+          text: shareText,
+          url: url,
+        });
+      } catch (err) {
+        // User cancelled share
+      }
+    } else {
+      // Fallback: open WhatsApp with text
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText + ' ' + url)}`;
+      window.open(whatsappUrl, '_blank');
+    }
+  };
 
   useEffect(() => {
     async function loadPosts() {
@@ -126,12 +147,22 @@ export default function FeedClient() {
                     <Calendar size={14} />
                     <time>{formatDate(selectedPost.date)}</time>
                   </div>
-                  <button
-                    onClick={() => setSelectedPost(null)}
-                    className="p-2 text-gray-400 hover:text-charcoal transition-colors rounded-full hover:bg-gray-100"
-                  >
-                    <X size={20} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSharePost(selectedPost)}
+                      className="p-2 text-gray-400 hover:text-maroon transition-colors rounded-full hover:bg-gray-100"
+                      title="Share this post"
+                      aria-label="Share post"
+                    >
+                      <Share2 size={20} />
+                    </button>
+                    <button
+                      onClick={() => setSelectedPost(null)}
+                      className="p-2 text-gray-400 hover:text-charcoal transition-colors rounded-full hover:bg-gray-100"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
                 </div>
                 <h2
                   className="text-2xl font-bold text-charcoal mb-4"
