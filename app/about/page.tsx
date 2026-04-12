@@ -1,12 +1,14 @@
-import type { Metadata } from 'next';
 import Image from 'next/image';
+import { generateOGMetadata } from '@/lib/metadata';
 import AnimatedSection from '@/components/AnimatedSection';
 import { Theater, Users, Award, BookOpen, Music, Palette } from 'lucide-react';
 
-export const metadata: Metadata = {
-  title: 'About — Gramakam',
+export const metadata = generateOGMetadata({
+  title: 'About Gramakam | Theatre Festival in Kerala',
   description: 'Learn about IF Creations and the Gramakam National Theatre Festival, a celebration of theatre and culture since 2016 in Velur, Thrissur, Kerala.',
-};
+  image: '/images/festival/gramakam-07.jpg',
+  url: '/about',
+});
 
 const festivalYears = [
   {

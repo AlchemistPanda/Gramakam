@@ -1,24 +1,16 @@
-import type { Metadata } from 'next';
+import { generateOGMetadata } from '@/lib/metadata';
 import BrochureClient from './BrochureClient';
 
-export const metadata: Metadata = {
+export const metadata = generateOGMetadata({
   title: 'Digital Brochure | Gramakam 2026',
   description:
     'Explore the Gramakam 2026 interactive brochure. Flip through pages to discover the complete festival details, lineup, performance schedule, and everything you need to know about the biggest theatre festival in Kerala.',
-  openGraph: {
-    title: 'Gramakam 2026 Digital Brochure',
-    description: 'Flip through the official Gramakam 2026 brochure with an interactive book experience.',
-    type: 'website',
-    images: [
-      {
-        url: '/images/brochure/page-001.png',
-        width: 1240,
-        height: 1554,
-        alt: 'Gramakam 2026 Brochure Cover',
-      },
-    ],
-  },
-};
+  image: '/images/brochure/page-001.png',
+  imageWidth: 1240,
+  imageHeight: 1554,
+  imageAlt: 'Gramakam 2026 Brochure Cover',
+  url: '/brochure',
+});
 
 export default function BrochurePage() {
   return <BrochureClient />;

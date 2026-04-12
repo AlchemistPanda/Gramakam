@@ -1,13 +1,15 @@
-import type { Metadata } from 'next';
+import { generateOGMetadata } from '@/lib/metadata';
 import Image from 'next/image';
 import AnimatedSection from '@/components/AnimatedSection';
 import { BookOpen, Globe, MapPin, Users, Feather } from 'lucide-react';
 
-export const metadata: Metadata = {
+export const metadata = generateOGMetadata({
   title: 'Book Festival — Gramakam',
   description:
     'Gramakam Book Festival — an annual celebration of literature featuring Malayalam and international books, publishers from around the world, and a special spotlight on local native writers.',
-};
+  image: '/images/festival/gramakam-13.jpg',
+  url: '/bookfest',
+});
 
 const galleryImages = [
   { src: '/images/bookfest/014A2144.jpg', alt: 'Book festival stalls' },

@@ -1,10 +1,12 @@
-import type { Metadata } from 'next';
+import { generateOGMetadata } from '@/lib/metadata';
 import MediaClient from './MediaClient';
 
-export const metadata: Metadata = {
+export const metadata = generateOGMetadata({
   title: 'Media & News — Gramakam',
   description: 'Press coverage, newspaper cuttings, and news links about the Gramakam National Theatre Festival.',
-};
+  image: '/images/festival/gramakam-05.jpg',
+  url: '/media',
+});
 
 export default function MediaPage() {
   return <MediaClient />;

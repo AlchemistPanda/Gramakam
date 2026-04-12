@@ -1,11 +1,12 @@
 import { Metadata } from 'next';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Share2, Calendar } from 'lucide-react';
+import { ArrowLeft, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { FeedPost } from '@/types';
 import { getFeedPosts } from '@/lib/services';
 import { formatDate } from '@/lib/utils';
+import { generateOGMetadata } from '@/lib/metadata';
 import FeedPostClient from './FeedPostClient';
 
 interface Props {
@@ -21,49 +22,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const post = posts.find((p) => p.id === params.postId);
 
     if (!post) {
-      return {
-        title: 'Post Not Found',
+      return generateOGMetadata({
+        title: 'Post Not Found | Gramakam',
         description: 'This feed post could not be found.',
-      };
+        url: `/feed/${params.postId}`,
+      });
     }
 
-    const imageUrl = post.imageUrl
-      ? `${process.env.NEXT_PUBLIC_BASE_URL || 'https://gramakam.com'}${post.imageUrl}`
-      : `${process.env.NEXT_PUBLIC_BASE_URL || 'https://gramakam.com'}/images/gramakam-og.png`;
-
     const description = post.description.substring(0, 160);
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://gramakam.org';
 
-    return {
-      title: post.title,
+    return generateOGMetadata({
+      title: `${post.title} | Gramakam`,
       description,
-      openGraph: {
-        title: post.title,
-        description,
-        images: [
-          {
-            url: imageUrl,
-            width: 1200,
-            height: 630,
-            alt: post.title,
-            type: 'image/png',
-          },
-        ],
-        type: 'article',
-        locale: 'en_IN',
-        url: `/feed/${post.id}`,
-      },
-      twitter: {
-        card: 'summary_large_image',
-        title: post.title,
-        description,
-        images: [imageUrl],
-      },
-    };
+      image: post.imageUrl || '/images/gramakam-logo.png',
+      url: `/feed/${post.id}`,
+      type: 'article',
+    });
   } catch (error) {
-    return {
-      title: 'Gramakam 2026 Feed',
-      description: 'Latest news and updates from Gramakam theatre festival.',
-    };
+    return generateOGMetadata({
+      title: 'Feed Post | Gramakam',
+      description: 'Read this update from Gramakam theatre festival.',
+      url: `/feed/${params.postId}`,
+    });
   }
 }
 

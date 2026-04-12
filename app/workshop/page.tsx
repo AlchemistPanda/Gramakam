@@ -1,15 +1,17 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import type { Metadata } from 'next';
+import { generateOGMetadata } from '@/lib/metadata';
 import AnimatedSection from '@/components/AnimatedSection';
 import WorkshopGallery from './WorkshopGallery';
 import { Users, Star, ArrowRight, Sparkles, Calendar, MapPin } from 'lucide-react';
 
-export const metadata: Metadata = {
+export const metadata = generateOGMetadata({
   title: "Children's Acting Workshop | Gramakam 2026",
   description:
     "Join the Gramakam Children's Acting Workshop — a fun, immersive theatre experience for young performers. Register now for the 2026 edition.",
-};
+  image: '/images/child/CHILDRENS WORKSHOP (1).JPG',
+  url: '/workshop',
+});
 
 const galleryImages = [
   { src: '/images/child/CHILDRENS WORKSHOP (1).JPG', alt: 'Children at workshop', year: 2016 },
