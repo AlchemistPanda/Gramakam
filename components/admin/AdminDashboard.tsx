@@ -995,7 +995,7 @@ function MerchStockSubTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   // 'add' = add to existing stock, 'set' = set absolute value
-  const [stockMode, setStockMode] = useState<'add' | 'set'>('set');
+  const [stockMode, setStockMode] = useState<'add' | 'set'>('add');
   // Per-size edit values: { "tshirt::36 (S)": "10", "slingbag": "50" }
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
@@ -1183,33 +1183,37 @@ function MerchStockSubTab() {
     <div className="space-y-4">
       {/* Stock Mode Toggle */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium text-gray-600">Stock Mode:</span>
+        <span className="text-sm font-medium text-gray-600">Mode:</span>
         <div className="flex rounded-lg border border-gray-200 overflow-hidden">
           <button
-            onClick={() => setStockMode('set')}
+            onClick={() => setStockMode('add')}
             className={`px-4 py-2 text-xs font-semibold transition-colors ${
-              stockMode === 'set'
-                ? 'bg-maroon text-white'
+              stockMode === 'add'
+                ? 'bg-green-600 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50'
             }`}
           >
-            Set (Exact)
+            + Add Stock
           </button>
           <button
-            onClick={() => setStockMode('add')}
+            onClick={() => setStockMode('set')}
             className={`px-4 py-2 text-xs font-semibold transition-colors border-l border-gray-200 ${
-              stockMode === 'add'
-                ? 'bg-maroon text-white'
+              stockMode === 'set'
+                ? 'bg-amber-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50'
             }`}
           >
-            Add (+)
+            Override
           </button>
         </div>
-        <span className="text-xs text-gray-400">
-          {stockMode === 'set'
-            ? 'Entering 10 sets stock to exactly 10'
-            : 'Entering 10 adds 10 to existing stock'}
+        <span className={`text-xs px-2 py-1 rounded-md ${
+          stockMode === 'add'
+            ? 'bg-green-50 text-green-700'
+            : 'bg-amber-50 text-amber-700'
+        }`}>
+          {stockMode === 'add'
+            ? '➕ Enter how many units you are adding to existing stock'
+            : '⚠️ Override: sets stock to this exact number, ignoring current count'}
         </span>
       </div>
 
@@ -1303,26 +1307,37 @@ function MerchStockSubTab() {
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${sizeOos ? 'border-red-200 bg-red-50/50' : 'border-gray-100 bg-gray-50/50'}`}
                       >
                         <span className={`text-sm font-semibold w-20 ${sizeOos ? 'text-red-600' : 'text-charcoal'}`}>{size}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder={stockMode === 'set' ? 'Set to' : 'Add'}
-                          value={editValues[key] ?? ''}
-                          onChange={(e) => setEditValues((prev) => ({ ...prev, [key]: e.target.value }))}
-                          className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-2 focus:ring-maroon outline-none text-center"
-                        />
+                        {/* Current stock badge */}
+                        {sizeStock !== -1 && (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                            sizeOos ? 'bg-red-100 text-red-600' : sizeStock <= 5 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {sizeOos ? '0 left' : `${sizeStock} left`}
+                          </span>
+                        )}
+                        {sizeStock === -1 && (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600 shrink-0">∞</span>
+                        )}
+                        <div className="flex items-center gap-1">
+                          {stockMode === 'add' && <span className="text-green-600 font-bold text-sm">+</span>}
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder={stockMode === 'add' ? 'qty' : 'set to'}
+                            value={editValues[key] ?? ''}
+                            onChange={(e) => setEditValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                            className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-2 focus:ring-maroon outline-none text-center"
+                          />
+                        </div>
                         <button
                           onClick={() => handleSaveSizeStock(product.id, size)}
                           disabled={saving === key}
-                          className="px-2 py-1.5 bg-charcoal text-white text-[10px] font-semibold rounded-md hover:bg-charcoal/80 disabled:opacity-50"
+                          className={`px-2 py-1.5 text-white text-[10px] font-semibold rounded-md disabled:opacity-50 ${
+                            stockMode === 'add' ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-500 hover:bg-amber-600'
+                          }`}
                         >
-                          {saving === key ? <Loader2 size={10} className="animate-spin" /> : 'Save'}
+                          {saving === key ? <Loader2 size={10} className="animate-spin" /> : stockMode === 'add' ? '+ Add' : 'Override'}
                         </button>
-                        {sizeStock !== -1 && (
-                          <span className={`text-[10px] font-bold ${sizeOos ? 'text-red-500' : sizeStock <= 5 ? 'text-orange-500' : 'text-gray-400'}`}>
-                            {sizeOos ? 'OOS' : `${sizeStock} in stock`}
-                          </span>
-                        )}
                       </div>
                     );
                   })}
@@ -1334,27 +1349,41 @@ function MerchStockSubTab() {
             {!hasSizes && status !== 'paused' && (
               <div className="border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-gray-500 shrink-0">{stockMode === 'set' ? 'Set stock:' : 'Add stock:'}</label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder={stockMode === 'set' ? 'Set to' : 'Add'}
-                    value={editValues[product.id] ?? ''}
-                    onChange={(e) => setEditValues((prev) => ({ ...prev, [product.id]: e.target.value }))}
-                    className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
-                  />
-                  <button
-                    onClick={() => handleSaveProductStock(product.id)}
-                    disabled={saving === product.id}
-                    className="px-3 py-2 bg-charcoal text-white text-xs font-semibold rounded-lg hover:bg-charcoal/80 disabled:opacity-50"
-                  >
-                    {saving === product.id ? <Loader2 size={12} className="animate-spin" /> : <><Save size={12} /> Save</>}
-                  </button>
+                  {/* Current stock badge */}
                   {doc && doc.count !== -1 && (
-                    <span className={`text-xs font-bold ${doc.count === 0 ? 'text-red-500' : doc.count <= 10 ? 'text-orange-500' : 'text-gray-400'}`}>
+                    <span className={`text-sm font-bold px-3 py-1.5 rounded-lg shrink-0 ${
+                      doc.count === 0 ? 'bg-red-100 text-red-600' : doc.count <= 10 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600'
+                    }`}>
                       {doc.count === 0 ? 'Out of Stock' : `${doc.count} in stock`}
                     </span>
                   )}
+                  {(!doc || doc.count === -1) && (
+                    <span className="text-sm font-bold px-3 py-1.5 rounded-lg bg-green-100 text-green-600 shrink-0">∞ Unlimited</span>
+                  )}
+                  <div className="flex items-center gap-1">
+                    {stockMode === 'add' && <span className="text-green-600 font-bold text-lg leading-none">+</span>}
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder={stockMode === 'add' ? 'qty to add' : 'set to'}
+                      value={editValues[product.id] ?? ''}
+                      onChange={(e) => setEditValues((prev) => ({ ...prev, [product.id]: e.target.value }))}
+                      className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleSaveProductStock(product.id)}
+                    disabled={saving === product.id}
+                    className={`px-3 py-2 text-white text-xs font-semibold rounded-lg disabled:opacity-50 ${
+                      stockMode === 'add' ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-500 hover:bg-amber-600'
+                    }`}
+                  >
+                    {saving === product.id
+                      ? <Loader2 size={12} className="animate-spin" />
+                      : stockMode === 'add'
+                      ? <><Plus size={12} /> Add Stock</>
+                      : <><Save size={12} /> Override</>}
+                  </button>
                 </div>
               </div>
             )}
