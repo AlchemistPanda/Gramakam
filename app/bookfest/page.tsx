@@ -7,7 +7,7 @@ export const metadata = generateOGMetadata({
   title: 'Book Festival — Gramakam',
   description:
     'Gramakam Book Festival — an annual celebration of literature featuring Malayalam and international books, publishers from around the world, and a special spotlight on local native writers.',
-  image: '/images/festival/gramakam-13.jpg',
+  image: '/images/book_festival.jpg',
   url: '/bookfest',
 });
 

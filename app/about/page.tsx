@@ -6,7 +6,7 @@ import { Theater, Users, Award, BookOpen, Music, Palette } from 'lucide-react';
 export const metadata = generateOGMetadata({
   title: 'About Gramakam | Theatre Festival in Kerala',
   description: 'Learn about IF Creations and the Gramakam National Theatre Festival, a celebration of theatre and culture since 2016 in Velur, Thrissur, Kerala.',
-  image: '/images/festival/gramakam-07.jpg',
+  image: '/images/about.jpg',
   url: '/about',
 });
 

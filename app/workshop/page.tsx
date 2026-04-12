@@ -9,7 +9,7 @@ export const metadata = generateOGMetadata({
   title: "Children's Acting Workshop | Gramakam 2026",
   description:
     "Join the Gramakam Children's Acting Workshop — a fun, immersive theatre experience for young performers. Register now for the 2026 edition.",
-  image: '/images/child/CHILDRENS WORKSHOP (1).JPG',
+  image: '/images/camp.jpg',
   url: '/workshop',
 });
 

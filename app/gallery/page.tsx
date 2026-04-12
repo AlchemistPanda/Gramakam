@@ -4,7 +4,7 @@ import GalleryClient from './GalleryClient';
 export const metadata = generateOGMetadata({
   title: 'Gallery | Gramakam',
   description: 'Explore photos and videos from past Gramakam theatre festival editions.',
-  image: '/images/festival/gramakam-03.jpg',
+  image: '/images/galleryog.jpg',
   url: '/gallery',
 });
 
