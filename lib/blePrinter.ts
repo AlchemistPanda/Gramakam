@@ -42,7 +42,8 @@ export async function connectPrinter(
 ): Promise<void> {
   if (typeof navigator === 'undefined' || !('bluetooth' in navigator)) {
     throw new Error(
-      'Web Bluetooth is not supported. Use Chrome on desktop or Android (not Firefox / Safari).'
+      'Web Bluetooth is not available. Use Chrome on desktop or Android — not Firefox or Safari. ' +
+      'If using Chrome, ensure the site is loaded over HTTPS and not inside an iframe.'
     );
   }
 

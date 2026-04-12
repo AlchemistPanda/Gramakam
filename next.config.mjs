@@ -12,6 +12,20 @@ const nextConfig = {
       },
     ],
   },
+  async headers() {
+    return [
+      {
+        // Apply to all routes so the admin page inherits it too
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'bluetooth=*',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
