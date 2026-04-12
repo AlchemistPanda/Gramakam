@@ -3,9 +3,9 @@ import { generateOGMetadata } from '@/lib/metadata';
 import FeedPostClient from './FeedPostClient';
 
 interface Props {
-  params: {
+  params: Promise<{
     postId: string;
-  };
+  }>;
 }
 
 /**
@@ -20,33 +20,37 @@ async function fetchPostFromFirestore(postId: string) {
 
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/posts/${postId}?key=${apiKey}`;
 
-  const res = await fetch(url, { next: { revalidate: 60 } });
-  if (!res.ok) return null;
+  try {
+    const res = await fetch(url, { next: { revalidate: 60 } });
+    if (!res.ok) return null;
 
-  const doc = await res.json();
-  if (!doc.fields) return null;
+    const doc = await res.json();
+    if (!doc.fields) return null;
 
-  // Parse Firestore REST format → plain object
-  const fields = doc.fields as Record<string, Record<string, string>>;
-  return {
-    id: postId,
-    title: fields.title?.stringValue || '',
-    description: fields.description?.stringValue || '',
-    imageUrl: fields.imageUrl?.stringValue || '',
-    embedUrl: fields.embedUrl?.stringValue || '',
-    date: fields.date?.timestampValue || fields.date?.stringValue || '',
-  };
+    const fields = doc.fields as Record<string, Record<string, string>>;
+    return {
+      id: postId,
+      title: fields.title?.stringValue || '',
+      description: fields.description?.stringValue || '',
+      imageUrl: fields.imageUrl?.stringValue || '',
+      embedUrl: fields.embedUrl?.stringValue || '',
+      date: fields.date?.timestampValue || fields.date?.stringValue || '',
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Generate dynamic metadata with OG tags for social sharing
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const post = await fetchPostFromFirestore(params.postId);
+  const { postId } = await params;
+  const post = await fetchPostFromFirestore(postId);
 
   if (!post || !post.title) {
     return generateOGMetadata({
       title: 'Feed Post | Gramakam',
       description: 'Read the latest updates from Gramakam theatre festival.',
-      url: `/feed/${params.postId}`,
+      url: `/feed/${postId}`,
     });
   }
 
@@ -54,12 +58,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${post.title} | Gramakam`,
     description: post.description.substring(0, 160),
     image: post.imageUrl || '/images/gramakam-logo.png',
-    url: `/feed/${params.postId}`,
+      url: `/feed/${postId}`,
     type: 'article',
   });
 }
 
 // The page itself is rendered client-side for Firebase data
-export default function FeedPostPage({ params }: Props) {
-  return <FeedPostClient postId={params.postId} />;
+export default async function FeedPostPage({ params }: Props) {
+  const { postId } = await params;
+  return <FeedPostClient postId={postId} />;
 }
