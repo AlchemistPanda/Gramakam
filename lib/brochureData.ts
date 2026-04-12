@@ -1,7 +1,7 @@
 // Brochure metadata and configuration
 // Updated: 2026-04-11 - Extracted from PDF, 28 pages total
 
-export const BROCHURE_PAGES = 28;
+export const BROCHURE_PAGES = 10;
 
 export const BROCHURE_PAGE_RANGE = Array.from(
   { length: BROCHURE_PAGES },
