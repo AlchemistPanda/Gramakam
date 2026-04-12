@@ -13,6 +13,19 @@ interface GalleryGridProps {
 
 const PAGE_SIZE = 24;
 
+// Helper to get display title - show caption if meaningful, else "Gramakam"
+function getDisplayTitle(item: GalleryItem): string {
+  // If title looks like a filename (has extension) or is generic, use default
+  if (
+    !item.title ||
+    item.title.match(/\.(jpg|jpeg|png|gif|webp|mp4|mov|avi)$/i) ||
+    item.title.match(/^(IMG|DSC|DSCF|DCIM|photo|image)[-_]?\d*$/i)
+  ) {
+    return 'Gramakam';
+  }
+  return item.title;
+}
+
 function GalleryCard({ item, onClick }: { item: GalleryItem; onClick: () => void }) {
   const [loaded, setLoaded] = useState(false);
 
@@ -42,7 +55,7 @@ function GalleryCard({ item, onClick }: { item: GalleryItem; onClick: () => void
         <>
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <div className="absolute bottom-0 left-0 right-0 p-3 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-            <p className="text-sm font-medium truncate">{item.title}</p>
+            <p className="text-sm font-medium truncate">{getDisplayTitle(item)}</p>
             <p className="text-xs text-white/70">{item.year}</p>
           </div>
           {item.type === 'video' && (
@@ -253,7 +266,7 @@ export default function GalleryGrid({ items, years }: GalleryGridProps) {
               )}
               <div className="mt-4 text-white text-center">
                 <h3 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)' }}>
-                  {lightboxItem.title}
+                  {getDisplayTitle(lightboxItem)}
                 </h3>
                 <p className="text-white/60 text-sm mt-1">
                   {lightboxItem.year} &middot; {lightboxItem.category}
