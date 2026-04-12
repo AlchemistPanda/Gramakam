@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Calendar, Share2 } from 'lucide-react';
 import { FeedPost } from '@/types';
@@ -16,32 +17,26 @@ export default function PostCard({ post, index = 0, onClick }: PostCardProps) {
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/feed`;
-    const shareText = `Check out this update from Gramakam 2026: "${post.title}" - ${post.description.substring(0, 100)}...`;
+    const postUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/feed/${post.id}`;
+    const shareText = `Check out this update from Gramakam 2026: "${post.title}" - ${post.description.substring(0, 80)}...`;
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Gramakam 2026',
+          title: `${post.title} - Gramakam 2026`,
           text: shareText,
-          url: url,
+          url: postUrl,
         });
       } catch (err) {
         // User cancelled share
       }
     } else {
       // Fallback: create share links
-      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText + ' ' + url)}`;
-      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}`;
-      const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
-
-      // Show a simple menu
-      const menu = `
-        Share this post:
-        - WhatsApp: ${whatsappUrl}
-        - Twitter: ${twitterUrl}
-        - Facebook: ${facebookUrl}
-      `;
+      const encodedUrl = encodeURIComponent(postUrl);
+      const encodedText = encodeURIComponent(shareText);
+      const whatsappUrl = `https://wa.me/?text=${encodedText}%20${encodedUrl}`;
+      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+      const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
 
       // Copy to clipboard and show alert
       const shareLinks = `WhatsApp: ${whatsappUrl}\n\nTwitter: ${twitterUrl}\n\nFacebook: ${facebookUrl}`;
@@ -51,14 +46,14 @@ export default function PostCard({ post, index = 0, onClick }: PostCardProps) {
   };
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
-      viewport={{ once: true }}
-      className="card group cursor-pointer"
-      onClick={onClick}
-    >
+    <Link href={`/feed/${post.id}`}>
+      <motion.article
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: index * 0.1 }}
+        viewport={{ once: true }}
+        className="card group cursor-pointer h-full"
+      >
       {/* Image */}
       {post.imageUrl && (
         <div className="relative aspect-video overflow-hidden">
@@ -117,6 +112,7 @@ export default function PostCard({ post, index = 0, onClick }: PostCardProps) {
           <span className="text-maroon text-sm font-medium mt-2 inline-block group-hover:underline">Read more</span>
         )}
       </div>
-    </motion.article>
+      </motion.article>
+    </Link>
   );
 }
