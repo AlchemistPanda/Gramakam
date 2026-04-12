@@ -140,8 +140,10 @@ export default function FeedPostClient({ postId }: FeedPostClientProps) {
 
             <h1 className="heading-lg text-charcoal mb-4">{post.title}</h1>
 
-            <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
-              <p>{post.description}</p>
+            <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed space-y-4">
+              {post.description.split('\n').map((line, i) =>
+                line.trim() === '' ? null : <p key={i}>{line}</p>
+              )}
             </div>
           </div>
         </motion.article>
