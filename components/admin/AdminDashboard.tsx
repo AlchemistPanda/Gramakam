@@ -2018,7 +2018,7 @@ function MerchOrdersSubTab() {
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700 shrink-0">Ready</span>
           )}
           {printError && (
-            <span className="text-[10px] text-red-500 truncate ml-1" title={printError}>{printError}</span>
+            <span className="text-[10px] text-red-500 ml-1 max-w-[200px] truncate shrink" title={printError}>{printError}</span>
           )}
         </div>
         <button

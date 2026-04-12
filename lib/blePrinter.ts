@@ -20,11 +20,6 @@ const PRINTER_PROFILES = [
     service: '49535343-fe7d-4ae5-8fa9-9fafd205e455',
     characteristic: '49535343-8841-43f4-a8d4-ecbe34729bb3',
   },
-  // iPosPrinter / Epson TM series BLE
-  {
-    service: '0000e7810a71-73ae-499d-8c15-faa9aef0c3f2',
-    characteristic: '0000bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
-  },
   // SUNMI / Xprinter BLE
   {
     service: '0000ff12-0000-1000-8000-00805f9b34fb',
