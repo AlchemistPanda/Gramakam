@@ -1062,6 +1062,18 @@ function MerchStockSubTab() {
       return;
     }
     if (stockMode === 'add' && quantity === 0) return;
+
+    // Confirmation with before → after preview
+    const current = stockDocs[productId]?.sizes?.[size] ?? stockDocs[productId]?.count ?? -1;
+    const after = stockMode === 'add'
+      ? (current === -1 ? quantity : current + quantity)
+      : quantity;
+    const currentLabel = current === -1 ? '∞ (unlimited)' : String(current);
+    const msg = stockMode === 'add'
+      ? `Add ${quantity} units to ${size}?\n\nCurrent: ${currentLabel}\nAfter:     ${after}\n\nThis cannot be undone.`
+      : `Override ${size} stock to exactly ${quantity}?\n\nCurrent: ${currentLabel}\nAfter:     ${quantity}`;
+    if (!confirm(msg)) return;
+
     setSaving(key);
     try {
       if (stockMode === 'set') {
@@ -1102,6 +1114,19 @@ function MerchStockSubTab() {
       return;
     }
     if (stockMode === 'add' && quantity === 0) return;
+
+    // Confirmation with before → after preview
+    const current = stockDocs[productId]?.count ?? -1;
+    const after = stockMode === 'add'
+      ? (current === -1 ? quantity : current + quantity)
+      : quantity;
+    const currentLabel = current === -1 ? '∞ (unlimited)' : String(current);
+    const productName = PRODUCTS.find((p) => p.id === productId)?.name ?? productId;
+    const msg = stockMode === 'add'
+      ? `Add ${quantity} units to ${productName}?\n\nCurrent: ${currentLabel}\nAfter:     ${after}\n\nThis cannot be undone.`
+      : `Override ${productName} stock to exactly ${quantity}?\n\nCurrent: ${currentLabel}\nAfter:     ${quantity}`;
+    if (!confirm(msg)) return;
+
     setSaving(productId);
     try {
       if (stockMode === 'set') {
