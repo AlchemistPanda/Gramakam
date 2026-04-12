@@ -42,7 +42,7 @@ export const PRODUCTS: Product[] = [
 export const PRODUCT_MAP = new Map(PRODUCTS.map((p) => [p.id, p]));
 
 // ── Coupon codes ──
-const VALID_COUPONS = new Set(['PANDABOY']);
+const VALID_COUPONS = new Set(['PANDABOY', 'GRAMAKAM2026']);
 
 /** Check if a coupon code is valid (case-insensitive). */
 export function isValidCoupon(code: string | undefined): boolean {
