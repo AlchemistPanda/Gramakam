@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Play, Images } from 'lucide-react';
+import { X, Play, Images, ChevronLeft, ChevronRight } from 'lucide-react';
 import { GalleryItem } from '@/types';
 
 interface GalleryGridProps {
@@ -60,8 +60,9 @@ function GalleryCard({ item, onClick }: { item: GalleryItem; onClick: () => void
 
 export default function GalleryGrid({ items, years }: GalleryGridProps) {
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
-  const [lightboxItem, setLightboxItem] = useState<GalleryItem | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const touchStartX = useRef<number | null>(null);
 
   const filteredItems =
     selectedYear === 'all'
@@ -70,11 +71,35 @@ export default function GalleryGrid({ items, years }: GalleryGridProps) {
 
   const visibleItems = filteredItems.slice(0, visibleCount);
   const hasMore = visibleCount < filteredItems.length;
+  const lightboxItem = lightboxIndex !== null ? filteredItems[lightboxIndex] : null;
 
   const handleYearChange = useCallback((year: number | 'all') => {
     setSelectedYear(year);
     setVisibleCount(PAGE_SIZE);
+    setLightboxIndex(null);
   }, []);
+
+  const goNext = useCallback(() => {
+    setLightboxIndex((i) => (i !== null ? (i + 1) % filteredItems.length : null));
+  }, [filteredItems.length]);
+
+  const goPrev = useCallback(() => {
+    setLightboxIndex((i) =>
+      i !== null ? (i - 1 + filteredItems.length) % filteredItems.length : null
+    );
+  }, [filteredItems.length]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') goNext();
+      else if (e.key === 'ArrowLeft') goPrev();
+      else if (e.key === 'Escape') setLightboxIndex(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxIndex, goNext, goPrev]);
 
   return (
     <>
@@ -127,7 +152,7 @@ export default function GalleryGrid({ items, years }: GalleryGridProps) {
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.25, delay: Math.min(index, 11) * 0.04 }}
             >
-              <GalleryCard item={item} onClick={() => setLightboxItem(item)} />
+              <GalleryCard item={item} onClick={() => setLightboxIndex(filteredItems.indexOf(item))} />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -155,25 +180,54 @@ export default function GalleryGrid({ items, years }: GalleryGridProps) {
 
       {/* Lightbox Modal */}
       <AnimatePresence>
-        {lightboxItem && (
+        {lightboxItem && lightboxIndex !== null && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setLightboxItem(null)}
+            onClick={() => setLightboxIndex(null)}
+            onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+            onTouchEnd={(e) => {
+              if (touchStartX.current === null) return;
+              const dx = e.changedTouches[0].clientX - touchStartX.current;
+              if (Math.abs(dx) > 50) dx < 0 ? goNext() : goPrev();
+              touchStartX.current = null;
+            }}
           >
+            {/* Close */}
             <button
-              onClick={() => setLightboxItem(null)}
+              onClick={() => setLightboxIndex(null)}
               className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors z-10"
               aria-label="Close lightbox"
             >
               <X size={20} />
             </button>
+
+            {/* Prev */}
+            <button
+              onClick={(e) => { e.stopPropagation(); goPrev(); }}
+              className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors z-10"
+              aria-label="Previous photo"
+            >
+              <ChevronLeft size={22} />
+            </button>
+
+            {/* Next */}
+            <button
+              onClick={(e) => { e.stopPropagation(); goNext(); }}
+              className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors z-10"
+              aria-label="Next photo"
+            >
+              <ChevronRight size={22} />
+            </button>
+
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              key={lightboxIndex}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
               className="relative max-w-5xl max-h-[85vh] w-full"
               onClick={(e) => e.stopPropagation()}
             >
@@ -203,6 +257,9 @@ export default function GalleryGrid({ items, years }: GalleryGridProps) {
                 </h3>
                 <p className="text-white/60 text-sm mt-1">
                   {lightboxItem.year} &middot; {lightboxItem.category}
+                </p>
+                <p className="text-white/40 text-xs mt-1">
+                  {lightboxIndex + 1} / {filteredItems.length}
                 </p>
               </div>
             </motion.div>
