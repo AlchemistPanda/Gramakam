@@ -219,7 +219,7 @@ function buildLabel(order: MerchOrder): Uint8Array {
   parts.push(
     div('='),
     ALIGN_CENTER, BOLD_ON, txt('Thank You!'), BOLD_OFF,
-    txt('www.gramakam.in'),
+    txt('www.gramakam.org'),
     FEED, CUT,
   );
 
