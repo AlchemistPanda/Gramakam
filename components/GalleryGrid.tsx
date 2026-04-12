@@ -15,15 +15,33 @@ const PAGE_SIZE = 24;
 
 // Helper to get display title - show caption if meaningful, else "Gramakam"
 function getDisplayTitle(item: GalleryItem): string {
-  // If title looks like a filename (has extension) or is generic, use default
-  if (
-    !item.title ||
-    item.title.match(/\.(jpg|jpeg|png|gif|webp|mp4|mov|avi)$/i) ||
-    item.title.match(/^(IMG|DSC|DSCF|DCIM|photo|image)[-_]?\d*$/i)
-  ) {
+  if (!item.title || item.title.trim() === '') {
     return 'Gramakam';
   }
-  return item.title;
+
+  const title = item.title.trim();
+
+  // Check for file extensions
+  if (title.match(/\.(jpg|jpeg|png|gif|webp|mp4|mov|avi)$/i)) {
+    return 'Gramakam';
+  }
+
+  // Check for generic camera/auto filenames (IMG_001, DSC_0123, etc.)
+  if (title.match(/^(IMG|DSC|DSCF|DCIM|photo|image)[-_]?\d*$/i)) {
+    return 'Gramakam';
+  }
+
+  // Check for hex strings or all-numeric filenames (014A7520, 123456, etc.)
+  if (title.match(/^[0-9A-F]+$/i) || title.match(/^\d+$/)) {
+    return 'Gramakam';
+  }
+
+  // Check if title is short and alphanumeric without spaces (likely auto-generated)
+  if (title.match(/^[A-Z0-9]{1,12}$/) && !title.includes(' ')) {
+    return 'Gramakam';
+  }
+
+  return title;
 }
 
 function GalleryCard({ item, onClick }: { item: GalleryItem; onClick: () => void }) {
