@@ -35,7 +35,17 @@ import {
   Search,
   Upload,
   Loader2,
+  Printer,
+  Bluetooth,
+  BluetoothConnected,
+  BluetoothOff,
 } from 'lucide-react';
+import {
+  connectPrinter,
+  disconnectPrinter,
+  printOrderLabel,
+  type PrinterStatus,
+} from '@/lib/blePrinter';
 import {
   getGalleryItems,
   getGalleryHashes,
@@ -1496,10 +1506,11 @@ const PRODUCT_NAMES: Record<string, string> = {
 };
 
 // ===== Single order card =====
-function OrderCard({ order, onUpdate, onDelete }: {
+function OrderCard({ order, onUpdate, onDelete, onPrint }: {
   order: MerchOrder;
   onUpdate: () => void;
   onDelete: (id: string) => void;
+  onPrint?: (order: MerchOrder) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -1833,6 +1844,16 @@ function OrderCard({ order, onUpdate, onDelete }: {
               </button>
             )}
 
+            {onPrint && (
+              <button
+                onClick={() => onPrint(order)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 hover:text-charcoal border border-gray-200 rounded-lg hover:border-gray-400 transition-colors"
+                title="Print address label"
+              >
+                <Printer size={12} /> Print Label
+              </button>
+            )}
+
             <button
               onClick={() => onDelete(order.id)}
               className="flex items-center gap-1 px-3 py-2 text-xs text-red-400 hover:text-red-600 border border-red-100 rounded-lg hover:border-red-300 ml-auto"
@@ -1853,6 +1874,47 @@ function MerchOrdersSubTab() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [itemFilter, setItemFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // BLE printer state
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>('disconnected');
+  const [printerName, setPrinterName] = useState<string | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
+
+  const handleConnectPrinter = async () => {
+    if (printerStatus === 'connected') {
+      disconnectPrinter();
+      setPrinterStatus('disconnected');
+      setPrinterName(null);
+      return;
+    }
+    setPrintError(null);
+    try {
+      await connectPrinter((status, name) => {
+        setPrinterStatus(status);
+        if (name) setPrinterName(name);
+        if (status === 'disconnected') setPrinterName(null);
+      });
+    } catch (err) {
+      setPrintError(err instanceof Error ? err.message : 'Connection failed');
+    }
+  };
+
+  const handlePrint = async (order: MerchOrder) => {
+    if (printerStatus !== 'connected') {
+      alert('Please connect a printer first.');
+      return;
+    }
+    setPrinterStatus('printing');
+    setPrintError(null);
+    try {
+      await printOrderLabel(order);
+    } catch (err) {
+      setPrintError(err instanceof Error ? err.message : 'Print failed');
+      alert(`Print failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setPrinterStatus('connected');
+    }
+  };
 
   const loadOrders = async () => {
     try { setOrders(await getMerchOrders()); } catch {}
@@ -1929,6 +1991,55 @@ function MerchOrdersSubTab() {
 
   return (
     <div className="space-y-4">
+      {/* BLE Printer bar */}
+      <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {printerStatus === 'connected' ? (
+            <BluetoothConnected size={16} className="text-green-500 shrink-0" />
+          ) : printerStatus === 'connecting' || printerStatus === 'printing' ? (
+            <Bluetooth size={16} className="text-blue-400 animate-pulse shrink-0" />
+          ) : printerStatus === 'error' ? (
+            <BluetoothOff size={16} className="text-red-400 shrink-0" />
+          ) : (
+            <BluetoothOff size={16} className="text-gray-300 shrink-0" />
+          )}
+          <span className="text-xs font-medium text-charcoal truncate">
+            {printerStatus === 'connected' && printerName
+              ? printerName
+              : printerStatus === 'connecting'
+              ? 'Connecting...'
+              : printerStatus === 'printing'
+              ? 'Printing...'
+              : printerStatus === 'error'
+              ? 'Connection error'
+              : 'No printer connected'}
+          </span>
+          {printerStatus === 'connected' && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700 shrink-0">Ready</span>
+          )}
+          {printError && (
+            <span className="text-[10px] text-red-500 truncate ml-1" title={printError}>{printError}</span>
+          )}
+        </div>
+        <button
+          onClick={handleConnectPrinter}
+          disabled={printerStatus === 'connecting' || printerStatus === 'printing'}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors shrink-0 disabled:opacity-50 ${
+            printerStatus === 'connected'
+              ? 'bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600'
+              : 'bg-maroon text-white hover:bg-maroon/80'
+          }`}
+        >
+          {printerStatus === 'connected' ? (
+            <><BluetoothOff size={13} /> Disconnect</>
+          ) : printerStatus === 'connecting' ? (
+            <><Loader2 size={13} className="animate-spin" /> Connecting...</>
+          ) : (
+            <><Bluetooth size={13} /> Connect Printer</>
+          )}
+        </button>
+      </div>
+
       {/* Stats row */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {[
@@ -2029,7 +2140,7 @@ function MerchOrdersSubTab() {
       ) : (
         <div className="space-y-2">
           {filtered.map((order) => (
-            <OrderCard key={order.id} order={order} onUpdate={loadOrders} onDelete={handleDelete} />
+            <OrderCard key={order.id} order={order} onUpdate={loadOrders} onDelete={handleDelete} onPrint={handlePrint} />
           ))}
         </div>
       )}
