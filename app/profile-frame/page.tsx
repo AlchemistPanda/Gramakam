@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: '/images/gramakam-logo.png',
+        url: '/images/gramakam-profile-og.jpg',
         width: 1200,
         height: 630,
         alt: 'Gramakam 2026 Profile Picture Generator',
