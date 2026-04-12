@@ -1,5 +1,5 @@
 // Brochure metadata and configuration
-// Updated: 2026-04-11 - Extracted from PDF, 28 pages total
+// Updated: 2026-04-11 - Extracted from PDF, 19 pages total
 
 export const BROCHURE_PAGES = 19;
 

@@ -2,7 +2,7 @@
 // Caches all static assets (JS/CSS/HTML/images) on first visit so the app
 // works offline on subsequent loads. No build plugin needed.
 
-const CACHE_NAME = 'gramakam-v1';
+const CACHE_NAME = 'gramakam-v2';
 
 // Assets to pre-cache on install (shell)
 const PRECACHE = [
