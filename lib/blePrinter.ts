@@ -1,212 +1,232 @@
-// BLE thermal printer integration — Web Bluetooth API + ESC/POS protocol
-// Works with most common BLE thermal printers (58mm / 80mm rolls)
+// BLE thermal printer — address-label printing for merch orders
+// Uses the exact same connection strategy as billPrinter.ts (proven working)
 
 import type { MerchOrder } from '@/types';
 
-// Known BLE printer service/characteristic UUID pairs (tried in order on connect)
-const PRINTER_PROFILES = [
-  // Generic ESC/POS over BLE (Zjiang, JP-series, etc.)
-  {
-    service: '000018f0-0000-1000-8000-00805f9b34fb',
-    characteristic: '00002af1-0000-1000-8000-00805f9b34fb',
-  },
-  // Cheap BLE mini printers (Phomemo, PeriPage, etc.)
-  {
-    service: '0000ff00-0000-1000-8000-00805f9b34fb',
-    characteristic: '0000ff02-0000-1000-8000-00805f9b34fb',
-  },
-  // Microchip RN4020 / some Goojprt & Bisofice printers
-  {
-    service: '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-    characteristic: '49535343-8841-43f4-a8d4-ecbe34729bb3',
-  },
-  // SUNMI / Xprinter BLE
-  {
-    service: '0000ff12-0000-1000-8000-00805f9b34fb',
-    characteristic: '0000ff01-0000-1000-8000-00805f9b34fb',
-  },
+// Same UUIDs as billPrinter.ts
+const PRINTER_SERVICE_UUIDS = [
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  '0000ff00-0000-1000-8000-00805f9b34fb',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+  '0000ff12-0000-1000-8000-00805f9b34fb',
+];
+
+const PRINTER_CHAR_UUIDS = [
+  '00002af1-0000-1000-8000-00805f9b34fb',
+  '0000ff02-0000-1000-8000-00805f9b34fb',
+  '49535343-8841-43f4-a8d4-ecbe34729bb3',
+  'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
+  '0000ff01-0000-1000-8000-00805f9b34fb',
 ];
 
 export type PrinterStatus = 'disconnected' | 'connecting' | 'connected' | 'printing' | 'error';
 
-// Module-level singletons — one connection shared across renders
+// Module-level singletons
 let _device: BluetoothDevice | null = null;
-let _characteristic: BluetoothRemoteGATTCharacteristic | null = null;
+let _char: BluetoothRemoteGATTCharacteristic | null = null;
 
 export function isPrinterConnected(): boolean {
-  return !!_characteristic && !!_device?.gatt?.connected;
+  return !!_char && !!_device?.gatt?.connected;
+}
+
+// ── GATT connect with retry (mirrors billPrinter.ts) ──────────────────────────
+const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function connectGATTWithRetry(device: BluetoothDevice, maxRetries = 3): Promise<BluetoothRemoteGATTServer> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const server = await device.gatt!.connect();
+      await delay(500 + attempt * 200);
+      if (!server.connected) throw new Error('GATT Server disconnected immediately after connect');
+      return server;
+    } catch (e) {
+      lastError = e;
+      try { device.gatt?.disconnect(); } catch { /* ignore */ }
+      if (attempt < maxRetries) await delay(1000 * attempt);
+    }
+  }
+  throw lastError;
+}
+
+async function discoverCharacteristic(
+  device: BluetoothDevice,
+  server: BluetoothRemoteGATTServer
+): Promise<BluetoothRemoteGATTCharacteristic | null> {
+  // 1. Try getPrimaryServices — auto-discover any writable characteristic
+  if (server.connected) {
+    try {
+      const services = await server.getPrimaryServices();
+      for (const svc of services) {
+        try {
+          const chars = await svc.getCharacteristics();
+          for (const c of chars) {
+            if (c.properties.write || c.properties.writeWithoutResponse) return c;
+          }
+        } catch { /* skip service */ }
+      }
+    } catch (e) {
+      if ((e as Error).message?.includes('GATT') || (e as Error).message?.includes('disconnected')) {
+        try { device.gatt?.disconnect(); } catch { /* ignore */ }
+        await delay(1000);
+        server = await connectGATTWithRetry(device, 2);
+      }
+    }
+  }
+
+  // 2. Fallback: try known UUID pairs directly
+  for (const serviceUUID of PRINTER_SERVICE_UUIDS) {
+    try {
+      const svc = await server.getPrimaryService(serviceUUID);
+      for (const charUUID of PRINTER_CHAR_UUIDS) {
+        try {
+          const c = await svc.getCharacteristic(charUUID);
+          if (c.properties.write || c.properties.writeWithoutResponse) return c;
+        } catch { /* try next */ }
+      }
+    } catch { /* try next service */ }
+  }
+
+  return null;
 }
 
 export async function connectPrinter(
   onStatusChange: (status: PrinterStatus, deviceName?: string) => void
 ): Promise<void> {
-  if (typeof navigator === 'undefined' || !('bluetooth' in navigator)) {
-    throw new Error(
-      'Web Bluetooth is not available. Use Chrome on desktop or Android — not Firefox or Safari. ' +
-      'If using Chrome, ensure the site is loaded over HTTPS and not inside an iframe.'
-    );
-  }
-
   onStatusChange('connecting');
 
+  if (typeof navigator === 'undefined' || !('bluetooth' in navigator)) {
+    onStatusChange('error');
+    throw new Error('Web Bluetooth is not available. Use Chrome on desktop or Android — not Firefox or Safari.');
+  }
+
   try {
-    _device = await (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth.requestDevice({
+    _device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: PRINTER_PROFILES.map((p) => p.service),
+      optionalServices: PRINTER_SERVICE_UUIDS,
     });
 
     _device.addEventListener('gattserverdisconnected', () => {
-      _characteristic = null;
+      _char = null;
       _device = null;
       onStatusChange('disconnected');
     });
 
-    const server = await _device.gatt!.connect();
-
-    // Try each profile until one works
-    let found = false;
-    for (const profile of PRINTER_PROFILES) {
-      try {
-        const service = await server.getPrimaryService(profile.service);
-        _characteristic = await service.getCharacteristic(profile.characteristic);
-        found = true;
-        break;
-      } catch {
-        // Profile not supported by this device — try next
-      }
-    }
+    const server = await connectGATTWithRetry(_device);
+    const found = await discoverCharacteristic(_device, server);
 
     if (!found) {
-      await _device.gatt?.disconnect();
+      _device.gatt?.disconnect();
       _device = null;
-      _characteristic = null;
-      throw new Error(
-        'No compatible printer service found on this device.\n' +
-          'Make sure your printer is powered on and in BLE mode.'
-      );
+      _char = null;
+      onStatusChange('error');
+      throw new Error('No writable characteristic found. Make sure the printer is on and in BLE mode.');
     }
 
+    _char = found;
     onStatusChange('connected', _device.name ?? 'Printer');
-  } catch (err) {
+  } catch (e) {
+    const err = e as Error & { name?: string };
     _device = null;
-    _characteristic = null;
-    onStatusChange('error');
-    throw err;
+    _char = null;
+    // NotFoundError = user cancelled the picker — don't show error state
+    onStatusChange(err.name === 'NotFoundError' ? 'disconnected' : 'error');
+    throw e;
   }
 }
 
 export function disconnectPrinter() {
   _device?.gatt?.disconnect();
   _device = null;
-  _characteristic = null;
+  _char = null;
 }
 
-// ── Write chunked (BLE MTU is ~20–512 bytes; use 200-byte chunks to be safe) ──
-async function writeChunked(data: Uint8Array): Promise<void> {
-  if (!_characteristic) throw new Error('Printer not connected');
-  const CHUNK = 200;
+// ── Chunked write — 20-byte BLE MTU, same as billPrinter.ts ──────────────────
+async function writeData(data: Uint8Array): Promise<void> {
+  if (!_char) throw new Error('Printer not connected');
+  const CHUNK = 20;
   for (let i = 0; i < data.length; i += CHUNK) {
-    await _characteristic.writeValue(data.slice(i, i + CHUNK));
-    await new Promise<void>((res) => setTimeout(res, 30));
+    const slice = data.slice(i, i + CHUNK);
+    if (_char.properties.writeWithoutResponse) {
+      await _char.writeValueWithoutResponse(slice);
+    } else {
+      await _char.writeValue(slice);
+    }
+    await delay(10);
   }
 }
 
-// ── ESC/POS command helpers ──
-const B = (...args: number[]) => args;
-const escInit  = () => B(0x1b, 0x40);
-const escAlign = (a: 0 | 1 | 2) => B(0x1b, 0x61, a);         // 0=left 1=center 2=right
-const escBold  = (on: boolean)   => B(0x1b, 0x45, on ? 1 : 0);
-const escSize  = (w: 0|1, h: 0|1) => B(0x1d, 0x21, (w << 4) | h); // w/h: 0=normal 1=double
-const escFeed  = (n = 3)          => B(0x1b, 0x64, n);
-const escCut   = ()               => B(0x1d, 0x56, 0x41, 0x30); // partial cut + feed
+// ── ESC/POS helpers ───────────────────────────────────────────────────────────
+const enc = new TextEncoder();
+const B = (...n: number[]) => new Uint8Array(n);
 
-function textBytes(str: string): number[] {
-  const out: number[] = [];
-  for (const ch of str) {
-    const c = ch.charCodeAt(0);
-    out.push(c < 256 ? c : 63); // '?' for chars outside latin-1
-  }
+const ESC_INIT     = B(0x1b, 0x40);
+const ALIGN_LEFT   = B(0x1b, 0x61, 0);
+const ALIGN_CENTER = B(0x1b, 0x61, 1);
+const BOLD_ON      = B(0x1b, 0x45, 1);
+const BOLD_OFF     = B(0x1b, 0x45, 0);
+const SIZE_DOUBLE  = B(0x1d, 0x21, 0x11);
+const SIZE_NORMAL  = B(0x1d, 0x21, 0x00);
+const FEED         = B(0x1b, 0x64, 4);
+const CUT          = B(0x1d, 0x56, 0x41, 0x30);
+
+function txt(s: string): Uint8Array { return enc.encode(s + '\n'); }
+function div(char = '-', w = 32): Uint8Array { return enc.encode(char.repeat(w) + '\n'); }
+
+function merge(...parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((s, p) => s + p.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const p of parts) { out.set(p, off); off += p.length; }
   return out;
 }
 
-function ln(text: string): number[] {
-  return [...textBytes(text), 0x0a];
-}
-
-function divider(char = '-', width = 32): number[] {
-  return ln(char.repeat(width));
-}
-
-function centered(text: string, width = 32): number[] {
-  const pad = Math.max(0, Math.floor((width - text.length) / 2));
-  return ln(' '.repeat(pad) + text);
-}
-
-// ── Build and print an address label for an order ──
-export async function printOrderLabel(order: MerchOrder): Promise<void> {
-  if (!_characteristic) throw new Error('Printer not connected');
-
+// ── Build label bytes ─────────────────────────────────────────────────────────
+function buildLabel(order: MerchOrder): Uint8Array {
   const addr = order.deliveryAddress;
 
-  const bytes: number[] = [
-    // Initialise
-    ...escInit(),
-
-    // ── TITLE ──
-    ...escAlign(1),
-    ...escBold(true),
-    ...escSize(1, 1),
-    ...ln('GRAMAKAM 2026'),
-    ...escSize(0, 0),
-    ...escBold(false),
-    ...divider('='),
-
-    // ── TO ──
-    ...escAlign(0),
-    ...escBold(true),
-    ...ln('TO:'),
-    ...ln(order.customerName),
-    ...escBold(false),
+  const parts: Uint8Array[] = [
+    ESC_INIT,
+    ALIGN_CENTER, BOLD_ON, SIZE_DOUBLE,
+    txt('GRAMAKAM 2026'),
+    SIZE_NORMAL, BOLD_OFF,
+    div('='),
+    ALIGN_LEFT, BOLD_ON, txt('TO:'),
+    txt(order.customerName), BOLD_OFF,
   ];
 
   if (addr) {
-    bytes.push(...ln(addr.line1));
-    if (addr.line2) bytes.push(...ln(addr.line2));
-    bytes.push(...ln(`${addr.city}, ${addr.state}`));
-    bytes.push(...ln(`PIN: ${addr.pincode}`));
+    parts.push(txt(addr.line1));
+    if (addr.line2) parts.push(txt(addr.line2));
+    parts.push(txt(`${addr.city}, ${addr.state}`));
+    parts.push(txt(`PIN: ${addr.pincode}`));
   }
 
-  bytes.push(
-    ...ln(`Ph: +91 ${order.customerMobile}`),
-    ...divider('-'),
-
-    // ── ORDER ID ──
-    ...escBold(true),
-    ...ln(`Order: ${order.orderId}`),
-    ...escBold(false),
-    ...divider('-'),
-
-    // ── ITEMS (name + size + qty, no price) ──
+  parts.push(
+    txt(`Ph: +91 ${order.customerMobile}`),
+    div('-'),
+    BOLD_ON, txt(`Order: ${order.orderId}`), BOLD_OFF,
+    div('-'),
   );
 
   for (const item of order.items) {
     const name = (item.name ?? item.productId ?? 'Item').replace(/^Gramakam\s+/i, '');
-    const sizePart = item.size && item.size !== 'N/A' ? ` (${item.size})` : '';
-    bytes.push(...ln(`${name}${sizePart}  x${item.quantity}`));
+    const size = item.size && item.size !== 'N/A' ? ` (${item.size})` : '';
+    parts.push(txt(`${name}${size}  x${item.quantity}`));
   }
 
-  bytes.push(
-    ...divider('='),
-
-    // ── THANK YOU ──
-    ...escAlign(1),
-    ...escBold(true),
-    ...ln('Thank You!'),
-    ...escBold(false),
-    ...ln('www.gramakam.in'),
-    ...escFeed(4),
-    ...escCut(),
+  parts.push(
+    div('='),
+    ALIGN_CENTER, BOLD_ON, txt('Thank You!'), BOLD_OFF,
+    txt('www.gramakam.in'),
+    FEED, CUT,
   );
 
-  await writeChunked(new Uint8Array(bytes));
+  return merge(...parts);
+}
+
+export async function printOrderLabel(order: MerchOrder): Promise<void> {
+  if (!_char) throw new Error('Printer not connected');
+  await writeData(buildLabel(order));
 }
