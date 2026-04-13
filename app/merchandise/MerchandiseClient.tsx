@@ -314,18 +314,18 @@ export default function MerchandisePage() {
                           <p>Buy 4 for <span className="font-bold">₹1,000</span> <span className="text-xs text-amber-600">(save ₹200)</span></p>
                         </div>
                         <p className="text-xs text-amber-700 mb-2 font-medium">Enter coupon code to unlock this offer:</p>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col md:flex-row gap-2">
                           <input
                             type="text"
                             value={couponCode}
                             onChange={(e) => { setCouponCode(e.target.value); setCouponError(''); }}
                             onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
                             placeholder="Enter code"
-                            className="flex-1 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none uppercase bg-white"
+                            className="w-full md:flex-1 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none uppercase bg-white"
                           />
                           <button
                             onClick={handleApplyCoupon}
-                            className="px-4 py-2 bg-maroon text-white text-sm font-semibold rounded-lg hover:bg-maroon-dark transition-colors"
+                            className="w-full md:w-auto px-4 py-2 bg-maroon text-white text-sm font-semibold rounded-lg hover:bg-maroon-dark transition-colors"
                           >
                             Apply
                           </button>
