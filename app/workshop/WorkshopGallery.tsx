@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import AnimatedSection from '@/components/AnimatedSection';
+import { getWorkshopGalleryItems } from '@/lib/services';
 
 interface GalleryImage {
   src: string;
@@ -11,69 +12,45 @@ interface GalleryImage {
 }
 
 interface WorkshopGalleryProps {
-  images: GalleryImage[];
-  firestoreImages?: GalleryImage[];
+  fallbackImages: GalleryImage[];
 }
 
-export default function WorkshopGallery({ images, firestoreImages }: WorkshopGalleryProps) {
-  const displayImages = firestoreImages && firestoreImages.length > 0 ? firestoreImages : images;
-  const [groupedImages, setGroupedImages] = useState<Record<number, GalleryImage[]>>({});
+export default function WorkshopGallery({ fallbackImages }: WorkshopGalleryProps) {
+  const [current2026, setCurrent2026] = useState<GalleryImage[]>([]);
+  const [pastImages, setPastImages] = useState<GalleryImage[]>([]);
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Group images by year
-    const grouped: Record<number, GalleryImage[]> = {};
+    getWorkshopGalleryItems()
+      .then((items) => {
+        const all: GalleryImage[] = items.map((item) => ({
+          src: item.imageUrl,
+          alt: item.alt || 'Workshop image',
+          year: item.year,
+        }));
 
-    displayImages.forEach((img) => {
-      if (!grouped[img.year]) {
-        grouped[img.year] = [];
-      }
-      grouped[img.year].push(img);
-    });
+        const firestore2026 = all.filter((img) => img.year === 2026);
+        const firestorePast = all.filter((img) => img.year !== 2026);
 
-    // Check if this is the first load (not cached)
-    const isFirstLoad = !localStorage.getItem('workshop-gallery-loaded');
-
-    // Only shuffle on subsequent visits (cached loads)
-    if (!isFirstLoad) {
-      Object.keys(grouped).forEach((year) => {
-        grouped[Number(year)] = [...grouped[Number(year)]].sort(() => Math.random() - 0.5);
+        // Use Firestore 2026 if available; always use fallback for past (static photos)
+        setCurrent2026(firestore2026);
+        // For past: if Firestore has past-year items use those, else use fallback static images
+        setPastImages(firestorePast.length > 0 ? firestorePast : fallbackImages);
+      })
+      .catch(() => {
+        // On error, show fallback static images as past years
+        setPastImages(fallbackImages);
       });
-    }
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setGroupedImages(grouped);
-
-    // Mark that gallery has been loaded
-    if (isFirstLoad) {
-      localStorage.setItem('workshop-gallery-loaded', 'true');
-    }
-
-    // Re-shuffle when user returns to tab (only if not first load)
-    const handleVisibilityChange = () => {
-      if (!document.hidden && !isFirstLoad) {
-        const newGrouped: Record<number, GalleryImage[]> = {};
-
-        Object.keys(grouped).forEach((year) => {
-          newGrouped[Number(year)] = [...grouped[Number(year)]].sort(() => Math.random() - 0.5);
-        });
-
-        setGroupedImages(newGrouped);
-      }
-    };
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => window.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [displayImages]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageLoad = (src: string) => {
     setLoadedImages((prev) => new Set(prev).add(src));
   };
 
-  // Get sorted years (newest first)
-  const sortedYears = Object.keys(groupedImages)
-    .map(Number)
-    .sort((a, b) => b - a);
+  const has2026 = current2026.length > 0;
+  const hasPast = pastImages.length > 0;
+
+  if (!has2026 && !hasPast) return null;
 
   return (
     <section className="section-padding bg-charcoal text-white">
@@ -91,17 +68,17 @@ export default function WorkshopGallery({ images, firestoreImages }: WorkshopGal
           </div>
         </AnimatedSection>
 
-        {sortedYears.map((year) => (
-          <div key={year} className="mb-16 last:mb-0">
+        {/* 2026 — current year, shown first */}
+        {has2026 && (
+          <div className="mb-16">
             <AnimatedSection>
               <h3 className="text-2xl font-bold text-maroon mb-6" style={{ fontFamily: 'var(--font-heading)' }}>
-                Gramakam {year}
+                Gramakam 2026
               </h3>
             </AnimatedSection>
-
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-              {groupedImages[year].map((img, i) => (
-                <AnimatedSection key={`${img.src}-${i}`} delay={i * 0.07}>
+              {current2026.map((img, i) => (
+                <AnimatedSection key={`2026-${i}`} delay={i * 0.07}>
                   <div className="relative aspect-square rounded-2xl overflow-hidden group bg-gray-800">
                     <Image
                       src={img.src}
@@ -122,7 +99,40 @@ export default function WorkshopGallery({ images, firestoreImages }: WorkshopGal
               ))}
             </div>
           </div>
-        ))}
+        )}
+
+        {/* Past years — all grouped together */}
+        {hasPast && (
+          <div className="mb-16 last:mb-0">
+            <AnimatedSection>
+              <h3 className="text-2xl font-bold text-maroon mb-6" style={{ fontFamily: 'var(--font-heading)' }}>
+                Past Workshops
+              </h3>
+            </AnimatedSection>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              {pastImages.map((img, i) => (
+                <AnimatedSection key={`past-${i}`} delay={i * 0.07}>
+                  <div className="relative aspect-square rounded-2xl overflow-hidden group bg-gray-800">
+                    <Image
+                      src={img.src}
+                      alt={img.alt}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-110"
+                      quality={70}
+                      loading="lazy"
+                      onLoad={() => handleImageLoad(img.src)}
+                      placeholder="empty"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                    {!loadedImages.has(img.src) && (
+                      <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 animate-pulse" />
+                    )}
+                  </div>
+                </AnimatedSection>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

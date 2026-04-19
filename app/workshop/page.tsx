@@ -4,8 +4,6 @@ import { generateOGMetadata } from '@/lib/metadata';
 import AnimatedSection from '@/components/AnimatedSection';
 import WorkshopGallery from './WorkshopGallery';
 import { Users, Star, ArrowRight, Sparkles, Calendar, MapPin } from 'lucide-react';
-import { getWorkshopGalleryItems } from '@/lib/services';
-import type { WorkshopGalleryItem } from '@/types';
 
 export const metadata = generateOGMetadata({
   title: "Children's Acting Workshop | Gramakam 2026",
@@ -34,7 +32,7 @@ const fallbackGalleryImages = [
   { src: '/images/child/IMG_2902.jpg', alt: 'Acting practice', year: 2016 },
   { src: '/images/child/IMG_2907.jpg', alt: 'Workshop session', year: 2016 },
   { src: '/images/child/IMG_2913.jpg', alt: 'Theatre workshop', year: 2016 },
-  { src: '/images/child/_MG_3637.JPG', alt: 'Workshop 2018', year: 2018 },
+  { src: '/images/child/_MG_3637.JPG', alt: 'Workshop memories', year: 2016 },
 ];
 
 const highlights = [
@@ -61,26 +59,7 @@ const details = [
   { icon: MapPin, label: 'Venue', value: 'Govt. RSRVHSS Velur' },
 ];
 
-interface GalleryImage {
-  src: string;
-  alt: string;
-  year: number;
-}
-
-export default async function WorkshopPage() {
-  let workshopGalleryItems: WorkshopGalleryItem[] = [];
-  try {
-    workshopGalleryItems = await getWorkshopGalleryItems();
-  } catch {
-    // Fallback to empty array if fetch fails
-  }
-
-  const firestoreImages: GalleryImage[] = workshopGalleryItems.map((item) => ({
-    src: item.imageUrl,
-    alt: item.alt || 'Workshop image',
-    year: item.year,
-  }));
-
+export default function WorkshopPage() {
   return (
     <div className="bg-white min-h-screen">
 
@@ -222,7 +201,7 @@ export default async function WorkshopPage() {
       </section>
 
       {/* ── PAST WORKSHOP GALLERY ───────────────────────────────────────────── */}
-      <WorkshopGallery images={fallbackGalleryImages} firestoreImages={firestoreImages.length > 0 ? firestoreImages : undefined} />
+      <WorkshopGallery fallbackImages={fallbackGalleryImages} />
 
       {/* ── CTA BANNER ──────────────────────────────────────────────────────── */}
       <section className="section-padding bg-maroon text-white text-center">
