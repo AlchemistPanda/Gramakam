@@ -42,7 +42,7 @@ export default function HomePage() {
       <section className="relative min-h-screen flex items-center justify-center text-white overflow-hidden">
         {/* Background Image */}
         <Image
-          src="/images/festival/gramakam-31.jpg"
+          src="/images/festival/gramakam-01.jpg"
           alt="Gramakam Festival"
           fill
           className="object-cover"
