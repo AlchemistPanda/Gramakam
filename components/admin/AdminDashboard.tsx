@@ -1254,49 +1254,46 @@ function ContactsPanel() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <h2 className="heading-lg text-charcoal mb-6">Contact Submissions</h2>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
-        ) : contacts.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            <Mail size={36} className="mx-auto mb-2 text-gray-300" />
-            <p>No contact submissions yet.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Message</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contacts.map((c) => (
-                  <tr key={c.id} className={`border-b border-gray-50 ${!c.read ? 'bg-blue-50/50' : ''}`}>
-                    <td className="px-4 py-3 font-medium">{c.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.email}</td>
-                    <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{c.message}</td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(c.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        {!c.read && (
-                          <button onClick={() => handleMarkRead(c.id)} className="p-1 text-blue-500 hover:text-blue-700" title="Mark read"><Eye size={14} /></button>
-                        )}
-                        <button onClick={() => handleDelete(c.id)} className="p-1 text-gray-400 hover:text-red-500" title="Delete"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="heading-lg text-charcoal">Contact Submissions</h2>
+        <span className="text-xs text-gray-400">{contacts.filter((c) => !c.read).length} unread</span>
       </div>
+      {loading ? (
+        <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
+      ) : contacts.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center text-gray-500">
+          <Mail size={36} className="mx-auto mb-2 text-gray-300" />
+          <p>No contact submissions yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {contacts.map((c) => (
+            <div key={c.id} className={`bg-white rounded-xl shadow-sm border p-5 ${!c.read ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'}`}>
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-charcoal">{c.name}</span>
+                    {!c.read && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">New</span>}
+                  </div>
+                  <a href={`mailto:${c.email}`} className="text-sm text-maroon hover:underline break-all">{c.email}</a>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-gray-400">{formatDate(c.createdAt)}</span>
+                  {!c.read && (
+                    <button onClick={() => handleMarkRead(c.id)} className="p-1.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Mark as read">
+                      <Eye size={15} />
+                    </button>
+                  )}
+                  <button onClick={() => handleDelete(c.id)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded" title="Delete">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{c.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }
