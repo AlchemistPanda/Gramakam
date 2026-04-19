@@ -725,6 +725,7 @@ function WorkshopGalleryPanel() {
   const [showPicker, setShowPicker] = useState(false);
   const [selectedGallery, setSelectedGallery] = useState<Set<string>>(new Set());
   const [pickerYear, setPickerYear] = useState(globalWsYear);
+  const [pickerAdding, setPickerAdding] = useState(false);
 
   const syncQueue = (next: UploadQueueEntry[]) => { globalWsQueue = next; setQueue([...next]); };
   const patchEntry = (id: string, patch: Partial<UploadQueueEntry>) => {
@@ -832,23 +833,30 @@ function WorkshopGalleryPanel() {
   };
 
   const handlePickFromGallery = async () => {
-    if (selectedGallery.size === 0) return;
-    for (const galleryId of selectedGallery) {
-      const galleryItem = galleryItems.find((g) => g.id === galleryId);
-      if (galleryItem) {
-        await addWorkshopGalleryItem({
-          imageUrl: galleryItem.imageUrl,
-          year: pickerYear,
-          alt: galleryItem.title,
-          fileSize: galleryItem.fileSize,
-          originalSize: galleryItem.originalSize,
-          fileHash: galleryItem.fileHash,
-        });
+    if (selectedGallery.size === 0 || pickerAdding) return;
+    setPickerAdding(true);
+    try {
+      for (const galleryId of selectedGallery) {
+        const galleryItem = galleryItems.find((g) => g.id === galleryId);
+        if (galleryItem) {
+          await addWorkshopGalleryItem({
+            imageUrl: galleryItem.imageUrl,
+            year: pickerYear,
+            alt: galleryItem.title,
+            fileSize: galleryItem.fileSize,
+            originalSize: galleryItem.originalSize,
+            fileHash: galleryItem.fileHash,
+          });
+        }
       }
+      setSelectedGallery(new Set());
+      setShowPicker(false);
+      await loadItems();
+    } catch {
+      alert('Failed to add photos. Please try again.');
+    } finally {
+      setPickerAdding(false);
     }
-    setSelectedGallery(new Set());
-    setShowPicker(false);
-    await loadItems();
   };
 
   const handleDelete = async (id: string) => {
@@ -894,19 +902,19 @@ function WorkshopGalleryPanel() {
       {/* Gallery Picker Modal */}
       {showPicker && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowPicker(false); }}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-96 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h3 className="font-semibold text-charcoal">Pick from Gallery</h3>
               <button onClick={() => setShowPicker(false)}><X size={18} className="text-gray-400 hover:text-charcoal" /></button>
             </div>
-            <div className="mb-4">
-              <label className="block text-xs text-gray-500 mb-1">Year</label>
+            <div className="mb-4 shrink-0">
+              <label className="block text-xs text-gray-500 mb-1">Assign to year</label>
               <input type="number" value={pickerYear} onChange={(e) => setPickerYear(parseInt(e.target.value) || new Date().getFullYear())} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" />
             </div>
             {galleryLoading ? (
-              <div className="text-center py-8"><Loader2 size={24} className="animate-spin mx-auto text-maroon" /></div>
+              <div className="flex-1 flex items-center justify-center"><Loader2 size={24} className="animate-spin text-maroon" /></div>
             ) : (
-              <div className="flex-1 overflow-y-auto border border-gray-100 rounded-lg p-4">
+              <div className="flex-1 overflow-y-auto border border-gray-100 rounded-lg p-4 min-h-0">
                 <div className="grid grid-cols-3 gap-3">
                   {galleryItems.map((item) => (
                     <div key={item.id} className="relative">
@@ -925,11 +933,11 @@ function WorkshopGalleryPanel() {
                 </div>
               </div>
             )}
-            <div className="flex gap-3 mt-4">
-              <button onClick={handlePickFromGallery} disabled={selectedGallery.size === 0} className="btn-primary text-sm disabled:opacity-50">
-                Add {selectedGallery.size > 0 ? selectedGallery.size : ''} selected
+            <div className="flex gap-3 mt-4 shrink-0">
+              <button onClick={handlePickFromGallery} disabled={selectedGallery.size === 0 || pickerAdding} className="btn-primary text-sm disabled:opacity-50 flex items-center gap-2">
+                {pickerAdding ? <><Loader2 size={14} className="animate-spin" /> Adding…</> : <>Add {selectedGallery.size > 0 ? selectedGallery.size : ''} selected</>}
               </button>
-              <button onClick={() => setShowPicker(false)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setShowPicker(false)} disabled={pickerAdding} className="btn-secondary text-sm disabled:opacity-50">Cancel</button>
             </div>
           </div>
         </div>
