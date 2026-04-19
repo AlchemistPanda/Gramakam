@@ -77,6 +77,28 @@ export interface GameScore {
   createdAt: Date | string;
 }
 
+// ==================== FESTIVAL SCHEDULE ====================
+
+export type FestivalEventType = 'ceremony' | 'play' | 'talk' | 'workshop';
+
+export interface FestivalEvent {
+  time: string;
+  type: FestivalEventType;
+  title: string;
+  titleMl?: string;
+  group?: string;
+  note?: string;
+}
+
+export interface FestivalDaySchedule {
+  dateKey: string;   // e.g. '2026-04-18'
+  day: number;
+  label: string;
+  date: string;      // display string
+  events: FestivalEvent[];
+  updatedAt?: Date | string;
+}
+
 // ==================== WORKSHOP GALLERY ====================
 
 export interface WorkshopGalleryItem {

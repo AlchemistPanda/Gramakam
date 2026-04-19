@@ -7,6 +7,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  setDoc,
   query,
   orderBy,
   where,
@@ -25,6 +26,7 @@ import { db, auth, storage } from './firebase';
 import type {
   GalleryItem,
   WorkshopGalleryItem,
+  FestivalDaySchedule,
   FeedPost,
   ContactSubmission,
   MerchPrebook,
@@ -155,6 +157,27 @@ export async function updateGalleryItem(
 export async function deleteGalleryItem(id: string): Promise<void> {
   const docRef = doc(requireDb(), 'gallery', id);
   await deleteDoc(docRef);
+}
+
+// ==================== FESTIVAL SCHEDULE ====================
+
+export async function getFestivalSchedule(): Promise<FestivalDaySchedule[]> {
+  const col = collection(requireDb(), 'festival_schedule');
+  const snapshot = await getDocs(col);
+  const docs = snapshot.docs.map((d) => ({
+    ...(d.data() as Omit<FestivalDaySchedule, 'dateKey'>),
+    dateKey: d.id,
+    updatedAt: d.data().updatedAt?.toDate?.()?.toISOString() || d.data().updatedAt,
+  })) as FestivalDaySchedule[];
+  return docs.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+}
+
+export async function updateFestivalDay(
+  dateKey: string,
+  data: Omit<FestivalDaySchedule, 'dateKey' | 'updatedAt'>
+): Promise<void> {
+  const docRef = doc(requireDb(), 'festival_schedule', dateKey);
+  await setDoc(docRef, { ...stripUndefinedDeep(data) as object, updatedAt: serverTimestamp() });
 }
 
 // ==================== WORKSHOP GALLERY ====================

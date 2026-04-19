@@ -59,6 +59,8 @@ import {
   getWorkshopGalleryHashes,
   addWorkshopGalleryItem,
   deleteWorkshopGalleryItem,
+  getFestivalSchedule,
+  updateFestivalDay,
   getFeedPosts,
   addFeedPost,
   updateFeedPost,
@@ -92,6 +94,9 @@ import { PRODUCTS } from '@/lib/products';
 import type {
   GalleryItem,
   WorkshopGalleryItem,
+  FestivalDaySchedule,
+  FestivalEvent,
+  FestivalEventType,
   FeedPost,
   ContactSubmission,
   MerchPrebook,
@@ -104,7 +109,7 @@ import type {
 import { formatDate } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageCompressor';
 
-type AdminTab = 'overview' | 'gallery' | 'workshop' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media' | 'awards';
+type AdminTab = 'overview' | 'gallery' | 'workshop' | 'schedule' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media' | 'awards';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -118,6 +123,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'gallery', label: 'Gallery', icon: ImageIcon },
     { id: 'workshop', label: 'Workshop Gallery', icon: Camera },
+    { id: 'schedule', label: 'Festival Schedule', icon: Clock },
     { id: 'feed', label: 'Feed Posts', icon: Newspaper },
     { id: 'media', label: 'Media & News', icon: Filter },
     { id: 'awards', label: 'Awards', icon: Trophy },
@@ -196,6 +202,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {activeTab === 'overview' && <OverviewPanel />}
           {activeTab === 'gallery' && <GalleryPanel />}
           {activeTab === 'workshop' && <WorkshopGalleryPanel />}
+          {activeTab === 'schedule' && <SchedulePanel />}
           {activeTab === 'feed' && <FeedPanel />}
           {activeTab === 'media' && <MediaPanel />}
           {activeTab === 'awards' && <AwardsPanel />}
@@ -1091,6 +1098,233 @@ function WorkshopGalleryPanel() {
           </div>
         )}
       </div>
+    </motion.div>
+  );
+}
+
+// ===== SCHEDULE PANEL =====
+
+const EVENT_TYPES: FestivalEventType[] = ['play', 'ceremony', 'talk', 'workshop'];
+
+const DEFAULT_SCHEDULE: FestivalDaySchedule[] = [
+  {
+    dateKey: '2026-04-18', day: 1, label: 'Day 1 — Inauguration', date: 'Saturday, April 18',
+    events: [
+      { time: '9:00 AM', type: 'workshop', title: "Children's Theatre Workshop", note: 'Inauguration · Govt. RSRVHSS Velur · Facilitated by Nisheent Master' },
+      { time: '6:00 PM', type: 'ceremony', title: 'Inauguration Ceremony', titleMl: 'ഉദ്ഘാടനസദസ്സ്', note: 'Chief Guest: Prof. V.I. Madhusoodanan Nair (Prominent Poet)\nDistinguished guests: Smt. Mary George · Sri. Premennan · Smt. Pushpavalli Karpagasham' },
+      { time: '7:30 PM', type: 'play', title: 'Tantu Laavanam', titleMl: 'തന്തു ലാവണം', group: 'Free Live Theatre Collective (Trinare)', note: 'Script: Yusupettan · Direction: KS Prathapan' },
+    ],
+  },
+  {
+    dateKey: '2026-04-19', day: 2, label: 'Day 2', date: 'Sunday, April 19',
+    events: [
+      { time: '6:30 PM', type: 'talk', title: 'Play Introduction', note: 'Speaker: Vijeesh Anguseenam (Theatre Practitioner)' },
+      { time: '7:00 PM', type: 'play', title: 'Verumaadikulam', titleMl: 'വെറുമാടിക്കൂലം' },
+    ],
+  },
+  {
+    dateKey: '2026-04-20', day: 3, label: 'Day 3', date: 'Monday, April 20',
+    events: [
+      { time: '6:30 PM', type: 'talk', title: 'Play Introduction' },
+      { time: '7:00 PM', type: 'play', title: 'Lenaril', titleMl: 'ലേനറിൽ', group: 'Santhekal Kilakootur Aavarthikkunna Santheeranyudara' },
+    ],
+  },
+  {
+    dateKey: '2026-04-21', day: 4, label: 'Day 4', date: 'Tuesday, April 21',
+    events: [
+      { time: '6:00 PM', type: 'talk', title: 'Theatre Talk', note: 'Speaker: Dr. V.K. Anilkumar (Kerala Sahitya Academy)' },
+      { time: '6:30 PM', type: 'play', title: 'Chaav Saakyam', titleMl: 'ചാവ് സാക്ഷ്യം', note: 'Directors: Aneesh Aloor & Naveen Payan · Script: Babu Vylathoor' },
+      { time: '7:30 PM', type: 'play', title: 'KOOHOO', titleMl: 'An Anthology on Rails', group: 'Little Earth School of Theatre', note: 'Direction: Arun Lal · Presented by Prakash Raj' },
+    ],
+  },
+  {
+    dateKey: '2026-04-22', day: 5, label: 'Day 5 — Closing', date: 'Wednesday, April 22',
+    events: [
+      { time: '6:00 PM', type: 'ceremony', title: 'Closing Ceremony & Gramakam Award', titleMl: 'സമാപനസദസ്സ്', note: 'Chief Guest: Prof. K.V. Ramakrishnan\nPresided by: Pampiri Mathanur Thakarantkutty (Deputy Chairman, Kerala Sahitya Naaka Academy)' },
+      { time: '7:30 PM', type: 'play', title: "N'Lanil Bolo... Karupinothe", titleMl: 'ന്ൾനില ബോലോ... കരിഞ്ഞ', note: 'Director: Aliyar Ali' },
+    ],
+  },
+];
+
+function emptyEvent(): FestivalEvent {
+  return { time: '', type: 'play', title: '', titleMl: '', group: '', note: '' };
+}
+
+function SchedulePanel() {
+  const [days, setDays] = useState<FestivalDaySchedule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeDay, setActiveDay] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  // local editable copy of the active day
+  const [edited, setEdited] = useState<FestivalDaySchedule | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await getFestivalSchedule();
+      if (data.length === 0) {
+        // Seed Firestore with defaults on first open
+        for (const d of DEFAULT_SCHEDULE) {
+          const { dateKey, ...rest } = d;
+          await updateFestivalDay(dateKey, rest);
+        }
+        setDays(DEFAULT_SCHEDULE);
+      } else {
+        setDays(data);
+      }
+    } catch { setDays(DEFAULT_SCHEDULE); }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync edited state whenever active day changes
+  useEffect(() => {
+    if (days[activeDay]) setEdited(JSON.parse(JSON.stringify(days[activeDay])));
+  }, [activeDay, days]);
+
+  const setEvent = (i: number, patch: Partial<FestivalEvent>) => {
+    if (!edited) return;
+    const events = edited.events.map((e, idx) => idx === i ? { ...e, ...patch } : e);
+    setEdited({ ...edited, events });
+  };
+
+  const addEvent = () => {
+    if (!edited) return;
+    setEdited({ ...edited, events: [...edited.events, emptyEvent()] });
+  };
+
+  const removeEvent = (i: number) => {
+    if (!edited) return;
+    setEdited({ ...edited, events: edited.events.filter((_, idx) => idx !== i) });
+  };
+
+  const moveEvent = (i: number, dir: -1 | 1) => {
+    if (!edited) return;
+    const evs = [...edited.events];
+    const j = i + dir;
+    if (j < 0 || j >= evs.length) return;
+    [evs[i], evs[j]] = [evs[j], evs[i]];
+    setEdited({ ...edited, events: evs });
+  };
+
+  const handleSave = async () => {
+    if (!edited || saving) return;
+    setSaving(true);
+    try {
+      const { dateKey, ...rest } = edited;
+      await updateFestivalDay(dateKey, rest);
+      const updated = days.map((d) => d.dateKey === dateKey ? edited : d);
+      setDays(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch { alert('Save failed. Check Firebase.'); }
+    setSaving(false);
+  };
+
+  const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none';
+  const textareaCls = `${inputCls} resize-none`;
+
+  if (loading) return <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>;
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="heading-lg text-charcoal">Festival Schedule</h2>
+        <p className="text-xs text-gray-400">Edits appear on the /today page</p>
+      </div>
+
+      {/* Day tabs */}
+      <div className="flex gap-1 mb-6 flex-wrap border-b border-gray-200">
+        {days.map((d, i) => (
+          <button
+            key={d.dateKey}
+            onClick={() => setActiveDay(i)}
+            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${activeDay === i ? 'bg-white border border-b-white border-gray-200 text-maroon -mb-px' : 'text-gray-500 hover:text-charcoal'}`}
+          >
+            {d.day}
+          </button>
+        ))}
+      </div>
+
+      {edited && (
+        <div className="space-y-4">
+          {/* Day meta */}
+          <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Day Label</label>
+                <input value={edited.label} onChange={(e) => setEdited({ ...edited, label: e.target.value })} className={inputCls} placeholder="Day 1 — Inauguration" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Date (display)</label>
+                <input value={edited.date} onChange={(e) => setEdited({ ...edited, date: e.target.value })} className={inputCls} placeholder="Saturday, April 18" />
+              </div>
+            </div>
+          </div>
+
+          {/* Events */}
+          {edited.events.map((event, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Event {i + 1}</span>
+                <div className="flex gap-1">
+                  <button onClick={() => moveEvent(i, -1)} disabled={i === 0} className="p-1 text-gray-400 hover:text-charcoal disabled:opacity-30"><ChevronUp size={14} /></button>
+                  <button onClick={() => moveEvent(i, 1)} disabled={i === edited.events.length - 1} className="p-1 text-gray-400 hover:text-charcoal disabled:opacity-30"><ChevronDown size={14} /></button>
+                  <button onClick={() => removeEvent(i)} className="p-1 text-gray-300 hover:text-red-500 ml-1"><X size={14} /></button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Time</label>
+                  <input value={event.time} onChange={(e) => setEvent(i, { time: e.target.value })} className={inputCls} placeholder="7:30 PM" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Type</label>
+                  <select value={event.type} onChange={(e) => setEvent(i, { type: e.target.value as FestivalEventType })} className={inputCls}>
+                    {EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">Title (English)</label>
+                  <input value={event.title} onChange={(e) => setEvent(i, { title: e.target.value })} className={inputCls} placeholder="Play / event name" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Title (Malayalam / subtitle)</label>
+                  <input value={event.titleMl ?? ''} onChange={(e) => setEvent(i, { titleMl: e.target.value })} className={inputCls} placeholder="Malayalam title or sub-label" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Group / Troupe</label>
+                  <input value={event.group ?? ''} onChange={(e) => setEvent(i, { group: e.target.value })} className={inputCls} placeholder="Theatre group name" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Notes (one per line)</label>
+                <textarea value={event.note ?? ''} onChange={(e) => setEvent(i, { note: e.target.value })} rows={3} className={textareaCls} placeholder="Director, script writer, distinguished guests…" />
+              </div>
+            </div>
+          ))}
+
+          {/* Add event */}
+          <button onClick={addEvent} className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-maroon/40 hover:text-maroon transition-colors flex items-center justify-center gap-2">
+            <Plus size={16} /> Add Event
+          </button>
+
+          {/* Save */}
+          <div className="flex items-center gap-3 pt-2">
+            <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-50">
+              <Save size={15} /> {saving ? 'Saving…' : 'Save Day'}
+            </button>
+            {saved && <span className="text-green-600 text-sm flex items-center gap-1"><CheckCircle size={14} /> Saved</span>}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

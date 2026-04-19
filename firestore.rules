@@ -21,6 +21,7 @@ service cloud.firestore {
     match /awards/{document=**} { allow read, write: if true; }
     match /media_items/{document=**} { allow read, write: if true; }
     match /workshop_gallery/{document=**} { allow read, write: if true; }
+    match /festival_schedule/{document=**} { allow read, write: if true; }
     match /config/{document=**} { allow read: if true; allow write: if true; }
   }
 }
