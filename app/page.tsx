@@ -4,7 +4,7 @@ import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
 import GameLeaderboard from '@/components/GameLeaderboard';
 import InstagramFeed from '@/components/InstagramFeed';
-import { Camera, Newspaper, ShoppingBag, ArrowRight, MapPin, Trophy, BookOpen, Mic2, Image as ImageIcon, Gamepad2, BookMarked, Phone, FileText, Sparkles } from 'lucide-react';
+import { Camera, Newspaper, ShoppingBag, ArrowRight, MapPin, Trophy, BookOpen, Mic2, Image as ImageIcon, Gamepad2, BookMarked, Phone, FileText, Sparkles, CalendarDays } from 'lucide-react';
 
 // Gramakam 2026 festival images
 const carouselImages = [
@@ -21,6 +21,7 @@ const carouselImages = [
 ];
 
 const quickLinks = [
+  { href: '/today', label: 'Today', icon: CalendarDays, description: "Live schedule — what's on today" },
   { href: '/about', label: 'About', icon: BookMarked, description: 'The story behind Gramakam' },
   { href: '/gallery', label: 'Gallery', icon: Camera, description: 'Festival moments over the years' },
   { href: '/feed', label: 'Latest Feed', icon: Newspaper, description: 'News, updates & announcements' },
