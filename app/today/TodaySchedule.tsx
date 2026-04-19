@@ -63,8 +63,8 @@ function getISTDateString(): string {
 }
 
 function addDays(dateStr: string, n: number): string {
-  const d = new Date(`${dateStr}T00:00:00+05:30`);
-  d.setDate(d.getDate() + n);
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day + n));
   return d.toISOString().slice(0, 10);
 }
 
