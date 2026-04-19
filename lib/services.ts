@@ -24,6 +24,7 @@ import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, auth, storage } from './firebase';
 import type {
   GalleryItem,
+  WorkshopGalleryItem,
   FeedPost,
   ContactSubmission,
   MerchPrebook,
@@ -153,6 +154,43 @@ export async function updateGalleryItem(
 
 export async function deleteGalleryItem(id: string): Promise<void> {
   const docRef = doc(requireDb(), 'gallery', id);
+  await deleteDoc(docRef);
+}
+
+// ==================== WORKSHOP GALLERY ====================
+
+export async function getWorkshopGalleryItems(): Promise<WorkshopGalleryItem[]> {
+  const workshopRef = collection(requireDb(), 'workshop_gallery');
+  const q = query(workshopRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt,
+  })) as WorkshopGalleryItem[];
+}
+
+/** Returns the set of all fileHash values already in workshop gallery — for duplicate detection. */
+export async function getWorkshopGalleryHashes(): Promise<Set<string>> {
+  const items = await getWorkshopGalleryItems();
+  const hashes = new Set<string>();
+  items.forEach((i) => { if (i.fileHash) hashes.add(i.fileHash); });
+  return hashes;
+}
+
+export async function addWorkshopGalleryItem(
+  item: Omit<WorkshopGalleryItem, 'id' | 'createdAt'>
+): Promise<string> {
+  const workshopRef = collection(requireDb(), 'workshop_gallery');
+  const docRef = await addDoc(workshopRef, {
+    ...(stripUndefinedDeep(item) as any),
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function deleteWorkshopGalleryItem(id: string): Promise<void> {
+  const docRef = doc(requireDb(), 'workshop_gallery', id);
   await deleteDoc(docRef);
 }
 

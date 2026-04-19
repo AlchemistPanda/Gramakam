@@ -39,6 +39,7 @@ import {
   Bluetooth,
   BluetoothConnected,
   BluetoothOff,
+  Camera,
 } from 'lucide-react';
 import {
   connectPrinter,
@@ -54,6 +55,10 @@ import {
   addGalleryItem,
   updateGalleryItem,
   deleteGalleryItem,
+  getWorkshopGalleryItems,
+  getWorkshopGalleryHashes,
+  addWorkshopGalleryItem,
+  deleteWorkshopGalleryItem,
   getFeedPosts,
   addFeedPost,
   updateFeedPost,
@@ -86,6 +91,7 @@ import {
 import { PRODUCTS } from '@/lib/products';
 import type {
   GalleryItem,
+  WorkshopGalleryItem,
   FeedPost,
   ContactSubmission,
   MerchPrebook,
@@ -98,7 +104,7 @@ import type {
 import { formatDate } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageCompressor';
 
-type AdminTab = 'overview' | 'gallery' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media' | 'awards';
+type AdminTab = 'overview' | 'gallery' | 'workshop' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media' | 'awards';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -111,6 +117,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const tabs: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'gallery', label: 'Gallery', icon: ImageIcon },
+    { id: 'workshop', label: 'Workshop Gallery', icon: Camera },
     { id: 'feed', label: 'Feed Posts', icon: Newspaper },
     { id: 'media', label: 'Media & News', icon: Filter },
     { id: 'awards', label: 'Awards', icon: Trophy },
@@ -188,6 +195,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         <main className="flex-1 p-4 md:p-8 lg:p-10 min-h-screen">
           {activeTab === 'overview' && <OverviewPanel />}
           {activeTab === 'gallery' && <GalleryPanel />}
+          {activeTab === 'workshop' && <WorkshopGalleryPanel />}
           {activeTab === 'feed' && <FeedPanel />}
           {activeTab === 'media' && <MediaPanel />}
           {activeTab === 'awards' && <AwardsPanel />}
@@ -685,6 +693,390 @@ function GalleryPanel() {
                       <Trash2 size={11} /> Del
                     </button>
                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ===== WORKSHOP GALLERY PANEL =====
+
+let globalWsQueue: UploadQueueEntry[] = [];
+let globalWsRunning = false;
+let globalWsAbort = false;
+let globalWsYear = new Date().getFullYear();
+
+function WorkshopGalleryPanel() {
+  const [items, setItems] = useState<WorkshopGalleryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<'upload' | 'pick'>('upload');
+  const [showUpload, setShowUpload] = useState(false);
+  const [wsYear, setWsYear] = useState(globalWsYear);
+  const [queue, setQueue] = useState<UploadQueueEntry[]>(globalWsQueue);
+  const [running, setRunning] = useState(globalWsRunning);
+
+  // Gallery picker state
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [selectedGallery, setSelectedGallery] = useState<Set<string>>(new Set());
+  const [pickerYear, setPickerYear] = useState(globalWsYear);
+
+  const syncQueue = (next: UploadQueueEntry[]) => { globalWsQueue = next; setQueue([...next]); };
+  const patchEntry = (id: string, patch: Partial<UploadQueueEntry>) => {
+    globalWsQueue = globalWsQueue.map((e) => e.id === id ? { ...e, ...patch } : e);
+    setQueue([...globalWsQueue]);
+  };
+
+  const loadItems = async () => {
+    try { setItems(await getWorkshopGalleryItems()); } catch {}
+    setLoading(false);
+  };
+
+  const loadGalleryItems = async () => {
+    if (galleryItems.length > 0) return;
+    setGalleryLoading(true);
+    try { setGalleryItems(await getGalleryItems()); } catch {}
+    setGalleryLoading(false);
+  };
+
+  useEffect(() => { loadItems(); }, []);
+  useEffect(() => { setRunning(globalWsRunning); }, []);
+
+  const handleFilePick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const newEntries: UploadQueueEntry[] = files.map((f) => ({
+      id: `${Date.now()}_${Math.random()}`,
+      file: f,
+      name: f.name.replace(/\.[^.]+$/, ''),
+      status: 'pending' as UploadStatus,
+      note: formatFileSize(f.size),
+      originalSize: f.size,
+    }));
+    syncQueue([...globalWsQueue, ...newEntries]);
+    e.target.value = '';
+  };
+
+  const handleBulkUpload = async () => {
+    if (!globalWsQueue.length || globalWsRunning) return;
+    globalWsRunning = true;
+    globalWsAbort = false;
+    globalWsYear = wsYear;
+    setRunning(true);
+
+    let existingHashes: Set<string> = new Set();
+    try { existingHashes = await getWorkshopGalleryHashes(); } catch {}
+
+    for (const entry of globalWsQueue) {
+      if (globalWsAbort) {
+        if (entry.status === 'pending') patchEntry(entry.id, { status: 'cancelled', note: 'Cancelled' });
+        continue;
+      }
+      if (entry.status === 'done' || entry.status === 'duplicate' || entry.status === 'cancelled') continue;
+
+      try {
+        patchEntry(entry.id, { status: 'hashing', note: 'Checking duplicate…' });
+        const hash = await hashFile(entry.file);
+        if (existingHashes.has(hash)) {
+          patchEntry(entry.id, { status: 'duplicate', note: 'Duplicate — skipped', hash });
+          continue;
+        }
+
+        patchEntry(entry.id, { status: 'compressing', note: 'Compressing…', hash });
+        const compressed = await compressImage(entry.file);
+
+        patchEntry(entry.id, { status: 'uploading', note: `Uploading ${formatFileSize(compressed.size)}…`, compressedSize: compressed.size });
+        const path = `workshop_gallery/${wsYear}/${Date.now()}_${compressed.name}`;
+        const imageUrl = await uploadImage(compressed, path);
+        await addWorkshopGalleryItem({
+          imageUrl, year: wsYear,
+          fileSize: compressed.size,
+          originalSize: entry.originalSize,
+          fileHash: hash,
+        });
+
+        existingHashes.add(hash);
+        patchEntry(entry.id, { status: 'done', note: `Done · ${formatFileSize(compressed.size)}`, compressedSize: compressed.size });
+      } catch {
+        patchEntry(entry.id, { status: 'error', note: 'Failed' });
+      }
+    }
+
+    globalWsRunning = false;
+    setRunning(false);
+    await loadItems();
+  };
+
+  const handleCancel = () => {
+    globalWsAbort = true;
+    globalWsQueue = globalWsQueue.map((e) =>
+      e.status === 'pending' ? { ...e, status: 'cancelled' as UploadStatus, note: 'Cancelled' } : e
+    );
+    setQueue([...globalWsQueue]);
+  };
+
+  const handleClearQueue = () => {
+    if (globalWsRunning) return;
+    globalWsQueue = [];
+    setQueue([]);
+  };
+
+  const removeEntry = (id: string) => {
+    if (globalWsRunning) return;
+    syncQueue(globalWsQueue.filter((e) => e.id !== id));
+  };
+
+  const handlePickFromGallery = async () => {
+    if (selectedGallery.size === 0) return;
+    for (const galleryId of selectedGallery) {
+      const galleryItem = galleryItems.find((g) => g.id === galleryId);
+      if (galleryItem) {
+        await addWorkshopGalleryItem({
+          imageUrl: galleryItem.imageUrl,
+          year: pickerYear,
+          alt: galleryItem.title,
+          fileSize: galleryItem.fileSize,
+          originalSize: galleryItem.originalSize,
+          fileHash: galleryItem.fileHash,
+        });
+      }
+    }
+    setSelectedGallery(new Set());
+    setShowPicker(false);
+    await loadItems();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this workshop image?')) return;
+    try { await deleteWorkshopGalleryItem(id); await loadItems(); } catch { alert('Delete failed.'); }
+  };
+
+  const done = queue.filter((e) => e.status === 'done').length;
+  const duplicates = queue.filter((e) => e.status === 'duplicate').length;
+  const errors = queue.filter((e) => e.status === 'error').length;
+  const pending = queue.filter((e) => e.status === 'pending').length;
+  const allSettled = queue.length > 0 && queue.every((e) => ['done', 'error', 'duplicate', 'cancelled'].includes(e.status));
+  const progressPct = queue.length ? Math.round(((done + duplicates + errors) / queue.length) * 100) : 0;
+
+  const totalSize = items.reduce((sum, i) => sum + (i.fileSize ?? 0), 0);
+  const yearGroups = items.reduce((acc, item) => {
+    if (!acc[item.year]) acc[item.year] = [];
+    acc[item.year].push(item);
+    return acc;
+  }, {} as Record<number, WorkshopGalleryItem[]>);
+  const sortedYears = Object.keys(yearGroups).map(Number).sort((a, b) => b - a);
+
+  const statusIcon = (s: UploadStatus) => {
+    if (s === 'done') return <CheckCircle size={14} className="text-green-500 shrink-0" />;
+    if (s === 'duplicate') return <Copy size={14} className="text-amber-500 shrink-0" />;
+    if (s === 'error') return <X size={14} className="text-red-500 shrink-0" />;
+    if (s === 'cancelled') return <X size={14} className="text-gray-400 shrink-0" />;
+    if (s === 'hashing' || s === 'compressing' || s === 'uploading') return <Loader2 size={14} className="text-maroon animate-spin shrink-0" />;
+    return <div className="w-3.5 h-3.5 rounded-full bg-gray-300 shrink-0" />;
+  };
+
+  const statusBg = (s: UploadStatus) => {
+    if (s === 'done') return 'bg-green-50';
+    if (s === 'duplicate') return 'bg-amber-50';
+    if (s === 'error') return 'bg-red-50';
+    if (s === 'cancelled') return 'bg-gray-50';
+    if (s === 'hashing' || s === 'compressing' || s === 'uploading') return 'bg-blue-50';
+    return '';
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      {/* Gallery Picker Modal */}
+      {showPicker && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowPicker(false); }}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-96 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-charcoal">Pick from Gallery</h3>
+              <button onClick={() => setShowPicker(false)}><X size={18} className="text-gray-400 hover:text-charcoal" /></button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-xs text-gray-500 mb-1">Year</label>
+              <input type="number" value={pickerYear} onChange={(e) => setPickerYear(parseInt(e.target.value) || new Date().getFullYear())} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none" />
+            </div>
+            {galleryLoading ? (
+              <div className="text-center py-8"><Loader2 size={24} className="animate-spin mx-auto text-maroon" /></div>
+            ) : (
+              <div className="flex-1 overflow-y-auto border border-gray-100 rounded-lg p-4">
+                <div className="grid grid-cols-3 gap-3">
+                  {galleryItems.map((item) => (
+                    <div key={item.id} className="relative">
+                      <label className="cursor-pointer block relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={item.imageUrl} alt={item.title} className="w-full h-24 object-cover rounded-lg border-2" style={{ borderColor: selectedGallery.has(item.id) ? '#8B3A3A' : '#e5e7eb' }} />
+                        <input type="checkbox" checked={selectedGallery.has(item.id)} onChange={(e) => {
+                          const newSelected = new Set(selectedGallery);
+                          if (e.target.checked) newSelected.add(item.id);
+                          else newSelected.delete(item.id);
+                          setSelectedGallery(newSelected);
+                        }} className="absolute top-1 left-1 w-4 h-4" />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex gap-3 mt-4">
+              <button onClick={handlePickFromGallery} disabled={selectedGallery.size === 0} className="btn-primary text-sm disabled:opacity-50">
+                Add {selectedGallery.size > 0 ? selectedGallery.size : ''} selected
+              </button>
+              <button onClick={() => setShowPicker(false)} className="btn-secondary text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div>
+          <h2 className="heading-lg text-charcoal">Workshop Gallery Management</h2>
+          <p className="text-xs text-gray-400 mt-1">{items.length} images · Total size: <span className="font-medium text-gray-600">{formatFileSize(totalSize)}</span></p>
+        </div>
+        <button onClick={() => { setShowUpload(!showUpload); if (!showUpload) loadGalleryItems(); }} className="btn-primary text-sm flex items-center gap-2">
+          <Upload size={16} /> {running ? 'View Queue' : 'Add Photos'}
+        </button>
+      </div>
+
+      {/* Upload panel */}
+      {showUpload && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-4 border-b border-gray-200">
+              <button
+                onClick={() => setMode('upload')}
+                className={`pb-3 px-1 font-medium text-sm transition-colors ${mode === 'upload' ? 'text-maroon border-b-2 border-maroon' : 'text-gray-500 hover:text-charcoal'}`}
+              >
+                Upload New
+              </button>
+              <button
+                onClick={() => { setMode('pick'); loadGalleryItems(); }}
+                className={`pb-3 px-1 font-medium text-sm transition-colors ${mode === 'pick' ? 'text-maroon border-b-2 border-maroon' : 'text-gray-500 hover:text-charcoal'}`}
+              >
+                Pick from Gallery
+              </button>
+            </div>
+            {running && (
+              <span className="flex items-center gap-1.5 text-xs text-maroon font-medium">
+                <Loader2 size={12} className="animate-spin" /> Uploading…
+              </span>
+            )}
+          </div>
+
+          {mode === 'upload' ? (
+            <>
+              <div className="flex items-end gap-4 flex-wrap">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Year</label>
+                  <input type="number" value={wsYear} onChange={(e) => { const y = parseInt(e.target.value) || new Date().getFullYear(); setWsYear(y); globalWsYear = y; }} disabled={running} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon outline-none disabled:opacity-50" />
+                </div>
+                <div className="flex-1 min-w-48">
+                  <label className="block text-xs text-gray-500 mb-1">Add images {queue.length > 0 && <span className="text-maroon">(adds to queue)</span>}</label>
+                  <input type="file" accept="image/*" multiple onChange={handleFilePick} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-maroon/10 file:text-maroon file:text-sm file:font-medium hover:file:bg-maroon/20 cursor-pointer" />
+                </div>
+              </div>
+
+              {queue.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span>{done} done · {duplicates} duplicate{duplicates !== 1 ? 's' : ''} · {errors} failed · {pending} pending</span>
+                    <span>{progressPct}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-maroon rounded-full transition-all duration-300" style={{ width: `${progressPct}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {queue.length > 0 && (
+                <div className="border border-gray-100 rounded-lg overflow-hidden max-h-64 overflow-y-auto divide-y divide-gray-50">
+                  {queue.map((entry) => (
+                    <div key={entry.id} className={`flex items-center gap-3 px-4 py-2.5 ${statusBg(entry.status)}`}>
+                      {statusIcon(entry.status)}
+                      <span className="flex-1 text-sm text-charcoal truncate">{entry.name}</span>
+                      <span className="text-xs text-gray-400 shrink-0 hidden sm:block">{formatFileSize(entry.originalSize)}{entry.compressedSize && entry.compressedSize !== entry.originalSize && <span className="text-green-600 ml-1">→ {formatFileSize(entry.compressedSize)}</span>}</span>
+                      <span className="text-xs text-gray-400 shrink-0">{entry.note}</span>
+                      {!running && entry.status !== 'done' && <button onClick={() => removeEntry(entry.id)} className="shrink-0 text-gray-300 hover:text-red-400 transition-colors ml-1"><X size={12} /></button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-3 flex-wrap">
+                {!allSettled ? (
+                  <button onClick={handleBulkUpload} disabled={!queue.filter((e) => e.status === 'pending').length || running} className="btn-primary text-sm disabled:opacity-50 flex items-center gap-2">
+                    {running ? <><Loader2 size={14} className="animate-spin" /> Uploading…</> : <><Upload size={14} /> Upload {pending} image{pending !== 1 ? 's' : ''}</>}
+                  </button>
+                ) : (
+                  <button onClick={() => { setShowUpload(false); handleClearQueue(); }} className="btn-primary text-sm flex items-center gap-2">
+                    <CheckCircle size={14} /> Done
+                  </button>
+                )}
+                {running ? (
+                  <button onClick={handleCancel} className="btn-secondary text-sm text-red-500 border-red-200 hover:border-red-400 flex items-center gap-2">
+                    <X size={14} /> Cancel
+                  </button>
+                ) : (
+                  <>
+                    {queue.length > 0 && !allSettled && (
+                      <button onClick={handleClearQueue} className="btn-secondary text-sm flex items-center gap-2">
+                        <Trash2 size={14} /> Clear
+                      </button>
+                    )}
+                    <button onClick={() => setShowUpload(false)} className="btn-secondary text-sm">Close</button>
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setShowPicker(true)} className="btn-primary text-sm flex items-center gap-2">
+                <Search size={14} /> Browse & Select from Gallery
+              </button>
+              <p className="text-xs text-gray-500">Showing {galleryItems.length} gallery items. Click "Browse & Select" to pick photos to add to workshop gallery.</p>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Items grid */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" /></div>
+        ) : sortedYears.length === 0 ? (
+          <div className="p-6 text-center text-gray-500">
+            <Camera size={48} className="mx-auto mb-3 text-gray-300" />
+            <p className="font-medium">No workshop images yet</p>
+            <p className="text-sm mt-1">Upload new images or pick from the gallery.</p>
+          </div>
+        ) : (
+          <div className="space-y-8 p-6">
+            {sortedYears.map((year) => (
+              <div key={year}>
+                <h3 className="text-lg font-bold text-maroon mb-4 pb-2 border-b border-maroon/20">
+                  Workshop {year}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {yearGroups[year].map((item) => (
+                    <div key={item.id} className="relative group rounded-lg overflow-hidden aspect-square bg-gray-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.imageUrl} alt={item.alt || 'Workshop image'} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-300 transition-colors">
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
+                      {item.fileSize && <div className="absolute bottom-1 right-1 bg-black/50 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">{formatFileSize(item.fileSize)}</div>}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}

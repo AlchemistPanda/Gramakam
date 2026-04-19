@@ -77,6 +77,19 @@ export interface GameScore {
   createdAt: Date | string;
 }
 
+// ==================== WORKSHOP GALLERY ====================
+
+export interface WorkshopGalleryItem {
+  id: string;
+  imageUrl: string;
+  year: number;
+  alt?: string;
+  createdAt: Date | string;
+  fileSize?: number;       // compressed size in bytes
+  originalSize?: number;   // original file size in bytes
+  fileHash?: string;       // SHA-1 of original file for duplicate detection
+}
+
 // ==================== AWARDS ====================
 
 export interface Award {

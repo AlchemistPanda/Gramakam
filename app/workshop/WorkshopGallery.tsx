@@ -12,9 +12,11 @@ interface GalleryImage {
 
 interface WorkshopGalleryProps {
   images: GalleryImage[];
+  firestoreImages?: GalleryImage[];
 }
 
-export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
+export default function WorkshopGallery({ images, firestoreImages }: WorkshopGalleryProps) {
+  const displayImages = firestoreImages && firestoreImages.length > 0 ? firestoreImages : images;
   const [groupedImages, setGroupedImages] = useState<Record<number, GalleryImage[]>>({});
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
 
@@ -22,7 +24,7 @@ export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
     // Group images by year
     const grouped: Record<number, GalleryImage[]> = {};
 
-    images.forEach((img) => {
+    displayImages.forEach((img) => {
       if (!grouped[img.year]) {
         grouped[img.year] = [];
       }
@@ -62,7 +64,7 @@ export default function WorkshopGallery({ images }: WorkshopGalleryProps) {
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
     return () => window.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [images]);
+  }, [displayImages]);
 
   const handleImageLoad = (src: string) => {
     setLoadedImages((prev) => new Set(prev).add(src));

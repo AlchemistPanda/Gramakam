@@ -4,6 +4,8 @@ import { generateOGMetadata } from '@/lib/metadata';
 import AnimatedSection from '@/components/AnimatedSection';
 import WorkshopGallery from './WorkshopGallery';
 import { Users, Star, ArrowRight, Sparkles, Calendar, MapPin } from 'lucide-react';
+import { getWorkshopGalleryItems } from '@/lib/services';
+import type { WorkshopGalleryItem } from '@/types';
 
 export const metadata = generateOGMetadata({
   title: "Children's Acting Workshop | Gramakam 2026",
@@ -13,7 +15,7 @@ export const metadata = generateOGMetadata({
   url: '/workshop',
 });
 
-const galleryImages = [
+const fallbackGalleryImages = [
   { src: '/images/child/CHILDRENS WORKSHOP (1).JPG', alt: 'Children at workshop', year: 2016 },
   { src: '/images/child/CHILDRENS WORKSHOP (2).JPG', alt: 'Workshop participants', year: 2016 },
   { src: '/images/child/CHILDRENS WORKSHOP (5).JPG', alt: 'Acting exercises', year: 2016 },
@@ -59,7 +61,26 @@ const details = [
   { icon: MapPin, label: 'Venue', value: 'Govt. RSRVHSS Velur' },
 ];
 
-export default function WorkshopPage() {
+interface GalleryImage {
+  src: string;
+  alt: string;
+  year: number;
+}
+
+export default async function WorkshopPage() {
+  let workshopGalleryItems: WorkshopGalleryItem[] = [];
+  try {
+    workshopGalleryItems = await getWorkshopGalleryItems();
+  } catch {
+    // Fallback to empty array if fetch fails
+  }
+
+  const firestoreImages: GalleryImage[] = workshopGalleryItems.map((item) => ({
+    src: item.imageUrl,
+    alt: item.alt || 'Workshop image',
+    year: item.year,
+  }));
+
   return (
     <div className="bg-white min-h-screen">
 
@@ -201,7 +222,7 @@ export default function WorkshopPage() {
       </section>
 
       {/* ── PAST WORKSHOP GALLERY ───────────────────────────────────────────── */}
-      <WorkshopGallery images={galleryImages} />
+      <WorkshopGallery images={fallbackGalleryImages} firestoreImages={firestoreImages.length > 0 ? firestoreImages : undefined} />
 
       {/* ── CTA BANNER ──────────────────────────────────────────────────────── */}
       <section className="section-padding bg-maroon text-white text-center">
