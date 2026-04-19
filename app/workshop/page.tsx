@@ -90,13 +90,9 @@ export default function WorkshopPage() {
               A five-day immersive theatre experience for young minds — discover the magic
               of storytelling, movement, and the stage.
             </p>
-            <Link
-              href="/workshop/register"
-              className="inline-flex items-center gap-2.5 bg-maroon hover:bg-maroon-dark text-white font-semibold px-8 py-4 rounded-full text-base transition-all duration-300 hover:scale-105 hover:shadow-xl shadow-maroon/40 shadow-lg"
-            >
-              Register Now
-              <ArrowRight size={18} />
-            </Link>
+            <div className="inline-flex items-center gap-2.5 bg-gray-400 text-white font-semibold px-8 py-4 rounded-full text-base cursor-not-allowed opacity-75">
+              Registration Closed
+            </div>
           </AnimatedSection>
         </div>
       </section>
@@ -143,13 +139,9 @@ export default function WorkshopPage() {
                 stories. The workshop is fully in Malayalam and English, with activities
                 rooted in traditional Kerala performance arts as well as contemporary theatre.
               </p>
-              <Link
-                href="/workshop/register"
-                className="inline-flex items-center gap-2 bg-maroon hover:bg-maroon-dark text-white font-semibold px-7 py-3.5 rounded-full text-sm transition-all duration-300 hover:scale-105 shadow-md"
-              >
-                Secure Your Spot
-                <ArrowRight size={16} />
-              </Link>
+              <div className="inline-flex items-center gap-2 bg-gray-400 text-white font-semibold px-7 py-3.5 rounded-full text-sm cursor-not-allowed opacity-75">
+                Registration Closed
+              </div>
             </AnimatedSection>
 
             <AnimatedSection delay={0.15}>
@@ -162,8 +154,8 @@ export default function WorkshopPage() {
                   quality={80}
                 />
                 {/* Decorative corner accent */}
-                <div className="absolute top-4 left-4 bg-maroon text-white text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full">
-                  Limited Seats
+                <div className="absolute top-4 left-4 bg-gray-700 text-white text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full">
+                  Registration Closed
                 </div>
               </div>
             </AnimatedSection>
@@ -219,20 +211,12 @@ export default function WorkshopPage() {
               className="text-3xl sm:text-4xl md:text-5xl font-bold mb-5 leading-tight"
               style={{ fontFamily: 'var(--font-heading)' }}
             >
-              Ready to Step into the Spotlight?
+              Registration Closed
             </h2>
             <p className="text-white/75 text-lg mb-8 leading-relaxed">
-              Seats are limited to ensure every child gets personal attention.
-              Register early to avoid disappointment.
+              Thank you for your interest! Registration for the 2026 Children's Acting Workshop is now closed. We look forward to welcoming participants to an exciting five days of theatre and creativity.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Link
-                href="/workshop/register"
-                className="inline-flex items-center gap-2.5 bg-white text-maroon font-bold px-8 py-4 rounded-full text-base transition-all duration-300 hover:scale-105 hover:shadow-2xl shadow-lg"
-              >
-                Register Now
-                <ArrowRight size={18} />
-              </Link>
               <Link
                 href="/contact"
                 className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-full text-base transition-all duration-300 border border-white/20"
