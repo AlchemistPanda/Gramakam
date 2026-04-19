@@ -90,8 +90,8 @@ export default function WorkshopPage() {
               A five-day immersive theatre experience for young minds — discover the magic
               of storytelling, movement, and the stage.
             </p>
-            <div className="inline-flex items-center gap-2.5 bg-gray-400 text-white font-semibold px-8 py-4 rounded-full text-base cursor-not-allowed opacity-75">
-              Registration Closed
+            <div className="inline-flex items-center gap-2.5 bg-gold text-charcoal font-semibold px-8 py-4 rounded-full text-base">
+              See You in 2027
             </div>
           </AnimatedSection>
         </div>
@@ -139,8 +139,8 @@ export default function WorkshopPage() {
                 stories. The workshop is fully in Malayalam and English, with activities
                 rooted in traditional Kerala performance arts as well as contemporary theatre.
               </p>
-              <div className="inline-flex items-center gap-2 bg-gray-400 text-white font-semibold px-7 py-3.5 rounded-full text-sm cursor-not-allowed opacity-75">
-                Registration Closed
+              <div className="inline-flex items-center gap-2 bg-gold text-charcoal font-semibold px-7 py-3.5 rounded-full text-sm">
+                See You in 2027
               </div>
             </AnimatedSection>
 
@@ -154,8 +154,8 @@ export default function WorkshopPage() {
                   quality={80}
                 />
                 {/* Decorative corner accent */}
-                <div className="absolute top-4 left-4 bg-gray-700 text-white text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full">
-                  Registration Closed
+                <div className="absolute top-4 left-4 bg-gold text-charcoal text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full">
+                  See You in 2027
                 </div>
               </div>
             </AnimatedSection>
@@ -211,10 +211,10 @@ export default function WorkshopPage() {
               className="text-3xl sm:text-4xl md:text-5xl font-bold mb-5 leading-tight"
               style={{ fontFamily: 'var(--font-heading)' }}
             >
-              Registration Closed
+              See You in 2027!
             </h2>
             <p className="text-white/75 text-lg mb-8 leading-relaxed">
-              Thank you for your interest! Registration for the 2026 Children's Acting Workshop is now closed. We look forward to welcoming participants to an exciting five days of theatre and creativity.
+              Thank you for your interest in the Gramakam Children's Acting Workshop! Registration for 2026 has closed. We can't wait to meet you on stage next year and explore the magic of theatre together.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <Link
