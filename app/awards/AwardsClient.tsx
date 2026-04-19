@@ -7,17 +7,7 @@ import { getAwards } from '@/lib/services';
 import type { Award } from '@/types';
 import { Award as AwardIcon, Trophy } from 'lucide-react';
 
-const fallbackAwards: Award[] = [
-  {
-    id: 'award-2019',
-    year: 2019,
-    awardeeName: 'E.T. Varghese',
-    title: 'Gramakam Award 2019',
-    description: 'Inaugural Gramakam Award recognizing outstanding contributions to theatre activities',
-    cashAward: 10001,
-    createdAt: '2019-04-15',
-  },
-];
+const fallbackAwards: Award[] = [];
 
 export default function AwardsClient() {
   const [awards, setAwards] = useState<Award[]>(fallbackAwards);
