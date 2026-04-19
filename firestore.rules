@@ -20,6 +20,7 @@ service cloud.firestore {
     match /upi_payments/{document=**} { allow read, write: if true; }
     match /awards/{document=**} { allow read, write: if true; }
     match /media_items/{document=**} { allow read, write: if true; }
+    match /workshop_gallery/{document=**} { allow read, write: if true; }
     match /config/{document=**} { allow read: if true; allow write: if true; }
   }
 }
