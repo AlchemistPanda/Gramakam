@@ -1,22 +1,23 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import CountdownSection from '@/components/CountdownSection';
 import Carousel from '@/components/Carousel';
 import AnimatedSection from '@/components/AnimatedSection';
 import GameLeaderboard from '@/components/GameLeaderboard';
 import InstagramFeed from '@/components/InstagramFeed';
-import { Camera, Newspaper, ShoppingBag, Mail, ArrowRight, MapPin, Calendar, Trophy, BookOpen, Mic2, Image as ImageIcon, Gamepad2, BookMarked, Phone, FileText } from 'lucide-react';
+import { Camera, Newspaper, ShoppingBag, ArrowRight, MapPin, Trophy, BookOpen, Mic2, Image as ImageIcon, Gamepad2, BookMarked, Phone, FileText, Sparkles } from 'lucide-react';
 
-// Real festival images from past editions
+// Gramakam 2026 festival images
 const carouselImages = [
-  { src: '/images/festival/gramakam-01.jpg', alt: 'Gramakam Theatre Festival performance' },
-  { src: '/images/festival/gramakam-03.jpg', alt: 'Artists performing at Gramakam' },
-  { src: '/images/festival/gramakam-05.jpg', alt: 'Stage moments at the festival' },
-  { src: '/images/festival/gramakam-07.jpg', alt: 'Cultural celebration at Gramakam' },
-  { src: '/images/festival/gramakam-09.jpg', alt: 'Audience at the festival grounds' },
-  { src: '/images/festival/gramakam-11.jpg', alt: 'Drama performance at Gramakam' },
-  { src: '/images/festival/gramakam-13.jpg', alt: 'Community gathering at the festival' },
-  { src: '/images/festival/gramakam-15.jpg', alt: 'Theatre arts at Gramakam' },
+  { src: '/images/festival/gramakam-21.jpg', alt: 'Gramakam 2026 festival' },
+  { src: '/images/festival/gramakam-22.jpg', alt: 'Gramakam 2026 performance' },
+  { src: '/images/festival/gramakam-23.jpg', alt: 'Gramakam 2026 stage' },
+  { src: '/images/festival/gramakam-24.jpg', alt: 'Gramakam 2026 artists' },
+  { src: '/images/festival/gramakam-25.jpg', alt: 'Gramakam 2026 cultural celebration' },
+  { src: '/images/festival/gramakam-26.jpg', alt: 'Gramakam 2026 theatre' },
+  { src: '/images/festival/gramakam-27.jpg', alt: 'Gramakam 2026 audience' },
+  { src: '/images/festival/gramakam-28.jpg', alt: 'Gramakam 2026 drama' },
+  { src: '/images/festival/gramakam-29.jpg', alt: 'Gramakam 2026 community' },
+  { src: '/images/festival/gramakam-30.jpg', alt: 'Gramakam 2026 culture' },
 ];
 
 const quickLinks = [
@@ -40,7 +41,7 @@ export default function HomePage() {
       <section className="relative min-h-screen flex items-center justify-center text-white overflow-hidden">
         {/* Background Image */}
         <Image
-          src="/images/festival/gramakam-01.jpg"
+          src="/images/festival/gramakam-31.jpg"
           alt="Gramakam Festival"
           fill
           className="object-cover"
@@ -81,10 +82,11 @@ export default function HomePage() {
               A Celebration of Theatre &amp; Culture
             </p>
 
-            {/* Date & Location pill */}
+            {/* Live Now + Location pill */}
             <div className="flex flex-wrap justify-center gap-4 mb-10 text-sm text-white/70">
-              <span className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-                <Calendar size={14} /> April 18, 2026
+              <span className="flex items-center gap-2 bg-maroon/80 backdrop-blur-sm px-4 py-2 rounded-full text-white font-semibold">
+                <span className="w-2 h-2 bg-white rounded-full animate-ping inline-block" />
+                Happening Now
               </span>
               <span className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
                 <MapPin size={14} /> Velur, Thrissur, Kerala
@@ -114,32 +116,58 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ===== COUNTDOWN SECTION — with bg image ===== */}
+      {/* ===== FESTIVAL LIVE BANNER ===== */}
       <section className="relative section-padding overflow-hidden">
-        {/* Background image at low opacity */}
         <Image
-          src="/images/festival/gramakam-07.jpg"
+          src="/images/festival/gramakam-32.jpg"
           alt=""
           fill
           className="object-cover"
           quality={60}
         />
-        <div className="absolute inset-0 bg-cream/90 backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-cream/92 backdrop-blur-sm" />
 
         <div className="container-custom text-center relative z-10">
           <AnimatedSection>
-            <p className="text-maroon uppercase tracking-[0.2em] text-sm mb-2 font-semibold">Mark Your Calendar</p>
-            <h2 className="heading-lg text-charcoal mb-2">Gramakam 2026</h2>
-            <CountdownSection />
-            
+            {/* Live badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-maroon text-white text-xs font-bold uppercase tracking-widest mb-6">
+              <span className="w-2 h-2 bg-white rounded-full animate-ping inline-block" />
+              Live Now
+            </div>
+
+            <h2 className="heading-lg text-charcoal mb-4">Gramakam 2026 is Here!</h2>
+            <p className="text-gray-600 text-lg max-w-xl mx-auto mb-3 leading-relaxed">
+              The festival is on! Come experience the magic of theatre, culture, and community at Velur, Thrissur.
+            </p>
+            <p className="text-maroon font-semibold mb-10 flex items-center justify-center gap-2">
+              <MapPin size={15} /> Govt. RSRVHSS Velur, Thrissur, Kerala
+            </p>
+
+            <div className="flex flex-wrap justify-center gap-4 mb-14">
+              <Link
+                href="/gallery"
+                className="inline-flex items-center gap-2 bg-maroon hover:bg-maroon-dark text-white px-7 py-3.5 rounded-full font-semibold transition-all duration-300 hover:scale-105 shadow-lg shadow-maroon/30"
+              >
+                <Sparkles size={16} /> See the Highlights
+              </Link>
+              <Link
+                href="https://maps.app.goo.gl/BExPNVXY9mWWqWUU8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 border-2 border-maroon/30 text-maroon px-7 py-3.5 rounded-full font-semibold hover:bg-maroon/5 transition-all duration-300"
+              >
+                <MapPin size={16} /> Get Directions
+              </Link>
+            </div>
+
             {/* Profile Picture Invitation */}
-            <div className="mt-12 pt-12 border-t border-maroon/20">
+            <div className="pt-10 border-t border-maroon/20">
               <div className="max-w-md mx-auto">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-maroon/10 text-maroon text-xs font-bold uppercase tracking-widest mb-4">
                   <Camera size={14} /> Celebrate with Us
                 </div>
-                <h3 className="text-xl md:text-2xl font-bold text-charcoal mb-3">Change Your Profile Picture</h3>
-                <p className="text-gray-600 text-sm mb-6">Join the Gramakam community and update your profile with our festival frame!</p>
+                <h3 className="text-xl md:text-2xl font-bold text-charcoal mb-3">Show Your Gramakam Spirit</h3>
+                <p className="text-gray-600 text-sm mb-6">Update your profile with our festival frame and join the celebration!</p>
                 <Link
                   href="/profile-frame"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-maroon text-white rounded-lg font-semibold hover:bg-maroon/90 transition-all duration-300 hover:shadow-lg hover:shadow-maroon/20"
@@ -207,8 +235,8 @@ export default function HomePage() {
         <div className="container-custom relative z-10">
           <AnimatedSection>
             <div className="text-center mb-10">
-              <p className="text-maroon-light uppercase tracking-[0.2em] text-sm mb-2 font-semibold">Festival Memories</p>
-              <h2 className="heading-lg text-cream">Moments from Gramakam</h2>
+              <p className="text-maroon-light uppercase tracking-[0.2em] text-sm mb-2 font-semibold">Gramakam 2026</p>
+              <h2 className="heading-lg text-cream">Moments from the Festival</h2>
             </div>
             <Carousel images={carouselImages} />
           </AnimatedSection>
