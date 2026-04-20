@@ -687,11 +687,17 @@ export async function deleteImage(path: string): Promise<void> {
 
 // ==================== GAME SCORES ====================
 
-export async function submitGameScore(data: { name: string; score: number; level: number }): Promise<string> {
-  const ref = await addDoc(collection(requireDb(), 'game_scores'), {
-    ...data,
+export async function submitGameScore(data: { name: string; phone?: string; score: number; level: number }): Promise<string> {
+  const payload: Record<string, unknown> = {
+    name: data.name,
+    score: data.score,
+    level: data.level,
     createdAt: serverTimestamp(),
-  });
+  };
+  if (data.phone && data.phone.trim()) {
+    payload.phone = data.phone.trim();
+  }
+  const ref = await addDoc(collection(requireDb(), 'game_scores'), payload);
   return ref.id;
 }
 
@@ -704,4 +710,17 @@ export async function getTopGameScores(limitCount = 10): Promise<GameScore[]> {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as GameScore));
+}
+
+export async function getAllGameScores(): Promise<GameScore[]> {
+  const q = query(
+    collection(requireDb(), 'game_scores'),
+    orderBy('score', 'desc')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt,
+  })) as GameScore[];
 }

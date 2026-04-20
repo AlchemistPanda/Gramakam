@@ -40,6 +40,7 @@ import {
   BluetoothConnected,
   BluetoothOff,
   Camera,
+  Gamepad2,
 } from 'lucide-react';
 import {
   connectPrinter,
@@ -82,6 +83,7 @@ import {
   getAwards,
   addAward,
   deleteAward,
+  getAllGameScores,
   getStockDocs,
   setStockDoc,
   setStockCount,
@@ -105,11 +107,12 @@ import type {
   MediaItem,
   Award,
   DeliveryAddress,
+  GameScore,
 } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageCompressor';
 
-type AdminTab = 'overview' | 'gallery' | 'workshop' | 'schedule' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media' | 'awards';
+type AdminTab = 'overview' | 'gallery' | 'workshop' | 'schedule' | 'feed' | 'contacts' | 'countdown' | 'merch' | 'media' | 'awards' | 'game';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -130,6 +133,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { id: 'contacts', label: 'Contact Messages', icon: Mail },
     { id: 'countdown', label: 'Countdown', icon: Clock },
     { id: 'merch', label: 'Merchandise', icon: ShoppingBag },
+    { id: 'game', label: 'Game Scores', icon: Gamepad2 },
   ];
 
   return (
@@ -209,6 +213,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           {activeTab === 'contacts' && <ContactsPanel />}
           {activeTab === 'countdown' && <CountdownPanel />}
           {activeTab === 'merch' && <MerchPanel />}
+          {activeTab === 'game' && <GameScoresPanel />}
         </main>
       </div>
     </div>
@@ -1580,6 +1585,140 @@ function CountdownPanel() {
           </motion.p>
         )}
       </div>
+    </motion.div>
+  );
+}
+
+// ===== GAME SCORES PANEL =====
+function GameScoresPanel() {
+  const [scores, setScores] = useState<GameScore[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try { setScores(await getAllGameScores()); } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
+
+  const term = search.trim().toLowerCase();
+  const filtered = term
+    ? scores.filter((s) =>
+        s.name?.toLowerCase().includes(term) ||
+        (s.phone || '').toLowerCase().includes(term)
+      )
+    : scores;
+  const withPhone = scores.filter((s) => s.phone && s.phone.trim()).length;
+
+  const exportCsv = () => {
+    const header = ['Rank', 'Name', 'Phone', 'Score', 'Level', 'Date'];
+    const rows = filtered.map((s, i) => [
+      String(i + 1),
+      (s.name || '').replace(/"/g, '""'),
+      (s.phone || '').replace(/"/g, '""'),
+      String(s.score),
+      String(s.level),
+      formatDate(s.createdAt),
+    ]);
+    const csv = [header, ...rows]
+      .map((r) => r.map((c) => `"${c}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `game-scores-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h2 className="heading-lg text-charcoal">Spotlight Game Scores</h2>
+          <p className="text-gray-500 text-sm mt-1">
+            {scores.length} total • {withPhone} with phone number
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={load}
+            className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            title="Reload"
+          >
+            Refresh
+          </button>
+          <button
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            className="btn-primary flex items-center gap-2 text-sm disabled:opacity-50"
+          >
+            <Download size={14} /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <div className="relative max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or phone…"
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon focus:border-transparent outline-none"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center">
+          <div className="w-6 h-6 border-2 border-maroon border-t-transparent rounded-full animate-spin mx-auto" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-500">
+          <Gamepad2 size={36} className="mx-auto mb-2 text-gray-300" />
+          <p>{scores.length === 0 ? 'No scores submitted yet.' : 'No matches for your search.'}</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="text-left font-medium px-4 py-3 w-12">#</th>
+                  <th className="text-left font-medium px-4 py-3">Name</th>
+                  <th className="text-left font-medium px-4 py-3">Phone</th>
+                  <th className="text-right font-medium px-4 py-3">Score</th>
+                  <th className="text-right font-medium px-4 py-3">Level</th>
+                  <th className="text-left font-medium px-4 py-3">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s, i) => (
+                  <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50/50">
+                    <td className="px-4 py-3 text-gray-400">{i + 1}</td>
+                    <td className="px-4 py-3 font-medium text-charcoal">{s.name || 'Anonymous'}</td>
+                    <td className="px-4 py-3">
+                      {s.phone ? (
+                        <a href={`tel:${s.phone}`} className="text-maroon hover:underline">{s.phone}</a>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-amber-600">{s.score}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">Lv.{s.level}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(s.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

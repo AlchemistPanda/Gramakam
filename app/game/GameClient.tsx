@@ -123,6 +123,7 @@ export default function GameClient() {
   const [combo, setCombo] = useState(0);
   const [popups, setPopups] = useState<{ id: string; x: number; y: number; text: string }[]>([]);
   const [playerName, setPlayerName] = useState('');
+  const [playerPhone, setPlayerPhone] = useState('');
   const [namePending, setNamePending] = useState(false);
   const [shake, setShake] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -403,11 +404,13 @@ export default function GameClient() {
 
   const submitScore = async () => {
     const name = playerName.trim() || 'Anonymous';
+    const phone = playerPhone.trim();
     setSubmitting(true);
     try {
-      console.log('Submitting score:', { name, score: gameRef.current.score, level: gameRef.current.level });
+      console.log('Submitting score:', { name, phone, score: gameRef.current.score, level: gameRef.current.level });
       await submitGameScore({
         name,
+        phone: phone || undefined,
         score: gameRef.current.score,
         level: gameRef.current.level,
       });
@@ -715,7 +718,7 @@ export default function GameClient() {
 
           {namePending ? (
             <div className="w-full space-y-3">
-              <p className="text-white/70 text-sm">Enter your name for the global leaderboard</p>
+              <p className="text-white/70 text-sm">Enter your details for the global leaderboard</p>
               <input
                 type="text"
                 value={playerName}
@@ -727,6 +730,20 @@ export default function GameClient() {
                 disabled={submitting}
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center placeholder-white/30 outline-none focus:border-amber-400 transition-colors disabled:opacity-50"
               />
+              <input
+                type="tel"
+                inputMode="tel"
+                value={playerPhone}
+                onChange={(e) => setPlayerPhone(e.target.value.replace(/[^\d+\s-]/g, ''))}
+                onKeyDown={(e) => e.key === 'Enter' && !submitting && submitScore()}
+                placeholder="Mobile (optional — for prize contact)"
+                maxLength={15}
+                disabled={submitting}
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center placeholder-white/30 outline-none focus:border-amber-400 transition-colors disabled:opacity-50"
+              />
+              <p className="text-white/40 text-[11px] leading-relaxed">
+                🏆 Top scorers may win prizes. Leave your mobile so we can reach you.
+              </p>
               <button
                 onClick={submitScore}
                 disabled={submitting}

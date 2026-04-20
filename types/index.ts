@@ -72,6 +72,7 @@ export interface AdminUser {
 export interface GameScore {
   id: string;
   name: string;
+  phone?: string;
   score: number;
   level: number;
   createdAt: Date | string;
