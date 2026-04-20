@@ -688,39 +688,76 @@ export async function deleteImage(path: string): Promise<void> {
 // ==================== GAME SCORES ====================
 
 export async function submitGameScore(data: { name: string; phone?: string; score: number; level: number }): Promise<string> {
-  const payload: Record<string, unknown> = {
+  const database = requireDb();
+  const scoreRef = doc(collection(database, 'game_scores'));
+  await setDoc(scoreRef, {
     name: data.name,
     score: data.score,
     level: data.level,
     createdAt: serverTimestamp(),
-  };
-  if (data.phone && data.phone.trim()) {
-    payload.phone = data.phone.trim();
+  });
+  const phone = data.phone?.trim();
+  if (phone) {
+    // Written to a separate, admin-only collection so phones are not
+    // exposed via the public leaderboard.
+    try {
+      await setDoc(doc(database, 'game_score_contacts', scoreRef.id), {
+        phone,
+        name: data.name,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('Failed to save phone for score:', err);
+    }
   }
-  const ref = await addDoc(collection(requireDb(), 'game_scores'), payload);
-  return ref.id;
+  return scoreRef.id;
 }
 
 export async function getTopGameScores(limitCount = 10): Promise<GameScore[]> {
-  const { limit } = await import('firebase/firestore');
   const q = query(
     collection(requireDb(), 'game_scores'),
     orderBy('score', 'desc'),
     limit(limitCount)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as GameScore));
+  // Strip any stray `phone` field defensively — early docs may have
+  // stored it inline before the contacts collection was introduced.
+  return snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    const { phone: _ignored, ...rest } = data;
+    void _ignored;
+    return { id: d.id, ...rest } as GameScore;
+  });
 }
 
 export async function getAllGameScores(): Promise<GameScore[]> {
-  const q = query(
-    collection(requireDb(), 'game_scores'),
-    orderBy('score', 'desc')
+  const database = requireDb();
+  const scoreSnap = await getDocs(
+    query(collection(database, 'game_scores'), orderBy('score', 'desc'))
   );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-    createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt,
-  })) as GameScore[];
+  // Admin-only: fetch phones from the contacts collection and merge by id.
+  // Will fail with permission-denied for non-admin callers.
+  const contactSnap = await getDocs(collection(database, 'game_score_contacts'));
+  const phoneById = new Map<string, string>();
+  contactSnap.docs.forEach((c) => {
+    const p = (c.data() as { phone?: string }).phone;
+    if (p) phoneById.set(c.id, p);
+  });
+  return scoreSnap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    const inlinePhone = typeof data.phone === 'string' ? data.phone : undefined;
+    const createdAtRaw = data.createdAt as { toDate?: () => Date } | string | undefined;
+    const createdAt =
+      (typeof createdAtRaw === 'object' && createdAtRaw?.toDate
+        ? createdAtRaw.toDate().toISOString()
+        : createdAtRaw) || '';
+    return {
+      id: d.id,
+      name: (data.name as string) || 'Anonymous',
+      score: (data.score as number) || 0,
+      level: (data.level as number) || 1,
+      phone: phoneById.get(d.id) || inlinePhone,
+      createdAt,
+    } as GameScore;
+  });
 }
