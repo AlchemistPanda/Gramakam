@@ -20,20 +20,33 @@ function BillActionPasscode({
   newMethod,
   onConfirm,
   onClose,
+  onConfirmMarkPaid,
 }: {
   type: 'edit' | 'delete' | 'mark_paid' | 'change_payment';
   billNumber: number;
   newMethod?: 'cash' | 'upi';
   onConfirm: () => void;
   onClose: () => void;
+  onConfirmMarkPaid?: (method: 'cash' | 'upi') => void;
 }) {
   const [value, setValue] = useState('');
   const [shake, setShake]  = useState(false);
   const [error, setError]  = useState('');
+  const [markPaidMethod, setMarkPaidMethod] = useState<'cash' | 'upi' | null>(null);
+  const [methodError, setMethodError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const attempt = () => {
+    if (isMarkPaid) {
+      if (!markPaidMethod) { setMethodError(true); return; }
+      if (value !== BILL_PASSCODE) {
+        setShake(true); setError('Incorrect passcode.'); setValue(''); setTimeout(() => setShake(false), 500);
+        return;
+      }
+      onConfirmMarkPaid?.(markPaidMethod);
+      return;
+    }
     if (value === BILL_PASSCODE) {
       onConfirm();
     } else {
@@ -72,9 +85,32 @@ function BillActionPasscode({
             </p>
           )}
           {isMarkPaid && (
-            <p className="text-xs text-green-600 font-medium text-center mt-1">
-              Confirm payment has been received from the customer.
-            </p>
+            <>
+              <p className="text-xs text-green-600 font-medium text-center mt-1">
+                Confirm payment has been received from the customer.
+              </p>
+              <div className="flex gap-2 mt-3 w-full">
+                <button
+                  type="button"
+                  onClick={() => { setMarkPaidMethod('cash'); setMethodError(false); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                    markPaidMethod === 'cash' ? 'border-green-500 bg-green-50 text-green-700' : methodError ? 'border-red-300 bg-red-50 text-red-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <Banknote size={15} /> Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMarkPaidMethod('upi'); setMethodError(false); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                    markPaidMethod === 'upi' ? 'border-blue-500 bg-blue-50 text-blue-700' : methodError ? 'border-red-300 bg-red-50 text-red-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <Smartphone size={15} /> UPI
+                </button>
+              </div>
+              {methodError && <p className="text-xs text-red-500 font-medium text-center mt-1">Select payment method</p>}
+            </>
           )}
           {isChangePayment && (
             <p className="text-xs text-indigo-600 font-medium text-center mt-1">
@@ -864,13 +900,6 @@ export default function BillingPanel() {
     if (!pendingBillAction) return;
     if (pendingBillAction.type === 'delete') {
       doDeleteBill(pendingBillAction.bill);
-    } else if (pendingBillAction.type === 'mark_paid') {
-      markBillAsPaid(pendingBillAction.bill.id);
-      if (viewingBill?.id === pendingBillAction.bill.id) {
-        setViewingBill({ ...pendingBillAction.bill, status: 'paid', paidAt: new Date().toISOString() });
-      }
-      setPendingBillAction(null);
-      reload();
     } else if (pendingBillAction.type === 'change_payment' && pendingBillAction.newMethod) {
       const updated = changePaymentMethod(pendingBillAction.bill.id, pendingBillAction.newMethod);
       if (updated && viewingBill?.id === updated.id) {
@@ -1371,6 +1400,15 @@ export default function BillingPanel() {
             newMethod={pendingBillAction.newMethod}
             onConfirm={confirmBillAction}
             onClose={() => setPendingBillAction(null)}
+            onConfirmMarkPaid={(method) => {
+              const bill = pendingBillAction.bill;
+              markBillAsPaid(bill.id, method);
+              if (viewingBill?.id === bill.id) {
+                setViewingBill({ ...bill, status: 'paid', paidAt: new Date().toISOString(), paymentMethod: method, ...(method === 'upi' ? { upiStatus: 'pending' as const } : {}) });
+              }
+              setPendingBillAction(null);
+              reload();
+            }}
           />
         )}
       </AnimatePresence>

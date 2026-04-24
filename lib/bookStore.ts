@@ -588,10 +588,15 @@ export function getBills(): Bill[] {
   return cache.bills;
 }
 
-export function markBillAsPaid(billId: string): Bill | null {
+export function markBillAsPaid(billId: string, paymentMethod?: 'cash' | 'upi'): Bill | null {
   const idx = cache.bills.findIndex((b) => b.id === billId);
   if (idx === -1) return null;
-  cache.bills[idx] = { ...cache.bills[idx], status: 'paid', paidAt: new Date().toISOString() };
+  const updates: Partial<Bill> = { status: 'paid', paidAt: new Date().toISOString() };
+  if (paymentMethod) {
+    updates.paymentMethod = paymentMethod;
+    if (paymentMethod === 'upi') updates.upiStatus = 'pending';
+  }
+  cache.bills[idx] = { ...cache.bills[idx], ...updates };
   saveToLocalStorage();
   fsSetBill(cache.bills[idx]).catch(() => {});
   notifyListeners();
