@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Playfair_Display, Inter } from 'next/font/google';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import './globals.css';
@@ -91,6 +92,7 @@ export default function RootLayout({
         <Navbar />
         <main className="flex-grow pt-16 md:pt-20">{children}</main>
         <Footer />
+        <SpeedInsights />
       </body>
     </html>
   );
